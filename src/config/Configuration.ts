@@ -159,7 +159,7 @@ export function createDevelopmentConfiguration(): KnowledgeBaseConfig {
 }
 
 export function createSqlConfiguration(overrides?: Partial<KnowledgeBaseConfig>): KnowledgeBaseConfig {
-  return createDefaultConfiguration({
+  const baseConfig = createDefaultConfiguration({
     storage: {
       knowledgeStore: {
         type: 'sql',
@@ -179,9 +179,10 @@ export function createSqlConfiguration(overrides?: Partial<KnowledgeBaseConfig>)
     logging: {
       level: 'info',
       logFile: './logs/knowledgebase.log'
-    },
-    ...overrides
+    }
   });
+
+  return mergeConfig(baseConfig, overrides);
 }
 
 function mergeConfig(

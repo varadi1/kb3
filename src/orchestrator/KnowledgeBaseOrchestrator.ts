@@ -79,33 +79,39 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
 
       // Check for content changes if change detector is available
       if (this.contentChangeDetector && !options.forceReprocess) {
-        const changeResult = await this.contentChangeDetector.hasContentChanged(
-          url,
-          contentHash,
-          {
-            etag: fetchedContent.metadata?.etag,
-            lastModified: fetchedContent.metadata?.lastModified,
-            contentLength: fetchedContent.metadata?.contentLength
-          }
-        );
-
-        if (!changeResult.hasChanged && changeResult.previousHash) {
-          // Content hasn't changed, skip reprocessing
-          this.completeOperation(operationId);
-          this.processingStats.successful++;
-
-          return {
-            success: true,
+        try {
+          const changeResult = await this.contentChangeDetector.hasContentChanged(
             url,
-            metadata: {
-              skipped: true,
-              reason: 'Content unchanged',
-              contentHash,
-              previousHash: changeResult.previousHash,
-              lastChecked: changeResult.lastChecked
-            },
-            processingTime: Date.now() - startTime
-          };
+            contentHash,
+            {
+              etag: fetchedContent.metadata?.etag,
+              lastModified: fetchedContent.metadata?.lastModified,
+              contentLength: fetchedContent.metadata?.contentLength
+            }
+          );
+
+          if (!changeResult.hasChanged && changeResult.previousHash) {
+            // Content hasn't changed, skip reprocessing
+            this.completeOperation(operationId);
+            this.processingStats.successful++;
+
+            return {
+              success: true,
+              url,
+              metadata: {
+                skipped: true,
+                reason: 'Content unchanged',
+                contentHash,
+                previousHash: changeResult.previousHash,
+                lastChecked: changeResult.lastChecked
+              },
+              processingTime: Date.now() - startTime
+            };
+          }
+        } catch (error) {
+          // If change detection fails, continue processing normally
+          // This ensures the system remains available even if change detection has issues
+          console.warn('Content change detection failed, processing anyway:', error);
         }
       }
 
@@ -168,10 +174,15 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
 
       // Record content as processed if change detector is available
       if (this.contentChangeDetector) {
-        await this.contentChangeDetector.recordContentProcessed(url, contentHash, {
-          etag: fetchedContent.metadata?.etag,
-          lastModified: fetchedContent.metadata?.lastModified
-        });
+        try {
+          await this.contentChangeDetector.recordContentProcessed(url, contentHash, {
+            etag: fetchedContent.metadata?.etag,
+            lastModified: fetchedContent.metadata?.lastModified
+          });
+        } catch (error) {
+          // Non-critical error - just log and continue
+          console.warn('Failed to record content as processed:', error);
+        }
       }
 
       // Stage 4: File Storage

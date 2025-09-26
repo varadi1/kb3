@@ -123,6 +123,9 @@ describe('Factory SQL Configuration', () => {
           knowledgeStore: {
             type: 'memory'
           },
+          fileStorage: {
+            basePath: './test-data/files'
+          },
           enableDuplicateDetection: true
         }
       });
@@ -138,6 +141,9 @@ describe('Factory SQL Configuration', () => {
         storage: {
           knowledgeStore: {
             type: 'memory'
+          },
+          fileStorage: {
+            basePath: './test-data/files'
           },
           enableDuplicateDetection: false
         }
@@ -206,6 +212,9 @@ describe('Factory SQL Configuration', () => {
           knowledgeStore: {
             type: 'sql'
             // dbPath not specified
+          },
+          fileStorage: {
+            basePath: './test-data/files'
           }
         }
       });
@@ -219,6 +228,9 @@ describe('Factory SQL Configuration', () => {
           knowledgeStore: {
             type: 'sql'
             // urlDbPath not specified
+          },
+          fileStorage: {
+            basePath: './test-data/files'
           }
         }
       });
@@ -248,6 +260,9 @@ describe('Factory SQL Configuration', () => {
           knowledgeStore: {
             type: 'file',
             path: './test-knowledge'
+          },
+          fileStorage: {
+            basePath: './test-data/files'
           }
         }
       });

@@ -333,6 +333,9 @@ describe('Orchestrator Duplicate Detection', () => {
         'https://example.com/doc3.pdf'
       ];
 
+      // Reset mocks for clean test
+      jest.clearAllMocks();
+
       // Mock content change detection for each URL
       mockContentChangeDetector.hasContentChanged
         .mockResolvedValueOnce({ hasChanged: true, currentHash: 'hash1' })  // doc1 - new content
@@ -355,6 +358,23 @@ describe('Orchestrator Duplicate Detection', () => {
         firstSeen: new Date(),
         lastChecked: new Date(),
         processCount: 1
+      });
+
+      // Mock getByHash to return null (no duplicate content)
+      (urlRepository.getByHash as jest.Mock).mockResolvedValue(null);
+
+      // Mock successful processing for all
+      mockKnowledgeStore.store.mockResolvedValue('entry-123');
+      mockContentFetcher.fetch.mockResolvedValue({
+        content: Buffer.from('test content'),
+        mimeType: 'application/pdf',
+        size: 1000,
+        headers: {}
+      });
+      mockContentProcessor.process.mockResolvedValue({
+        text: 'processed text',
+        title: 'Test Document',
+        metadata: {}
       });
 
       const results = await orchestrator.processUrls(urls);
