@@ -139,7 +139,7 @@ export class HeaderBasedDetector extends BaseUrlDetector {
     const mimeTypes: [string, ContentType][] = [
       // Documents
       ['application/pdf', ContentType.PDF],
-      ['application/msword', ContentType.DOCX],
+      ['application/msword', ContentType.DOC],
       ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', ContentType.DOCX],
 
       // Spreadsheets
@@ -203,7 +203,7 @@ export class HeaderBasedDetector extends BaseUrlDetector {
     // Map file extension to ContentType
     switch (extension) {
       case 'pdf': return ContentType.PDF;
-      case 'doc':
+      case 'doc': return ContentType.DOC;
       case 'docx': return ContentType.DOCX;
       case 'xls':
       case 'xlsx': return ContentType.XLSX;
@@ -237,6 +237,7 @@ export class HeaderBasedDetector extends BaseUrlDetector {
     const typeToMime: Record<ContentType, string> = {
       [ContentType.PDF]: 'application/pdf',
       [ContentType.HTML]: 'text/html',
+      [ContentType.DOC]: 'application/msword',
       [ContentType.DOCX]: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       [ContentType.XLSX]: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       [ContentType.CSV]: 'text/csv',

@@ -30,6 +30,7 @@ export interface UrlClassification {
 export enum ContentType {
   PDF = 'pdf',
   HTML = 'html',
+  DOC = 'doc',
   DOCX = 'docx',
   XLSX = 'xlsx',
   CSV = 'csv',

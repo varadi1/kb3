@@ -45,7 +45,7 @@ export class ExtensionBasedDetector extends BaseUrlDetector {
     const extensions: [string, ExtensionInfo][] = [
       // Documents
       ['pdf', { contentType: ContentType.PDF, mimeType: 'application/pdf' }],
-      ['doc', { contentType: ContentType.DOCX, mimeType: 'application/msword' }],
+      ['doc', { contentType: ContentType.DOC, mimeType: 'application/msword' }],
       ['docx', { contentType: ContentType.DOCX, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }],
 
       // Spreadsheets

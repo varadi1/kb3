@@ -97,6 +97,7 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
         url,
         contentType: classification.type,
         metadata: {
+          ...processedContent.metadata,
           classification,
           storagePath,
           processingStages: this.getCompletedStages()
