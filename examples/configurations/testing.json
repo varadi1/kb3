@@ -1,0 +1,52 @@
+{
+  "name": "Testing Configuration",
+  "description": "Configuration specifically for automated testing",
+  "environment": "testing",
+  "storage": {
+    "knowledgeStore": {
+      "type": "memory",
+      "indexedFields": ["url", "contentType", "tags", "title"],
+      "backupEnabled": false
+    },
+    "fileStorage": {
+      "basePath": "./test-data/files",
+      "compressionEnabled": false,
+      "encryptionEnabled": false
+    }
+  },
+  "processing": {
+    "maxTextLength": 10000,
+    "defaultOptions": {
+      "extractImages": false,
+      "extractLinks": true,
+      "extractMetadata": true,
+      "preserveFormatting": false
+    },
+    "concurrency": 1,
+    "timeout": 5000
+  },
+  "network": {
+    "timeout": 5000,
+    "maxSize": 1048576,
+    "userAgent": "KnowledgeBase-Test/1.0",
+    "followRedirects": false,
+    "maxRedirects": 3
+  },
+  "detection": {
+    "enableExtensionDetection": true,
+    "enableHeaderDetection": false,
+    "enableContentDetection": false,
+    "contentSampleSize": 512
+  },
+  "logging": {
+    "level": "error",
+    "enableConsole": false,
+    "logFile": null
+  },
+  "features": {
+    "enableCache": false,
+    "enableMetrics": false,
+    "enableValidation": false,
+    "strictMode": true
+  }
+}

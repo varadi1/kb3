@@ -1,0 +1,139 @@
+{
+  "description": "Sample URLs for testing the knowledge base system",
+  "categories": {
+    "pdf_documents": {
+      "description": "PDF documents for testing PDF processing",
+      "urls": [
+        "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+        "https://arxiv.org/pdf/2001.00001.pdf",
+        "https://research.google.com/pubs/archive/44678.pdf"
+      ],
+      "expected_type": "pdf",
+      "expected_mime": "application/pdf"
+    },
+    "web_pages": {
+      "description": "HTML web pages for testing HTML processing",
+      "urls": [
+        "https://example.com",
+        "https://httpbin.org/html",
+        "https://www.wikipedia.org",
+        "https://news.ycombinator.com"
+      ],
+      "expected_type": "html",
+      "expected_mime": "text/html"
+    },
+    "text_files": {
+      "description": "Plain text files for testing text processing",
+      "urls": [
+        "https://raw.githubusercontent.com/octocat/Hello-World/master/README",
+        "https://httpbin.org/robots.txt",
+        "https://www.gutenberg.org/files/1/1-0.txt"
+      ],
+      "expected_type": "txt",
+      "expected_mime": "text/plain"
+    },
+    "structured_data": {
+      "description": "Structured data files (JSON, CSV, XML)",
+      "urls": [
+        "https://httpbin.org/json",
+        "https://jsonplaceholder.typicode.com/posts",
+        "https://raw.githubusercontent.com/holtzy/data_to_viz/master/Example_dataset/1_OneNum.csv"
+      ],
+      "expected_types": ["json", "csv", "xml"]
+    },
+    "office_documents": {
+      "description": "Microsoft Office documents",
+      "urls": [
+        "https://file-examples.com/storage/fea1d9cdc063c0aacc8a7b5/2017/10/file_example_XLSX_10.xlsx",
+        "https://calibre-ebook.com/downloads/demos/demo.docx"
+      ],
+      "expected_types": ["xlsx", "docx"]
+    },
+    "edge_cases": {
+      "description": "URLs for testing edge cases and error handling",
+      "urls": [
+        "https://httpbin.org/status/404",
+        "https://httpbin.org/status/500",
+        "https://httpbin.org/redirect/3",
+        "https://httpbin.org/delay/5",
+        "not-a-valid-url",
+        "ftp://invalid-protocol.com/file.txt",
+        "https://nonexistent-domain-12345.com/file.pdf"
+      ],
+      "expected_behavior": "error_handling"
+    },
+    "large_files": {
+      "description": "Large files for testing performance and limits",
+      "urls": [
+        "https://httpbin.org/bytes/1024000",
+        "https://httpbin.org/stream-bytes/5000000"
+      ],
+      "expected_behavior": "size_limits"
+    },
+    "content_type_detection": {
+      "description": "URLs that test content type detection without clear extensions",
+      "urls": [
+        "https://httpbin.org/xml",
+        "https://httpbin.org/json",
+        "https://httpbin.org/html",
+        "https://httpbin.org/image/png",
+        "https://httpbin.org/image/jpeg"
+      ],
+      "expected_behavior": "dynamic_detection"
+    },
+    "local_files": {
+      "description": "Local file URLs for testing file system access",
+      "urls": [
+        "file:///etc/hosts",
+        "file:///usr/share/doc/README",
+        "./examples/sample-document.txt",
+        "./examples/sample-data.json"
+      ],
+      "expected_behavior": "local_access",
+      "note": "These may not work depending on system permissions"
+    }
+  },
+  "test_scenarios": {
+    "basic_functionality": {
+      "description": "Test basic URL processing functionality",
+      "urls": [
+        "https://example.com",
+        "https://httpbin.org/json",
+        "https://httpbin.org/robots.txt"
+      ]
+    },
+    "error_resilience": {
+      "description": "Test error handling and resilience",
+      "urls": [
+        "https://httpbin.org/status/404",
+        "invalid-url",
+        "https://httpbin.org/delay/30"
+      ]
+    },
+    "content_variety": {
+      "description": "Test processing different content types",
+      "urls": [
+        "https://httpbin.org/html",
+        "https://httpbin.org/json",
+        "https://httpbin.org/xml",
+        "https://httpbin.org/robots.txt"
+      ]
+    },
+    "performance": {
+      "description": "Test system performance and concurrency",
+      "urls": [
+        "https://httpbin.org/delay/1",
+        "https://httpbin.org/delay/2",
+        "https://httpbin.org/delay/1",
+        "https://httpbin.org/json",
+        "https://httpbin.org/html"
+      ]
+    }
+  },
+  "usage_instructions": {
+    "basic_usage": "Use the URLs in the 'basic_functionality' scenario for initial testing",
+    "error_testing": "Use 'error_resilience' URLs to test error handling",
+    "performance_testing": "Use 'performance' URLs with concurrent processing to test system limits",
+    "content_testing": "Use different category URLs to test specific content type processing"
+  }
+}

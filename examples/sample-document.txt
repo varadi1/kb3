@@ -1,0 +1,65 @@
+Sample Document for Knowledge Base Testing
+==========================================
+
+This is a sample text document used for testing the knowledge base system.
+
+## Introduction
+
+This document contains various types of content to test different aspects of text processing:
+
+1. Plain text paragraphs
+2. Lists and structured content
+3. Special characters and formatting
+
+## Content Sections
+
+### Text Processing
+
+The knowledge base system should be able to extract and process the following types of content:
+
+- **Headings and structure** - Like the ones used in this document
+- **Links and references** - For example: https://example.com
+- **Lists and enumeration** - Both numbered and bulleted lists
+- **Special formatting** - Such as *italics*, **bold**, and `code snippets`
+
+### Sample Data
+
+Here's some sample data that might be found in documents:
+
+Name: John Smith
+Email: john.smith@example.com
+Phone: (555) 123-4567
+Address: 123 Main St, Anytown, USA 12345
+
+### Tables and Structured Data
+
+The system should handle basic table structures:
+
+Product     Price   Quantity
+--------    -----   --------
+Widget A    $10.99  15
+Widget B    $25.50  8
+Widget C    $5.75   32
+
+### Technical Information
+
+- API Endpoint: https://api.example.com/v1/data
+- Database: PostgreSQL 13.x
+- Framework: Node.js with TypeScript
+- Testing: Jest with 95% coverage
+
+## Conclusion
+
+This sample document provides various content types for testing:
+- Multiple heading levels
+- Different text formatting
+- Structured data representation
+- URLs and email addresses
+- Mixed content types
+
+The knowledge base system should extract meaningful information from all these elements and make them searchable and accessible.
+
+---
+Document created: 2024-01-01
+Last modified: 2024-01-15
+Version: 1.2

@@ -1,0 +1,53 @@
+{
+  "name": "Production Configuration",
+  "description": "Configuration optimized for production use",
+  "environment": "production",
+  "storage": {
+    "knowledgeStore": {
+      "type": "file",
+      "path": "./data/knowledge",
+      "indexedFields": ["url", "contentType", "tags", "title"],
+      "backupEnabled": true
+    },
+    "fileStorage": {
+      "basePath": "./data/files",
+      "compressionEnabled": true,
+      "encryptionEnabled": false
+    }
+  },
+  "processing": {
+    "maxTextLength": 1000000,
+    "defaultOptions": {
+      "extractImages": false,
+      "extractLinks": true,
+      "extractMetadata": true,
+      "preserveFormatting": false
+    },
+    "concurrency": 10,
+    "timeout": 30000
+  },
+  "network": {
+    "timeout": 30000,
+    "maxSize": 104857600,
+    "userAgent": "KnowledgeBase-System/1.0",
+    "followRedirects": true,
+    "maxRedirects": 10
+  },
+  "detection": {
+    "enableExtensionDetection": true,
+    "enableHeaderDetection": true,
+    "enableContentDetection": true,
+    "contentSampleSize": 2048
+  },
+  "logging": {
+    "level": "warn",
+    "enableConsole": false,
+    "logFile": "./logs/production.log"
+  },
+  "features": {
+    "enableCache": true,
+    "enableMetrics": true,
+    "enableValidation": true,
+    "strictMode": true
+  }
+}

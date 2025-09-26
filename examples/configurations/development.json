@@ -1,0 +1,52 @@
+{
+  "name": "Development Configuration",
+  "description": "Configuration optimized for development and testing",
+  "environment": "development",
+  "storage": {
+    "knowledgeStore": {
+      "type": "memory",
+      "indexedFields": ["url", "contentType", "tags", "title", "metadata.category"],
+      "backupEnabled": false
+    },
+    "fileStorage": {
+      "basePath": "./dev-data/files",
+      "compressionEnabled": false,
+      "encryptionEnabled": false
+    }
+  },
+  "processing": {
+    "maxTextLength": 100000,
+    "defaultOptions": {
+      "extractImages": true,
+      "extractLinks": true,
+      "extractMetadata": true,
+      "preserveFormatting": true
+    },
+    "concurrency": 2,
+    "timeout": 10000
+  },
+  "network": {
+    "timeout": 10000,
+    "maxSize": 10485760,
+    "userAgent": "KnowledgeBase-Dev/1.0",
+    "followRedirects": true,
+    "maxRedirects": 5
+  },
+  "detection": {
+    "enableExtensionDetection": true,
+    "enableHeaderDetection": true,
+    "enableContentDetection": true,
+    "contentSampleSize": 1024
+  },
+  "logging": {
+    "level": "debug",
+    "enableConsole": true,
+    "logFile": "./logs/development.log"
+  },
+  "features": {
+    "enableCache": false,
+    "enableMetrics": true,
+    "enableValidation": true,
+    "strictMode": false
+  }
+}

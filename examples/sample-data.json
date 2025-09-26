@@ -1,0 +1,102 @@
+{
+  "title": "Sample Data for Knowledge Base Testing",
+  "description": "This JSON file contains sample structured data for testing JSON processing capabilities",
+  "version": "1.0",
+  "created": "2024-01-01T00:00:00Z",
+  "author": {
+    "name": "Knowledge Base System",
+    "email": "system@example.com"
+  },
+  "categories": [
+    {
+      "id": 1,
+      "name": "Technology",
+      "description": "Technology-related content",
+      "items": [
+        {
+          "title": "Introduction to Machine Learning",
+          "url": "https://example.com/ml-intro",
+          "tags": ["machine-learning", "ai", "tutorial"],
+          "difficulty": "beginner",
+          "duration": "30 minutes"
+        },
+        {
+          "title": "Advanced TypeScript Patterns",
+          "url": "https://example.com/ts-patterns",
+          "tags": ["typescript", "programming", "patterns"],
+          "difficulty": "advanced",
+          "duration": "45 minutes"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Science",
+      "description": "Scientific articles and papers",
+      "items": [
+        {
+          "title": "Climate Change Research Summary",
+          "url": "https://example.com/climate-research",
+          "tags": ["climate", "environment", "research"],
+          "difficulty": "intermediate",
+          "duration": "20 minutes"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "total_categories": 2,
+    "total_items": 3,
+    "supported_formats": ["pdf", "html", "json", "txt"],
+    "processing_options": {
+      "extract_links": true,
+      "extract_metadata": true,
+      "extract_images": false,
+      "preserve_formatting": true
+    }
+  },
+  "sample_urls": [
+    "https://example.com/document1.pdf",
+    "https://example.com/page.html",
+    "https://example.com/data.csv",
+    "https://example.com/presentation.pptx"
+  ],
+  "test_scenarios": {
+    "json_processing": {
+      "description": "Test JSON structure extraction and processing",
+      "expected_fields": ["title", "categories", "metadata"],
+      "validation_rules": {
+        "title_required": true,
+        "categories_is_array": true,
+        "metadata_is_object": true
+      }
+    },
+    "nested_data": {
+      "description": "Test processing of nested JSON structures",
+      "deep_nesting": {
+        "level1": {
+          "level2": {
+            "level3": {
+              "value": "Deep nested value for testing",
+              "array": [1, 2, 3, 4, 5],
+              "boolean": true,
+              "null_value": null
+            }
+          }
+        }
+      }
+    }
+  },
+  "statistics": {
+    "processing_time": {
+      "average": 150,
+      "unit": "milliseconds"
+    },
+    "success_rate": 0.95,
+    "error_types": {
+      "network_timeout": 0.02,
+      "invalid_format": 0.01,
+      "access_denied": 0.02
+    }
+  }
+}
