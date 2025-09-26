@@ -47,6 +47,7 @@ export class ExtensionBasedDetector extends BaseUrlDetector {
       ['pdf', { contentType: ContentType.PDF, mimeType: 'application/pdf' }],
       ['doc', { contentType: ContentType.DOC, mimeType: 'application/msword' }],
       ['docx', { contentType: ContentType.DOCX, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }],
+      ['rtf', { contentType: ContentType.RTF, mimeType: 'application/rtf', alternativeMimeTypes: ['text/rtf'] }],
 
       // Spreadsheets
       ['xls', { contentType: ContentType.XLSX, mimeType: 'application/vnd.ms-excel' }],

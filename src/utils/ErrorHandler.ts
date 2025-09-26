@@ -23,7 +23,9 @@ export class ErrorHandler {
     [ErrorCode.TIMEOUT]: 'The operation timed out',
     [ErrorCode.ACCESS_DENIED]: 'Access to the resource was denied',
     [ErrorCode.RATE_LIMITED]: 'Request rate limit exceeded',
-    [ErrorCode.UNKNOWN_ERROR]: 'An unknown error occurred'
+    [ErrorCode.UNKNOWN_ERROR]: 'An unknown error occurred',
+    [ErrorCode.DUPLICATE_URL]: 'This URL has already been processed',
+    [ErrorCode.DUPLICATE_CONTENT]: 'This content already exists from another URL'
   };
 
   /**
@@ -54,6 +56,20 @@ export class ErrorHandler {
     }
 
     return error.message || 'An unexpected error occurred';
+  }
+
+  /**
+   * Creates a custom error with additional context
+   * @param code Error code
+   * @param message Error message
+   * @param context Additional context
+   * @returns Custom error object
+   */
+  static createError(code: string, message: string, context?: any): Error {
+    const error = new Error(message) as any;
+    error.code = code;
+    error.context = context;
+    return error;
   }
 
   /**

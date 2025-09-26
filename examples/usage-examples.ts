@@ -4,7 +4,7 @@
  */
 
 import { createKnowledgeBase, KnowledgeBaseFactory } from '../src';
-import { createDefaultConfiguration, createDevelopmentConfiguration } from '../src/config';
+import { createDefaultConfiguration, createDevelopmentConfiguration, createSqlConfiguration } from '../src/config';
 import sampleUrls from './sample-urls.json';
 
 // Example 1: Basic Usage with Default Configuration
@@ -141,7 +141,63 @@ async function errorHandlingExample() {
   }
 }
 
-// Example 5: Monitoring and Status
+// Example 5: SQL Storage with Duplicate Detection
+async function sqlStorageExample() {
+  console.log('\n=== SQL Storage Example ===');
+
+  // Create SQL-based knowledge base
+  const config = createSqlConfiguration({
+    storage: {
+      knowledgeStore: {
+        type: 'sql',
+        dbPath: './example-data/knowledge.db',
+        urlDbPath: './example-data/urls.db'
+      },
+      enableDuplicateDetection: true
+    }
+  });
+
+  const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+
+  console.log('\nProcessing URLs with SQL storage and duplicate detection...');
+
+  // Test URLs including duplicates
+  const testUrls = [
+    'https://example.com/doc1.pdf',
+    'https://example.com/doc2.html',
+    'https://example.com/doc1.pdf'  // Duplicate!
+  ];
+
+  for (const url of testUrls) {
+    console.log(`\nProcessing: ${url}`);
+
+    try {
+      const result = await knowledgeBase.processUrl(url);
+
+      if (result.success) {
+        console.log('  ✓ Processed successfully');
+        console.log(`    Entry ID: ${result.entryId}`);
+      } else if (result.error?.code === 'DUPLICATE_URL') {
+        console.log('  ⚠ Duplicate URL detected');
+        console.log(`    Already processed at: ${result.metadata.originalProcessedAt}`);
+      } else {
+        console.log(`  ✗ Failed: ${result.error?.message}`);
+      }
+    } catch (error: any) {
+      console.log(`  ✗ Error: ${error.message}`);
+    }
+  }
+
+  // Test force reprocessing
+  console.log('\n\nForce reprocessing a duplicate URL...');
+  const result = await knowledgeBase.processUrl(testUrls[0], { forceReprocess: true });
+
+  if (result.success) {
+    console.log('  ✓ Reprocessed successfully with force option');
+  }
+}
+
+// Example 6: Monitoring and Status
 async function monitoringExample() {
   console.log('\n=== Monitoring Example ===');
 
@@ -243,6 +299,7 @@ async function runExamples() {
     await batchProcessing();
     await developmentMode();
     await errorHandlingExample();
+    await sqlStorageExample();
     await monitoringExample();
     await contentTypeExample();
     await customConfigExample();

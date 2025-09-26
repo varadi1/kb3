@@ -239,6 +239,7 @@ export class HeaderBasedDetector extends BaseUrlDetector {
       [ContentType.HTML]: 'text/html',
       [ContentType.DOC]: 'application/msword',
       [ContentType.DOCX]: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      [ContentType.RTF]: 'application/rtf',
       [ContentType.XLSX]: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       [ContentType.CSV]: 'text/csv',
       [ContentType.TXT]: 'text/plain',

@@ -7,8 +7,10 @@ export interface KnowledgeBaseConfig {
   // Storage configuration
   storage: {
     knowledgeStore: {
-      type: 'memory' | 'file';
+      type: 'memory' | 'file' | 'sql';
       path?: string;
+      dbPath?: string;
+      urlDbPath?: string;
       indexedFields?: string[];
       backupEnabled?: boolean;
     };
@@ -17,6 +19,7 @@ export interface KnowledgeBaseConfig {
       compressionEnabled?: boolean;
       encryptionEnabled?: boolean;
     };
+    enableDuplicateDetection?: boolean;
   };
 
   // Processing configuration
@@ -58,6 +61,7 @@ export interface ProcessingOptionsConfig {
   extractMetadata?: boolean;
   maxTextLength?: number;
   preserveFormatting?: boolean;
+  forceReprocess?: boolean;
 }
 
 export function createDefaultConfiguration(overrides?: Partial<KnowledgeBaseConfig>): KnowledgeBaseConfig {
@@ -72,7 +76,8 @@ export function createDefaultConfiguration(overrides?: Partial<KnowledgeBaseConf
         basePath: './data/files',
         compressionEnabled: false,
         encryptionEnabled: false
-      }
+      },
+      enableDuplicateDetection: false
     },
     processing: {
       maxTextLength: 1000000,
@@ -153,6 +158,32 @@ export function createDevelopmentConfiguration(): KnowledgeBaseConfig {
   });
 }
 
+export function createSqlConfiguration(overrides?: Partial<KnowledgeBaseConfig>): KnowledgeBaseConfig {
+  return createDefaultConfiguration({
+    storage: {
+      knowledgeStore: {
+        type: 'sql',
+        dbPath: './data/knowledge.db',
+        urlDbPath: './data/urls.db',
+        backupEnabled: true
+      },
+      fileStorage: {
+        basePath: './data/files',
+        compressionEnabled: true
+      },
+      enableDuplicateDetection: true
+    },
+    processing: {
+      concurrency: 10
+    },
+    logging: {
+      level: 'info',
+      logFile: './logs/knowledgebase.log'
+    },
+    ...overrides
+  });
+}
+
 function mergeConfig(
   base: KnowledgeBaseConfig,
   overrides?: Partial<KnowledgeBaseConfig>
@@ -168,7 +199,8 @@ function mergeConfig(
       fileStorage: {
         ...base.storage.fileStorage,
         ...overrides.storage?.fileStorage
-      }
+      },
+      enableDuplicateDetection: overrides.storage?.enableDuplicateDetection ?? base.storage.enableDuplicateDetection
     },
     processing: {
       ...base.processing,

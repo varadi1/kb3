@@ -1,0 +1,36 @@
+{
+  "path": "/Users/varadiimre/0SWDEV/kb3/demo-data/files/content_1758882307189_2392d37f.html",
+  "size": 91888,
+  "createdAt": "2025-09-26T10:25:07.190Z",
+  "updatedAt": "2025-09-26T10:25:07.190Z",
+  "mimeType": "text/html",
+  "checksum": "2392d37f433ecf5823fcd9975a28d0e3",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://www.wikipedia.org",
+    "mimeType": "text/html",
+    "originalSize": 91888,
+    "fetchedAt": "2025-09-26T10:25:07.189Z",
+    "headers": {
+      "date": "Thu, 25 Sep 2025 17:30:39 GMT",
+      "cache-control": "s-maxage=86400, must-revalidate, max-age=3600",
+      "server": "ATS/9.2.11",
+      "etag": "W/\"166f0-63f7dc3a38780\"",
+      "last-modified": "Tue, 23 Sep 2025 20:27:26 GMT",
+      "content-type": "text/html",
+      "age": "60867",
+      "accept-ranges": "bytes",
+      "x-cache": "cp3069 miss, cp3069 hit/3249991",
+      "x-cache-status": "hit-front",
+      "server-timing": "cache;desc=\"hit-front\", host;desc=\"cp3069\"",
+      "strict-transport-security": "max-age=106384710; includeSubDomains; preload",
+      "report-to": "{ \"group\": \"wm_nel\", \"max_age\": 604800, \"endpoints\": [{ \"url\": \"https://intake-logging.wikimedia.org/v1/events?stream=w3c.reportingapi.network_error&schema_uri=/w3c/reportingapi/network_error/1.0.0\" }] }",
+      "nel": "{ \"report_to\": \"wm_nel\", \"max_age\": 604800, \"failure_fraction\": 0.05, \"success_fraction\": 0.0}",
+      "set-cookie": "WMF-Last-Access=26-Sep-2025;Path=/;HttpOnly;secure;Expires=Tue, 28 Oct 2025 00:00:00 GMT",
+      "x-client-ip": "94.44.101.109",
+      "content-length": "22220",
+      "x-analytics": ""
+    }
+  }
+}

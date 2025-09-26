@@ -8,5 +8,6 @@ export {
   createDefaultConfiguration,
   createProductionConfiguration,
   createDevelopmentConfiguration,
+  createSqlConfiguration,
   validateConfiguration
 } from './Configuration';

@@ -10,6 +10,7 @@ export { PdfProcessor } from './PdfProcessor';
 export { DocProcessor } from './DocProcessor';
 export { DocumentProcessor } from './DocumentProcessor';
 export { SpreadsheetProcessor } from './SpreadsheetProcessor';
+export { RtfProcessor } from './RtfProcessor';
 export {
   ProcessorRegistry,
   ProcessingAttempt,
@@ -25,6 +26,7 @@ import { PdfProcessor } from './PdfProcessor';
 import { DocProcessor } from './DocProcessor';
 import { DocumentProcessor } from './DocumentProcessor';
 import { SpreadsheetProcessor } from './SpreadsheetProcessor';
+import { RtfProcessor } from './RtfProcessor';
 
 // Factory function for creating default processor registry
 export function createDefaultProcessorRegistry(): ProcessorRegistry {
@@ -37,6 +39,7 @@ export function createDefaultProcessorRegistry(): ProcessorRegistry {
   registry.addProcessor(new DocProcessor());
   registry.addProcessor(new DocumentProcessor());
   registry.addProcessor(new SpreadsheetProcessor());
+  registry.addProcessor(new RtfProcessor());
 
   // Set text processor as fallback for unknown types
   registry.setFallbackProcessor(new TextProcessor());

@@ -10,9 +10,11 @@ export * from './IContentProcessor';
 export * from './IKnowledgeStore';
 export * from './IFileStorage';
 export * from './IOrchestrator';
+export * from './IUrlRepository';
 
 // Common types and enums
 export { ContentType } from './IUrlDetector';
 export { ProcessingStatus, SortField, SortOrder } from './IKnowledgeStore';
 export { FileSort, SortOrder as FileSortOrder } from './IFileStorage';
 export { ProcessingStage, ErrorCode } from './IOrchestrator';
+export { UrlStatus } from './IUrlRepository';

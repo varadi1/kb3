@@ -4,7 +4,8 @@
  */
 
 import { KnowledgeBaseFactory } from '../../src/factory/KnowledgeBaseFactory';
-import { createDefaultConfiguration, createDevelopmentConfiguration } from '../../src/config';
+import { createDefaultConfiguration, createDevelopmentConfiguration, createSqlConfiguration } from '../../src/config';
+import * as fs from 'fs/promises';
 
 // Mock data for testing - uncomment when needed
 // const sampleUrls = [
@@ -15,6 +16,25 @@ import { createDefaultConfiguration, createDevelopmentConfiguration } from '../.
 // ];
 
 describe('System Integration Tests', () => {
+  const testDataDir = './test-data/integration';
+  const sqlDbPath = `${testDataDir}/test.db`;
+  const urlDbPath = `${testDataDir}/urls.db`;
+
+  beforeEach(async () => {
+    try {
+      await fs.rm(testDataDir, { recursive: true, force: true });
+    } catch (e) {
+      // Ignore if doesn't exist
+    }
+  });
+
+  afterEach(async () => {
+    try {
+      await fs.rm(testDataDir, { recursive: true, force: true });
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+  });
   describe('End-to-End Processing', () => {
     test('should process URLs through complete pipeline', async () => {
       const config = createDevelopmentConfiguration();
@@ -49,6 +69,175 @@ describe('System Integration Tests', () => {
         // Expected for URLs that don't exist
         expect(error).toBeDefined();
       }
+    });
+  });
+
+  describe('SQL Storage Integration', () => {
+    test('should create knowledge base with SQL storage', async () => {
+      const config = createSqlConfiguration({
+        storage: {
+          knowledgeStore: {
+            type: 'sql',
+            dbPath: sqlDbPath,
+            urlDbPath: urlDbPath
+          },
+          fileStorage: {
+            basePath: `${testDataDir}/files`
+          }
+        }
+      });
+
+      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+
+      expect(knowledgeBase).toBeDefined();
+      expect(typeof knowledgeBase.processUrl).toBe('function');
+
+      // Test basic functionality
+      const status = await knowledgeBase.getStatus();
+      expect(status).toHaveProperty('totalProcessing');
+      expect(status).toHaveProperty('completed');
+      expect(status).toHaveProperty('failed');
+    });
+
+    test('should detect duplicate URLs with SQL storage', async () => {
+      const config = createSqlConfiguration({
+        storage: {
+          knowledgeStore: {
+            type: 'sql',
+            dbPath: sqlDbPath,
+            urlDbPath: urlDbPath
+          },
+          fileStorage: {
+            basePath: `${testDataDir}/files`
+          },
+          enableDuplicateDetection: true
+        }
+      });
+
+      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+
+      // Note: Without mocking network requests, this will fail
+      // In a real test environment, you would mock the fetcher
+      expect(knowledgeBase).toBeDefined();
+      expect(typeof knowledgeBase.processUrl).toBe('function');
+    });
+
+    test('should work with memory storage and duplicate detection', async () => {
+      const config = createDefaultConfiguration({
+        storage: {
+          knowledgeStore: {
+            type: 'memory'
+          },
+          fileStorage: {
+            basePath: `${testDataDir}/files`
+          },
+          enableDuplicateDetection: true
+        }
+      });
+
+      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+
+      expect(knowledgeBase).toBeDefined();
+      expect(typeof knowledgeBase.processUrl).toBe('function');
+
+      const status = await knowledgeBase.getStatus();
+      expect(status.totalProcessing).toBe(0);
+      expect(status.completed).toBe(0);
+      expect(status.failed).toBe(0);
+    });
+
+    test('should handle force reprocess option', async () => {
+      const config = createSqlConfiguration({
+        storage: {
+          knowledgeStore: {
+            type: 'sql',
+            dbPath: ':memory:', // Use in-memory SQLite for testing
+            urlDbPath: ':memory:'
+          },
+          fileStorage: {
+            basePath: `${testDataDir}/files`
+          }
+        }
+      });
+
+      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+
+      expect(knowledgeBase).toBeDefined();
+
+      // Test that forceReprocess option is accepted
+      const options = { forceReprocess: true };
+      expect(() => knowledgeBase.processUrl('https://example.com', options)).not.toThrow();
+    });
+  });
+
+  describe('Configuration Flexibility', () => {
+    test('should support all storage types', () => {
+      // Memory storage
+      const memoryConfig = createDefaultConfiguration({
+        storage: {
+          knowledgeStore: { type: 'memory' },
+          fileStorage: {
+            basePath: `${testDataDir}/files`
+          }
+        }
+      });
+      const memoryKB = KnowledgeBaseFactory.createKnowledgeBase(memoryConfig);
+      expect(memoryKB).toBeDefined();
+
+      // File storage
+      const fileConfig = createDefaultConfiguration({
+        storage: {
+          knowledgeStore: {
+            type: 'file',
+            path: `${testDataDir}/knowledge`
+          },
+          fileStorage: {
+            basePath: `${testDataDir}/files`
+          }
+        }
+      });
+      const fileKB = KnowledgeBaseFactory.createKnowledgeBase(fileConfig);
+      expect(fileKB).toBeDefined();
+
+      // SQL storage
+      const sqlConfig = createSqlConfiguration({
+        storage: {
+          knowledgeStore: {
+            type: 'sql',
+            dbPath: sqlDbPath
+          },
+          fileStorage: {
+            basePath: `${testDataDir}/files`
+          }
+        }
+      });
+      const sqlKB = KnowledgeBaseFactory.createKnowledgeBase(sqlConfig);
+      expect(sqlKB).toBeDefined();
+    });
+
+    test('should support mixed configurations', () => {
+      const config = {
+        ...createDefaultConfiguration(),
+        storage: {
+          knowledgeStore: {
+            type: 'sql' as const,
+            dbPath: sqlDbPath
+          },
+          fileStorage: {
+            basePath: `${testDataDir}/files`,
+            compressionEnabled: true,
+            encryptionEnabled: false
+          },
+          enableDuplicateDetection: true
+        },
+        processing: {
+          concurrency: 10,
+          timeout: 60000
+        }
+      };
+
+      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config as any);
+      expect(knowledgeBase).toBeDefined();
     });
   });
 

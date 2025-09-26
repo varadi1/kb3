@@ -6,7 +6,7 @@
 export { BaseFetcher } from './BaseFetcher';
 export { HttpFetcher } from './HttpFetcher';
 export { SmartHttpFetcher } from './SmartHttpFetcher';
-export { FileFetcher, FileMetadata } from './FileFetcher';
+export { FileFetcher } from './FileFetcher';
 export {
   FetcherRegistry,
   FetchAttempt,

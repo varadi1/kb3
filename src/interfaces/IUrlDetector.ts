@@ -32,6 +32,7 @@ export enum ContentType {
   HTML = 'html',
   DOC = 'doc',
   DOCX = 'docx',
+  RTF = 'rtf',
   XLSX = 'xlsx',
   CSV = 'csv',
   TXT = 'txt',

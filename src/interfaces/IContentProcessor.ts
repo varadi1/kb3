@@ -39,6 +39,7 @@ export interface ProcessingOptions {
   extractMetadata?: boolean;
   maxTextLength?: number;
   preserveFormatting?: boolean;
+  forceReprocess?: boolean;
 }
 
 export interface ProcessedContent {

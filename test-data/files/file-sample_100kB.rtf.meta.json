@@ -1,0 +1,31 @@
+{
+  "path": "/Users/varadiimre/0SWDEV/kb3/test-data/files/file-sample_100kB.rtf",
+  "size": 2142,
+  "createdAt": "2025-09-26T10:35:11.839Z",
+  "updatedAt": "2025-09-26T10:35:11.839Z",
+  "mimeType": "application/octet-stream",
+  "checksum": "f1587aea499b5816acc23b8b82d77436",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://file-examples.com/wp-content/storage/2019/09/file-sample_100kB.rtf",
+    "mimeType": "text/html",
+    "originalSize": 2142,
+    "fetchedAt": "2025-09-26T10:35:11.838Z",
+    "headers": {
+      "date": "Fri, 26 Sep 2025 10:35:11 GMT",
+      "content-type": "text/html; charset=UTF-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "vary": "User-Agent,Accept-Encoding",
+      "cache-control": "max-age=0",
+      "expires": "Fri, 26 Sep 2025 10:35:11 GMT",
+      "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=hW%2F5NPU8pPrfHUenwCgPlpFbR2KJzyEQEejllIqtibtAGGzu2gvfDsmMdSw8IdN8HvSMjSeyY%2FmMEwqUrOA07L3RhNAFRPy2MxUWZopx1ia6\"}]}",
+      "server": "cloudflare",
+      "cf-cache-status": "DYNAMIC",
+      "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+      "cf-ray": "98521cf72a1b5acd-VIE",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    }
+  }
+}

@@ -19,6 +19,9 @@ import { IContentFetcher, FetchedContent } from '../interfaces/IContentFetcher';
 import { IContentProcessor, ProcessedContent } from '../interfaces/IContentProcessor';
 import { IKnowledgeStore, KnowledgeEntry } from '../interfaces/IKnowledgeStore';
 import { IFileStorage } from '../interfaces/IFileStorage';
+import { IUrlRepository, UrlStatus } from '../interfaces/IUrlRepository';
+import { IContentChangeDetector } from '../interfaces/IContentChangeDetector';
+import * as crypto from 'crypto';
 
 export class KnowledgeBaseOrchestrator implements IOrchestrator {
   private readonly urlDetector: IUrlDetector;
@@ -26,6 +29,8 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
   private readonly contentProcessor: IContentProcessor;
   private readonly knowledgeStore: IKnowledgeStore;
   private readonly fileStorage: IFileStorage;
+  private readonly urlRepository?: IUrlRepository;
+  private readonly contentChangeDetector?: IContentChangeDetector;
 
   // Processing state tracking
   private readonly currentOperations: Map<string, CurrentOperation> = new Map();
@@ -40,20 +45,26 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
     contentFetcher: IContentFetcher,
     contentProcessor: IContentProcessor,
     knowledgeStore: IKnowledgeStore,
-    fileStorage: IFileStorage
+    fileStorage: IFileStorage,
+    urlRepository?: IUrlRepository,
+    contentChangeDetector?: IContentChangeDetector
   ) {
     this.urlDetector = urlDetector;
     this.contentFetcher = contentFetcher;
     this.contentProcessor = contentProcessor;
     this.knowledgeStore = knowledgeStore;
     this.fileStorage = fileStorage;
+    this.urlRepository = urlRepository;
+    this.contentChangeDetector = contentChangeDetector;
   }
 
   async processUrl(url: string, options: ProcessingOptions = {}): Promise<ProcessingResult> {
     const startTime = Date.now();
     const operationId = this.generateOperationId(url);
+    let urlRecordId: string | null = null;
 
     try {
+      // Start processing
       this.startOperation(url, operationId, ProcessingStage.DETECTING);
 
       // Stage 1: URL Detection
@@ -63,6 +74,58 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
       this.updateOperationStage(operationId, ProcessingStage.FETCHING);
       const fetchedContent = await this.fetchContent(url, operationId);
 
+      // Calculate content hash
+      const contentHash = this.calculateContentHash(fetchedContent.content);
+
+      // Check for content changes if change detector is available
+      if (this.contentChangeDetector && !options.forceReprocess) {
+        const changeResult = await this.contentChangeDetector.hasContentChanged(
+          url,
+          contentHash,
+          {
+            etag: fetchedContent.metadata?.etag,
+            lastModified: fetchedContent.metadata?.lastModified,
+            contentLength: fetchedContent.metadata?.contentLength
+          }
+        );
+
+        if (!changeResult.hasChanged && changeResult.previousHash) {
+          // Content hasn't changed, skip reprocessing
+          this.completeOperation(operationId);
+          this.processingStats.successful++;
+
+          return {
+            success: true,
+            url,
+            metadata: {
+              skipped: true,
+              reason: 'Content unchanged',
+              contentHash,
+              previousHash: changeResult.previousHash,
+              lastChecked: changeResult.lastChecked
+            },
+            processingTime: Date.now() - startTime
+          };
+        }
+      }
+
+      // Register/update URL in repository if available
+      if (this.urlRepository) {
+        const urlExists = await this.urlRepository.exists(url);
+        if (urlExists) {
+          const urlInfo = await this.urlRepository.getUrlInfo(url);
+          urlRecordId = urlInfo?.id || null;
+          if (urlRecordId) {
+            await this.urlRepository.updateStatus(urlRecordId, UrlStatus.PROCESSING);
+          }
+        } else {
+          urlRecordId = await this.urlRepository.register(url, {
+            processingStarted: new Date()
+          });
+          await this.urlRepository.updateStatus(urlRecordId, UrlStatus.PROCESSING);
+        }
+      }
+
       // Stage 3: Content Processing
       this.updateOperationStage(operationId, ProcessingStage.PROCESSING);
       const processedContent = await this.processContent(
@@ -71,6 +134,45 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
         options,
         operationId
       );
+
+      // Check for duplicate content by hash (different URL, same content)
+      if (this.urlRepository && !options.forceReprocess) {
+        const existingByHash = await this.urlRepository.getByHash(contentHash);
+        if (existingByHash && existingByHash.url !== url && existingByHash.status === UrlStatus.COMPLETED) {
+          // Content already exists with different URL
+          if (urlRecordId) {
+            await this.urlRepository.updateStatus(urlRecordId, UrlStatus.SKIPPED, 'Duplicate content detected');
+          }
+          return {
+            success: false,
+            url,
+            error: {
+              code: ErrorCode.DUPLICATE_CONTENT,
+              message: `Content already exists from URL: ${existingByHash.url}`,
+              stage: ProcessingStage.PROCESSING
+            },
+            metadata: {
+              duplicateContent: true,
+              originalUrl: existingByHash.url,
+              contentHash
+            },
+            processingTime: Date.now() - startTime
+          };
+        }
+
+        // Update URL record with content hash
+        if (urlRecordId) {
+          await this.urlRepository.updateHash(urlRecordId, contentHash);
+        }
+      }
+
+      // Record content as processed if change detector is available
+      if (this.contentChangeDetector) {
+        await this.contentChangeDetector.recordContentProcessed(url, contentHash, {
+          etag: fetchedContent.metadata?.etag,
+          lastModified: fetchedContent.metadata?.lastModified
+        });
+      }
 
       // Stage 4: File Storage
       this.updateOperationStage(operationId, ProcessingStage.STORING);
@@ -90,6 +192,11 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
       // Complete operation
       this.completeOperation(operationId);
       this.processingStats.successful++;
+
+      // Update URL repository status
+      if (this.urlRepository && urlRecordId) {
+        await this.urlRepository.updateStatus(urlRecordId, UrlStatus.COMPLETED);
+      }
 
       const result: ProcessingResult = {
         success: true,
@@ -115,6 +222,11 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
 
       const processingError = this.createProcessingError(error, operationId);
       this.failOperation(operationId, processingError);
+
+      // Update URL repository status
+      if (this.urlRepository && urlRecordId) {
+        await this.urlRepository.updateStatus(urlRecordId, UrlStatus.FAILED, processingError.message);
+      }
 
       return {
         success: false,
@@ -312,6 +424,11 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
       hash = hash & hash; // Convert to 32-bit integer
     }
     return Math.abs(hash).toString(36);
+  }
+
+  private calculateContentHash(content: Buffer | string): string {
+    const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content);
+    return crypto.createHash('sha256').update(buffer).digest('hex');
   }
 
   private startOperation(url: string, operationId: string, stage: ProcessingStage): void {

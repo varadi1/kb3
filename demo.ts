@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 
-import { createKnowledgeBase } from './src';
+import { KnowledgeBaseFactory, createSqlConfiguration } from './src';
 import * as readline from 'readline';
 
 const rl = readline.createInterface({
@@ -8,8 +8,24 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 
+// Create knowledge base with SQL storage and duplicate detection
+const kb = KnowledgeBaseFactory.createKnowledgeBase(
+  createSqlConfiguration({
+    storage: {
+      knowledgeStore: {
+        type: 'sql',
+        dbPath: './data/knowledge.db',
+        urlDbPath: './data/urls.db'
+      },
+      fileStorage: {
+        basePath: './data/files'
+      },
+      enableDuplicateDetection: true
+    }
+  })
+);
+
 async function processUrl(url: string) {
-  const kb = createKnowledgeBase();
 
   console.log(`\n🔍 Processing URL: ${url}`);
   console.log('━'.repeat(50));
@@ -17,20 +33,29 @@ async function processUrl(url: string) {
   try {
     const result = await kb.processUrl(url);
 
-    console.log('✅ Successfully processed!');
-    console.log(`📄 Content Type: ${result.contentType}`);
-    console.log(`📊 Confidence: ${(result.confidence * 100).toFixed(1)}%`);
-    console.log(`🏷️  Category: ${result.metadata.category || 'general'}`);
-    console.log(`🔑 Authority: ${result.metadata.authority || 5}/10`);
-    console.log(`📝 Title: ${result.metadata.title || 'Untitled'}`);
-    console.log(`💾 Stored at: ${result.storagePath}`);
-    console.log(`🔒 Hash: ${result.contentHash}`);
+    if (result.success) {
+      console.log('✅ Successfully processed!');
+      console.log(`📄 Content Type: ${result.contentType}`);
+      console.log(`📊 Confidence: ${(result.metadata.classification?.confidence || 0) * 100}%`);
+      console.log(`🏷️  Category: ${result.metadata.category || 'general'}`);
+      console.log(`🔑 Authority: ${result.metadata.authority || 5}/10`);
+      console.log(`📝 Title: ${result.metadata.title || 'Untitled'}`);
+      console.log(`💾 Stored at: ${result.storagePath}`);
+      console.log(`🔒 Hash: ${result.metadata.contentHash || 'undefined'}`);
 
-    if (result.metadata.wordCount) {
-      console.log(`📖 Word Count: ${result.metadata.wordCount}`);
-    }
-    if (result.metadata.language) {
-      console.log(`🌍 Language: ${result.metadata.language}`);
+      if (result.metadata.wordCount) {
+        console.log(`📖 Word Count: ${result.metadata.wordCount}`);
+      }
+      if (result.metadata.language) {
+        console.log(`🌍 Language: ${result.metadata.language}`);
+      }
+    } else if (result.error?.code === 'DUPLICATE_URL') {
+      console.log('⚠️  Duplicate URL detected!');
+      console.log(`📝 This URL was already processed`);
+      console.log(`🕒 First processed at: ${result.metadata.originalProcessedAt || 'unknown'}`);
+      console.log(`🔄 Process count: ${result.metadata.processCount || 1}`);
+    } else {
+      console.log(`❌ Processing failed: ${result.error?.message}`);
     }
 
   } catch (error: any) {
@@ -80,8 +105,6 @@ async function batchMode() {
   console.log('🚀 KB3 Knowledge Base System - Batch Demo');
   console.log('━'.repeat(50));
   console.log(`Processing ${sampleUrls.length} sample URLs...`);
-
-  const kb = createKnowledgeBase();
 
   try {
     const results = await kb.processUrls(sampleUrls);

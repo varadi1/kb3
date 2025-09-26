@@ -23,6 +23,11 @@ import {
   FileKnowledgeStore,
   LocalFileStorage
 } from '../storage';
+import { SqlKnowledgeStore } from '../storage/SqlKnowledgeStore';
+import { SqlUrlRepository } from '../storage/SqlUrlRepository';
+import { IUrlRepository } from '../interfaces/IUrlRepository';
+import { IContentChangeDetector } from '../interfaces/IContentChangeDetector';
+import { ContentChangeDetector } from '../detectors/ContentChangeDetector';
 
 export class KnowledgeBaseFactory {
   /**
@@ -36,13 +41,17 @@ export class KnowledgeBaseFactory {
     const contentProcessor = this.createContentProcessor(config);
     const knowledgeStore = this.createKnowledgeStore(config);
     const fileStorage = this.createFileStorage(config);
+    const urlRepository = this.createUrlRepository(config);
+    const contentChangeDetector = this.createContentChangeDetector(config, urlRepository);
 
     return new KnowledgeBaseOrchestrator(
       urlDetector,
       contentFetcher,
       contentProcessor,
       knowledgeStore,
-      fileStorage
+      fileStorage,
+      urlRepository,
+      contentChangeDetector
     );
   }
 
@@ -109,6 +118,11 @@ export class KnowledgeBaseFactory {
           storeConfig.backupEnabled
         );
 
+      case 'sql':
+        return new SqlKnowledgeStore(
+          storeConfig.dbPath || './data/knowledge.db'
+        );
+
       case 'memory':
       default:
         return new MemoryKnowledgeStore(storeConfig.indexedFields);
@@ -128,6 +142,41 @@ export class KnowledgeBaseFactory {
       storageConfig.compressionEnabled,
       storageConfig.encryptionEnabled
     );
+  }
+
+  /**
+   * Creates URL repository based on configuration
+   * @param config System configuration
+   * @returns URL repository implementation or undefined
+   */
+  private static createUrlRepository(config: KnowledgeBaseConfig): IUrlRepository | undefined {
+    const storeConfig = config.storage.knowledgeStore;
+
+    // Only create URL repository if using SQL storage or explicitly enabled
+    if (storeConfig.type === 'sql' || config.storage.enableDuplicateDetection) {
+      return new SqlUrlRepository(
+        storeConfig.urlDbPath || './data/urls.db'
+      );
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Creates content change detector if enabled
+   * @param config System configuration
+   * @param urlRepository URL repository instance
+   * @returns Content change detector or undefined
+   */
+  private static createContentChangeDetector(
+    config: KnowledgeBaseConfig,
+    urlRepository?: IUrlRepository
+  ): IContentChangeDetector | undefined {
+    // Only create if we have a URL repository and change detection is enabled
+    if (urlRepository && config.storage.enableDuplicateDetection !== false) {
+      return new ContentChangeDetector(urlRepository);
+    }
+    return undefined;
   }
 
   /**

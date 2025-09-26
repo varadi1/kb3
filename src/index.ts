@@ -14,6 +14,7 @@ export {
   createDefaultConfiguration,
   createProductionConfiguration,
   createDevelopmentConfiguration,
+  createSqlConfiguration,
   validateConfiguration
 } from './config';
 
@@ -29,11 +30,8 @@ export {
   BaseKnowledgeStore,
   FileKnowledgeStore,
   LocalFileStorage,
-  type StorageStats,
-  type FileSort,
-  type SortOrder,
-  type ListOptions,
-  type StorageOptions
+  SqlKnowledgeStore,
+  SqlUrlRepository
 } from './storage';
 
 // Utilities
