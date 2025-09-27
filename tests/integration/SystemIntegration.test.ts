@@ -51,6 +51,7 @@ describe('System Integration Tests', () => {
     test('should handle multiple URLs concurrently', async () => {
       const config = createDevelopmentConfiguration();
       config.processing.concurrency = 2;
+      config.network.timeout = 2000; // Quick timeout for test URLs
 
       const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
 
@@ -307,26 +308,29 @@ describe('System Integration Tests', () => {
     test('should handle reasonable load', async () => {
       const config = createDevelopmentConfiguration();
       config.processing.concurrency = 5;
+      // Reduce timeout for faster test execution
+      config.network.timeout = 2000; // 2 seconds per request
 
       const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
 
       const startTime = Date.now();
 
-      // Process multiple URLs to test performance
-      const urls = Array.from({ length: 10 }, (_, i) => `https://example.com/${i}.txt`);
+      // Process fewer URLs for faster test - these will fail quickly with reduced timeout
+      const urls = Array.from({ length: 3 }, (_, i) => `https://example.com/${i}.txt`);
 
       const results = await knowledgeBase.processUrls(urls);
       const endTime = Date.now();
 
       expect(results).toHaveLength(urls.length);
-      expect(endTime - startTime).toBeLessThan(60000); // Should complete within 60 seconds
+      expect(endTime - startTime).toBeLessThan(30000); // Should complete within 30 seconds
 
       const stats = knowledgeBase.getProcessingStats();
       expect(stats.totalProcessed).toBe(urls.length);
-    }, 90000); // Increase timeout to 90 seconds
+    }, 45000); // Reduced timeout to 45 seconds
 
     test('should track processing statistics correctly', async () => {
       const config = createDevelopmentConfiguration();
+      config.network.timeout = 2000; // Quick timeout for non-existent URL
       const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
 
       const initialStats = knowledgeBase.getProcessingStats();

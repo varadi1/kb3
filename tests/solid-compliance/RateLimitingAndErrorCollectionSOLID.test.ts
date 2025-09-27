@@ -28,8 +28,8 @@ describe('SOLID Compliance - Rate Limiting and Error Collection', () => {
         ];
 
         rateLimitMethods.forEach(method => {
-          expect(limiter[method]).toBeDefined();
-          expect(typeof limiter[method]).toBe('function');
+          expect((limiter as any)[method]).toBeDefined();
+          expect(typeof (limiter as any)[method]).toBe('function');
         });
 
         // Should NOT have unrelated responsibilities
@@ -43,7 +43,7 @@ describe('SOLID Compliance - Rate Limiting and Error Collection', () => {
         ];
 
         unrelatedMethods.forEach(method => {
-          expect(limiter[method]).toBeUndefined();
+          expect((limiter as any)[method]).toBeUndefined();
         });
       });
 
@@ -87,8 +87,8 @@ describe('SOLID Compliance - Rate Limiting and Error Collection', () => {
         ];
 
         errorMethods.forEach(method => {
-          expect(collector[method]).toBeDefined();
-          expect(typeof collector[method]).toBe('function');
+          expect((collector as any)[method]).toBeDefined();
+          expect(typeof (collector as any)[method]).toBe('function');
         });
 
         // Should NOT have unrelated responsibilities
@@ -101,7 +101,7 @@ describe('SOLID Compliance - Rate Limiting and Error Collection', () => {
         ];
 
         unrelatedMethods.forEach(method => {
-          expect(collector[method]).toBeUndefined();
+          expect((collector as any)[method]).toBeUndefined();
         });
       });
 
@@ -112,7 +112,7 @@ describe('SOLID Compliance - Rate Limiting and Error Collection', () => {
         const publicMethods = Object.getOwnPropertyNames(
           Object.getPrototypeOf(collector)
         ).filter(name =>
-          typeof collector[name] === 'function' &&
+          typeof (collector as any)[name] === 'function' &&
           !name.startsWith('_') &&
           name !== 'constructor'
         );
@@ -214,9 +214,6 @@ describe('SOLID Compliance - Rate Limiting and Error Collection', () => {
       const collector = new ScrapingErrorCollector();
 
       // Core behavior should not be modifiable from outside
-      const originalWait = limiter.waitForDomain;
-      const originalRecord = collector.recordError;
-
       // Try to modify (this should not affect internal behavior)
       limiter.waitForDomain = async () => { throw new Error('Modified'); };
       collector.recordError = () => { throw new Error('Modified'); };
@@ -251,11 +248,11 @@ describe('SOLID Compliance - Rate Limiting and Error Collection', () => {
       class AlternativeRateLimiter implements IRateLimiter {
         private intervals = new Map<string, number>();
 
-        async waitForDomain(domain: string): Promise<void> {
+        async waitForDomain(_domain: string): Promise<void> {
           // Alternative implementation
         }
 
-        recordRequest(domain: string): void {
+        recordRequest(_domain: string): void {
           // Alternative implementation
         }
 
@@ -370,8 +367,8 @@ describe('SOLID Compliance - Rate Limiting and Error Collection', () => {
 
         exportIssues() {
           const result = new Map();
-          const contexts = new Set([...this.errors.keys(), ...this.warnings.keys()]);
-          for (const context of contexts) {
+          const contexts = new Set([...Array.from(this.errors.keys()), ...Array.from(this.warnings.keys())]);
+          for (const context of Array.from(contexts)) {
             result.set(context, this.getIssues(context));
           }
           return result;
@@ -479,11 +476,11 @@ describe('SOLID Compliance - Rate Limiting and Error Collection', () => {
 
       // Can work with any implementation of the interfaces
       class MockRateLimiter implements IRateLimiter {
-        async waitForDomain(domain: string): Promise<void> {}
-        recordRequest(domain: string): void {}
-        getWaitTime(domain: string): number { return 0; }
-        clearHistory(domain?: string): void {}
-        setDomainInterval(domain: string, intervalMs: number): void {}
+        async waitForDomain(_domain: string): Promise<void> {}
+        recordRequest(_domain: string): void {}
+        getWaitTime(_domain: string): number { return 0; }
+        clearHistory(_domain?: string): void {}
+        setDomainInterval(_domain: string, _intervalMs: number): void {}
         getConfiguration() {
           return {
             enabled: true,
@@ -494,11 +491,11 @@ describe('SOLID Compliance - Rate Limiting and Error Collection', () => {
       }
 
       class MockErrorCollector implements IErrorCollector {
-        recordError(context: string, error: Error | string): void {}
-        recordWarning(context: string, warning: string): void {}
-        getErrors(context: string) { return []; }
-        getWarnings(context: string) { return []; }
-        getIssues(context: string) {
+        recordError(_context: string, _error: Error | string): void {}
+        recordWarning(_context: string, _warning: string): void {}
+        getErrors(_context: string) { return []; }
+        getWarnings(_context: string) { return []; }
+        getIssues(_context: string) {
           return {
             errors: [],
             warnings: [],
@@ -509,7 +506,7 @@ describe('SOLID Compliance - Rate Limiting and Error Collection', () => {
             }
           };
         }
-        clearIssues(context?: string): void {}
+        clearIssues(_context?: string): void {}
         exportIssues() { return new Map(); }
       }
 
