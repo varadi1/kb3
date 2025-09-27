@@ -40,6 +40,13 @@ export interface ProcessingOptions {
   maxTextLength?: number;
   preserveFormatting?: boolean;
   forceReprocess?: boolean;
+  concurrency?: number;
+  continueOnError?: boolean;
+  scraperSpecific?: {
+    collectErrors?: boolean;
+    timeout?: number;
+    [key: string]: any;
+  };
 }
 
 export interface ProcessedContent {

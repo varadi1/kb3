@@ -170,7 +170,8 @@ export class ScrapingErrorCollector implements IErrorCollector {
       };
     }
 
-    const categorized = ErrorHandler.categorizeError(error);
+    const severity = ErrorHandler.categorizeError(error);
+    const isRetryable = ErrorHandler.isRetryable(error);
 
     return {
       timestamp: new Date(),
@@ -179,8 +180,8 @@ export class ScrapingErrorCollector implements IErrorCollector {
       code: (error as any).code,
       metadata: {
         ...metadata,
-        category: categorized.category,
-        recoverable: categorized.recoverable
+        errorSeverity: severity,
+        isRetryable: isRetryable
       },
       severity: this.classifyErrorSeverity(error)
     };

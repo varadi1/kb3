@@ -19,7 +19,12 @@ export interface KnowledgeBaseConfig {
       compressionEnabled?: boolean;
       encryptionEnabled?: boolean;
     };
+    fileStore: {
+      path: string;
+    };
     enableDuplicateDetection?: boolean;
+    enableUrlTracking?: boolean;
+    urlRepositoryPath?: string;
   };
 
   // Processing configuration
@@ -28,6 +33,9 @@ export interface KnowledgeBaseConfig {
     defaultOptions?: ProcessingOptionsConfig;
     concurrency?: number;
     timeout?: number;
+    textExtraction?: boolean;
+    metadataExtraction?: boolean;
+    skipUnchangedContent?: boolean;
   };
 
   // Network configuration
@@ -64,6 +72,16 @@ export interface KnowledgeBaseConfig {
     }>;
     scraperConfigs?: Record<string, any>;
     enabledScrapers?: string[];
+    rateLimiting?: {
+      enabled?: boolean;
+      defaultIntervalMs?: number;
+      domainIntervals?: Record<string, number>;
+    };
+    errorCollection?: {
+      enabled?: boolean;
+      maxErrorsPerContext?: number;
+      contextRetentionMs?: number;
+    };
   };
 }
 
@@ -89,7 +107,12 @@ export function createDefaultConfiguration(overrides?: Partial<KnowledgeBaseConf
         compressionEnabled: false,
         encryptionEnabled: false
       },
-      enableDuplicateDetection: false
+      fileStore: {
+        path: './data/files'
+      },
+      enableDuplicateDetection: false,
+      enableUrlTracking: true,
+      urlRepositoryPath: './data/urls.db'
     },
     processing: {
       maxTextLength: 1000000,
@@ -100,7 +123,10 @@ export function createDefaultConfiguration(overrides?: Partial<KnowledgeBaseConf
         preserveFormatting: false
       },
       concurrency: 5,
-      timeout: 30000
+      timeout: 30000,
+      textExtraction: true,
+      metadataExtraction: true,
+      skipUnchangedContent: false
     },
     network: {
       timeout: 30000,
@@ -135,6 +161,9 @@ export function createProductionConfiguration(): KnowledgeBaseConfig {
       fileStorage: {
         basePath: './data/files',
         compressionEnabled: true
+      },
+      fileStore: {
+        path: './data/files'
       }
     },
     processing: {
@@ -155,6 +184,9 @@ export function createDevelopmentConfiguration(): KnowledgeBaseConfig {
       },
       fileStorage: {
         basePath: './dev-data/files'
+      },
+      fileStore: {
+        path: './dev-data/files'
       }
     },
     processing: {
@@ -182,6 +214,9 @@ export function createSqlConfiguration(overrides?: Partial<KnowledgeBaseConfig>)
       fileStorage: {
         basePath: './data/files',
         compressionEnabled: true
+      },
+      fileStore: {
+        path: './data/files'
       },
       enableDuplicateDetection: true
     },
@@ -213,7 +248,13 @@ function mergeConfig(
         ...base.storage.fileStorage,
         ...overrides.storage?.fileStorage
       },
-      enableDuplicateDetection: overrides.storage?.enableDuplicateDetection ?? base.storage.enableDuplicateDetection
+      fileStore: {
+        ...base.storage.fileStore,
+        ...overrides.storage?.fileStore
+      },
+      enableDuplicateDetection: overrides.storage?.enableDuplicateDetection ?? base.storage.enableDuplicateDetection,
+      enableUrlTracking: overrides.storage?.enableUrlTracking ?? base.storage.enableUrlTracking,
+      urlRepositoryPath: overrides.storage?.urlRepositoryPath ?? base.storage.urlRepositoryPath
     },
     processing: {
       ...base.processing,

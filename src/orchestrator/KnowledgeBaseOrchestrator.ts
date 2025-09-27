@@ -254,6 +254,7 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
         metadata: {
           ...processedContent.metadata,
           classification,
+          contentHash,
           storagePath,
           processingStages: this.getCompletedStages(),
           scraperUsed: fetchedContent.metadata?.scraperUsed,

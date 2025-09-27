@@ -248,6 +248,7 @@ describe('ComponentName', () => {
 All errors MUST be:
 - Properly categorized (use `ErrorHandler.categorizeError()`)
 - Logged with context
+- Collected for analysis (use `IErrorCollector`)
 - Handled gracefully without breaking the system
 
 ```typescript
@@ -257,12 +258,29 @@ try {
   const categorized = ErrorHandler.categorizeError(error);
   logger.error('Processing failed', { error: categorized, context });
 
+  // Collect error for analysis
+  if (errorCollector) {
+    errorCollector.recordError(context, error, {
+      scraper: scraperName,
+      url: currentUrl
+    });
+  }
+
   if (categorized.recoverable) {
     return fallbackResult;
   }
   throw categorized;
 }
 ```
+
+#### Error Severity Classification
+
+Classify errors by severity:
+- **Critical**: System failures, invalid configuration
+- **Error**: Standard processing errors
+- **Recoverable**: Timeouts, network issues (can retry)
+- **Warning**: Slow responses, deprecations
+- **Info**: General information
 
 ### 5. Dependency Injection
 
@@ -335,6 +353,38 @@ async process(content: Buffer, options?: ProcessingOptions): Promise<ProcessingR
 ```
 
 ## Common Tasks
+
+### Working with Tags
+
+Tags allow organizing URLs into logical groups for batch processing:
+
+1. **Create tags with hierarchy**:
+```typescript
+const kb = KnowledgeBaseFactoryWithTags.createKnowledgeBaseWithTags(config);
+await kb.createTag('documentation');
+await kb.createTag('api-docs', 'documentation'); // Child of documentation
+```
+
+2. **Process URLs with tags**:
+```typescript
+const urlsWithTags = [
+  { url: 'https://example.com/api', tags: ['api-docs', 'v1'] },
+  { url: 'https://example.com/guide', tags: ['documentation', 'tutorial'] }
+];
+await kb.processUrlsWithTags(urlsWithTags);
+```
+
+3. **Batch process by tags**:
+```typescript
+// Process all URLs with 'api-docs' tag
+await kb.processUrlsByTags(['api-docs']);
+
+// Process URLs with ALL specified tags
+await kb.processUrlsByTags(['tutorial', 'beginner'], { requireAllTags: true });
+
+// Include child tags in processing
+await kb.processUrlsByTags(['documentation'], { includeChildTags: true });
+```
 
 ### Adding a New URL Detector
 
@@ -559,6 +609,102 @@ Rules with higher priority values are evaluated first:
 3. Add to factory configuration options
 4. Test with concurrent operations
 
+### Adding Rate Limiting to a Component
+
+1. Inject `IRateLimiter` interface:
+```typescript
+class MyFetcher {
+  constructor(
+    private rateLimiter: IRateLimiter
+  ) {}
+
+  async fetch(url: string): Promise<Content> {
+    const domain = DomainRateLimiter.extractDomain(url);
+    await this.rateLimiter.waitForDomain(domain);
+    this.rateLimiter.recordRequest(domain);
+
+    // Perform fetch
+    return content;
+  }
+}
+```
+
+2. Configure rate limits:
+```typescript
+rateLimiter.setDomainInterval('api.example.com', 2000);
+```
+
+3. Test rate limiting behavior
+
+### Adding Error Collection to a Component
+
+1. Inject `IErrorCollector` interface:
+```typescript
+class MyProcessor {
+  constructor(
+    private errorCollector: IErrorCollector
+  ) {}
+
+  async process(content: Buffer): Promise<Result> {
+    try {
+      // Process content
+    } catch (error) {
+      this.errorCollector.recordError(
+        'processing-context',
+        error,
+        { contentType, size }
+      );
+      throw error;
+    }
+  }
+}
+```
+
+2. Monitor errors:
+```typescript
+const issues = errorCollector.getIssues('context');
+if (issues.summary.criticalErrors > 0) {
+  // Handle critical errors
+}
+```
+
+### Implementing Batch Processing with Per-URL Settings
+
+1. Define URL configurations:
+```typescript
+interface UrlConfig {
+  url: string;
+  rateLimitMs?: number;
+  scraperOptions?: ScraperOptions;
+  processingOptions?: ProcessingOptions;
+}
+```
+
+2. Process with individual settings:
+```typescript
+async processUrlsWithConfigs(
+  configs: UrlConfig[],
+  globalOptions: ProcessingOptions
+): Promise<Result[]> {
+  // Apply per-URL rate limits
+  for (const config of configs) {
+    if (config.rateLimitMs) {
+      const domain = extractDomain(config.url);
+      rateLimiter.setDomainInterval(domain, config.rateLimitMs);
+    }
+  }
+
+  // Process with merged options
+  const results = [];
+  for (const config of configs) {
+    const options = { ...globalOptions, ...config.processingOptions };
+    results.push(await processUrl(config.url, options));
+  }
+
+  return results;
+}
+```
+
 ## Testing Commands
 
 ```bash
@@ -585,6 +731,8 @@ npm test -- SingleResponsibility.test.ts
 3. **Add caching strategically**: Cache expensive operations
 4. **Limit concurrency**: Use the configuration to control parallel operations
 5. **Lazy load processors**: Only instantiate when needed
+6. **Implement rate limiting**: Respect server limits and prevent overwhelming targets
+7. **Batch requests by domain**: Group URLs to optimize rate limiting
 
 ## Security Guidelines
 

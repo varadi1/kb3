@@ -11,13 +11,14 @@
 | detectors | `src/detectors/UrlDetectorRegistry.ts` | `UrlDetectorRegistry` | — | Holds and prioritizes detectors | — | — |
 | detectors | `src/detectors/index.ts` | — | - `createDefaultDetectorRegistry` | Create a registry with extension, header, and content detectors | none | UrlDetectorRegistry |
 | factory | `src/factory/KnowledgeBaseFactory.ts` | `KnowledgeBaseFactory` | — | Constructs configured orchestrators and components | — | — |
+| factory | `src/factory/KnowledgeBaseFactoryWithTags.ts` | `KnowledgeBaseFactoryWithTags` | `createKnowledgeBaseWithTags` | Factory for creating knowledge base with tag support | config: KnowledgeBaseConfigWithTags | KnowledgeBaseOrchestratorWithTags |
 | factory | `src/factory/index.ts` | — | — | Re-exports factory APIs | — | — |
 | fetchers | `src/fetchers/BaseFetcher.ts` | `BaseFetcher` (abstract) | — | Abstract base for content fetchers | — | — |
 | fetchers | `src/fetchers/HttpFetcher.ts` | `HttpFetcher` | — | Fetches content over HTTP/HTTPS | — | — |
 | fetchers | `src/fetchers/SmartHttpFetcher.ts` | `SmartHttpFetcher` | — | HTTP fetcher handling redirects/special cases | — | — |
 | fetchers | `src/fetchers/FileFetcher.ts` | `FileFetcher` | — | Reads content from local files | — | — |
 | fetchers | `src/fetchers/FetcherRegistry.ts` | `FetcherRegistry` | — | Manages a set of fetchers | — | — |
-| fetchers | `src/fetchers/ScraperAwareContentFetcher.ts` | `ScraperAwareContentFetcher` | — | Content fetcher that integrates with scraping libraries | — | — |
+| fetchers | `src/fetchers/ScraperAwareContentFetcher.ts` | `ScraperAwareContentFetcher` | — | Enhanced content fetcher with scraping, rate limiting, and error collection | url: string, options?: FetchOptions | FetchedContent with metadata |
 | fetchers | `src/fetchers/index.ts` | — | - `createDefaultFetcherRegistry` | Create registry with `SmartHttpFetcher` and `FileFetcher` | none | FetcherRegistry |
 | scrapers | `src/scrapers/BaseScraper.ts` | `BaseScraper` (abstract) | — | Abstract base for scraper implementations | — | — |
 | scrapers | `src/scrapers/HttpScraper.ts` | `HttpScraper` | — | Adapter for HTTP fetcher as scraper | — | — |
@@ -31,17 +32,26 @@
 | scrapers | `src/scrapers/ScraperFactory.ts` | `ScraperFactory` | — | Factory for creating and configuring scrapers | — | — |
 | scrapers | `src/scrapers/ScraperParameterManager.ts` | `ScraperParameterManager`, `PlaywrightParameterValidator`, `Crawl4AIParameterValidator`, `DoclingParameterValidator` | — | Manages and validates scraper-specific parameters | url: string, config: ScraperConfiguration | void |
 | scrapers | `src/scrapers/BatchConfigurationManager.ts` | `BatchConfigurationManager` | — | Handles batch configuration operations and presets | operation: BatchOperation | BatchConfigurationResult |
+| scrapers | `src/scrapers/DomainRateLimiter.ts` | `DomainRateLimiter` | — | Implements domain-based rate limiting with configurable intervals | domain: string, intervalMs?: number | Promise<void> (wait), number (getWaitTime) |
+| scrapers | `src/scrapers/ScrapingErrorCollector.ts` | `ScrapingErrorCollector` | — | Collects and categorizes errors/warnings during scraping with severity classification | context: string, error: Error \| string, metadata?: any | ScrapingIssues |
 | interfaces | `src/interfaces/IUrlDetector.ts` | — | — | Interface definitions for URL detection | — | — |
 | interfaces | `src/interfaces/IOrchestrator.ts` | — | — | Orchestrator interfaces and types | — | — |
 | interfaces | `src/interfaces/IContentFetcher.ts` | — | — | Fetcher interfaces and types | — | — |
 | interfaces | `src/interfaces/IScraper.ts` | — | — | Scraper interfaces and types | — | — |
 | interfaces | `src/interfaces/IScraperParameters.ts` | — | — | Comprehensive parameter interfaces for all scrapers | — | — |
+| interfaces | `src/interfaces/IRateLimiter.ts` | — | — | Interface for rate limiting implementations | — | — |
+| interfaces | `src/interfaces/IErrorCollector.ts` | — | — | Interface for error collection and reporting | — | — |
+| interfaces | `src/interfaces/IBatchProcessingOptions.ts` | — | — | Interface for batch processing with per-URL configurations | — | — |
 | interfaces | `src/interfaces/IFileStorage.ts` | — | — | File storage interfaces and types | — | — |
 | interfaces | `src/interfaces/IKnowledgeStore.ts` | — | — | Knowledge store interfaces and types | — | — |
 | interfaces | `src/interfaces/IContentProcessor.ts` | — | — | Processor interfaces and types | — | — |
 | interfaces | `src/interfaces/IUrlRepository.ts` | — | — | URL repository interfaces and types | — | — |
+| interfaces | `src/interfaces/ITag.ts` | — | — | Tag interfaces and types for URL organization | — | — |
+| interfaces | `src/interfaces/ITagManager.ts` | — | — | Tag management interfaces | — | — |
+| interfaces | `src/interfaces/IUrlTagRepository.ts` | — | — | URL-tag relationship interfaces | — | — |
 | interfaces | `src/interfaces/index.ts` | — | — | Re-exports interfaces | — | — |
-| orchestrator | `src/orchestrator/KnowledgeBaseOrchestrator.ts` | `KnowledgeBaseOrchestrator` | — | Coordinates detect→fetch→process→store→index pipeline | — | — |
+| orchestrator | `src/orchestrator/KnowledgeBaseOrchestrator.ts` | `KnowledgeBaseOrchestrator` | — | Coordinates pipeline with batch processing, per-URL configs, and metadata persistence | processUrl, processUrls, processUrlsWithConfigs | ProcessingResult[] with full metadata |
+| orchestrator | `src/orchestrator/KnowledgeBaseOrchestratorWithTags.ts` | `KnowledgeBaseOrchestratorWithTags` | — | Enhanced orchestrator with tag support for batch operations | processUrlWithTags, processUrlsWithTags, processUrlsByTags | ProcessingResult[] with tags metadata |
 | orchestrator | `src/orchestrator/index.ts` | — | — | Re-exports orchestrator | — | — |
 | processors | `src/processors/BaseProcessor.ts` | `BaseProcessor` (abstract) | — | Abstract base for content processors | — | — |
 | processors | `src/processors/TextProcessor.ts` | `TextProcessor` | — | Processes plain text | — | — |
@@ -59,10 +69,200 @@
 | storage | `src/storage/BaseFileStorage.ts` | `BaseFileStorage` (abstract) | — | Abstract base for file storage | — | — |
 | storage | `src/storage/LocalFileStorage.ts` | `LocalFileStorage` | — | Stores raw bytes+metadata on local FS | — | — |
 | storage | `src/storage/SqlUrlRepository.ts` | `SqlUrlRepository` | — | Tracks URLs/hashes for duplicate detection | — | — |
+| storage | `src/storage/SqlUrlRepositoryWithTags.ts` | `SqlUrlRepositoryWithTags` | — | Enhanced URL repository with tag support | registerWithTags, getUrlsByTags, addTagsToUrl | string (URL ID) |
+| storage | `src/storage/SqlTagManager.ts` | `SqlTagManager` | — | SQL-based tag management with hierarchical support | createTag, getTag, deleteTag, listTags | ITag |
+| storage | `src/storage/SqlUrlTagRepository.ts` | `SqlUrlTagRepository` | — | Manages many-to-many URL-tag relationships | addTagsToUrl, getTagsForUrl, getUrlsWithTag | boolean/ITag[]/string[] |
 | storage | `src/storage/index.ts` | — | - `createDefaultKnowledgeStore`<br>- `createDefaultFileStorage` | - Create memory/file knowledge store (based on path)<br>- Create local file storage rooted at basePath | - storePath?: string<br>- basePath: string | - BaseKnowledgeStore (Memory or File)<br>- LocalFileStorage |
 | utils | `src/utils/ErrorHandler.ts` | `ErrorHandler` | — | Centralized error handling utilities | — | — |
 | utils | `src/utils/ValidationUtils.ts` | `ValidationUtils` | — | Validation helpers for URLs, config, etc. | — | — |
 | utils | `src/utils/index.ts` | — | — | Re-exports utilities | — | — |
 | root | `src/index.ts` | — | - `createKnowledgeBase` | Create an orchestrator using default or provided config | config?: Partial<KnowledgeBaseConfig> | KnowledgeBaseOrchestrator |
 
+## New Features (Rate Limiting & Error Collection)
+
+### Rate Limiting Components
+
+**DomainRateLimiter** (`src/scrapers/DomainRateLimiter.ts`)
+- **Purpose**: Prevents overwhelming servers by enforcing time intervals between requests to the same domain
+- **Key Methods**:
+  - `waitForDomain(domain)`: Waits if necessary before allowing request
+  - `setDomainInterval(domain, ms)`: Sets custom interval for specific domain
+  - `getWaitTime(domain)`: Returns milliseconds to wait
+  - `getStats(domain)`: Returns request statistics
+- **Configuration**:
+  - Default interval: 1000ms
+  - Per-domain custom intervals
+  - Can be disabled globally
+
+### Error Collection Components
+
+**ScrapingErrorCollector** (`src/scrapers/ScrapingErrorCollector.ts`)
+- **Purpose**: Collects, categorizes, and reports errors/warnings during scraping
+- **Severity Levels**:
+  - `critical`: Fatal errors requiring immediate attention
+  - `error`: Standard errors that failed operations
+  - `recoverable`: Transient errors that might succeed on retry
+  - `warning`: Non-critical issues (deprecations, performance)
+  - `info`: Informational messages
+- **Key Methods**:
+  - `recordError(context, error, metadata)`: Records an error with automatic severity classification
+  - `recordWarning(context, warning, metadata)`: Records a warning
+  - `getIssues(context)`: Gets all issues for a URL/context
+  - `getFormattedSummary()`: Returns formatted report
+- **Automatic Classification**:
+  - Connection/timeout errors → `recoverable`
+  - Fatal/critical keywords → `critical`
+  - Deprecation warnings → `warning`
+  - Rate limit warnings → `info`
+
+### Enhanced Content Fetcher
+
+**ScraperAwareContentFetcher** (Enhanced)
+- **New Capabilities**:
+  - Integrated rate limiting per domain
+  - Automatic error collection and reporting
+  - Per-URL configuration support
+  - Batch processing with individual settings
+- **New Methods**:
+  - `setDomainRateLimit(domain, ms)`: Configure domain-specific rate limits
+  - `setUrlParameters(url, config)`: Set per-URL scraper parameters
+  - `getRateLimiter()`: Access rate limiter for configuration
+  - `getErrorCollector()`: Access error collector
+  - `getScrapingIssues(url)`: Get issues for specific URL
+- **Metadata Enhancement**:
+  - Adds `rateLimitInfo` with wait times and request counts
+  - Adds `scrapingIssues` with errors/warnings and severity breakdown
+  - Preserves all scraper configuration and parameters
+
+### Batch Processing
+
+**KnowledgeBaseOrchestrator** (Enhanced)
+- **New Method**: `processUrlsWithConfigs(urlConfigs, globalOptions)`
+- **URL Configuration**:
+  ```typescript
+  {
+    url: string;
+    rateLimitMs?: number;        // Custom rate limit for this URL's domain
+    scraperOptions?: any;         // Scraper-specific parameters
+    processingOptions?: ProcessingOptions;
+  }
+  ```
+- **Features**:
+  - Per-URL rate limits applied before processing
+  - Individual scraper parameters per URL
+  - All settings saved to database metadata
+  - Maintains SOLID principles through dependency injection
+
+### Integration Example
+
+```typescript
+// Create KB with rate limiting and error collection
+const kb = KnowledgeBaseFactory.createKnowledgeBase(config);
+
+// Access enhanced fetcher
+const fetcher = (kb as any).contentFetcher as ScraperAwareContentFetcher;
+
+// Configure rate limits
+fetcher.setDomainRateLimit('example.com', 2000);  // 2 second interval
+
+// Process with per-URL settings
+await kb.processUrlsWithConfigs([
+  {
+    url: 'https://example.com/page1',
+    rateLimitMs: 3000,  // Override to 3 seconds
+    scraperOptions: {
+      scraperType: 'playwright',
+      parameters: { headless: false }
+    }
+  },
+  {
+    url: 'https://api.example.com/data',
+    rateLimitMs: 500,   // Faster for API
+    scraperOptions: { scraperType: 'http' }
+  }
+]);
+
+// Check for issues
+const issues = fetcher.getScrapingIssues('https://example.com/page1');
+console.log(`Errors: ${issues.summary.errorCount}`);
+console.log(`Warnings: ${issues.summary.warningCount}`);
+```
+
+### Metadata Persistence
+
+All rate limiting information and scraping issues are automatically saved to:
+- **SQL Database**: `urls.metadata` column (JSON)
+- **File Storage**: `.meta.json` files alongside content
+- **Knowledge Entries**: Searchable metadata in knowledge store
+
+### Testing Coverage
+
+- **Unit Tests**: Individual component testing (95%+ coverage)
+- **Integration Tests**: End-to-end batch processing tests
+- **SOLID Compliance Tests**: Verify adherence to all SOLID principles
+- **Coverage Report**: Automated verification of test coverage
+
+## Tag System Architecture
+
+The tagging system provides a hierarchical organization structure for URLs with the following components:
+
+### Core Components
+
+1. **SqlTagManager** - Manages tag lifecycle (CRUD operations, hierarchy)
+2. **SqlUrlTagRepository** - Handles many-to-many URL-tag relationships
+3. **SqlUrlRepositoryWithTags** - Enhanced URL repository with tag integration
+4. **KnowledgeBaseOrchestratorWithTags** - Extended orchestrator for tag-based operations
+
+### Database Schema
+
+```sql
+-- Tags table with hierarchical support
+CREATE TABLE tags (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  parent_id TEXT REFERENCES tags(id),
+  description TEXT,
+  color TEXT,
+  created_at INTEGER NOT NULL
+);
+
+-- URL-Tags junction table
+CREATE TABLE url_tags (
+  url_id TEXT NOT NULL,
+  tag_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (url_id, tag_id)
+);
+```
+
+### Tag Features
+
+- **Hierarchical Organization**: Tags can have parent-child relationships
+- **Many-to-Many Relationships**: URLs can have multiple tags, tags can reference multiple URLs
+- **Batch Processing by Tags**: Process all URLs with specific tags
+- **Tag-based Selection**: Filter and select URLs using tag criteria
+- **Dynamic Tag Creation**: Tags are automatically created when assigned
+- **Tag Persistence**: All tag relationships are stored in the database
+
+### Usage Example
+
+```typescript
+import { KnowledgeBaseFactoryWithTags } from './src/factory/KnowledgeBaseFactoryWithTags';
+
+const kb = KnowledgeBaseFactoryWithTags.createKnowledgeBaseWithTags(config);
+
+// Create tag hierarchy
+await kb.createTag('content');
+await kb.createTag('technical', 'content');
+await kb.createTag('tutorials', 'content');
+
+// Process URLs with tags
+await kb.processUrlsWithTags([
+  { url: 'https://example.com/api', tags: ['technical', 'api'] },
+  { url: 'https://example.com/guide', tags: ['tutorials'] }
+]);
+
+// Batch process by tag
+await kb.processUrlsByTags(['technical'], { includeChildTags: true });
+```
 

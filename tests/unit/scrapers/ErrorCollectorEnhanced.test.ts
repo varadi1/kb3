@@ -4,8 +4,7 @@
  */
 
 import { ScrapingErrorCollector } from '../../../src/scrapers/ScrapingErrorCollector';
-import { IErrorCollector, ErrorEntry, WarningEntry, ScrapingIssues } from '../../../src/interfaces/IErrorCollector';
-import { ErrorHandler } from '../../../src/utils/ErrorHandler';
+import { IErrorCollector, ScrapingIssues } from '../../../src/interfaces/IErrorCollector';
 
 describe('ScrapingErrorCollector - Enhanced Tests', () => {
   let collector: ScrapingErrorCollector;
@@ -305,7 +304,6 @@ describe('ScrapingErrorCollector - Enhanced Tests', () => {
 
     test('should preserve timestamps when merging', () => {
       const other = new ScrapingErrorCollector();
-      const originalTime = new Date('2024-01-01');
 
       // Record error with metadata including original timestamp
       other.recordError('test', new Error('Old error'));
@@ -357,7 +355,10 @@ describe('ScrapingErrorCollector - Enhanced Tests', () => {
       expect(summary).toContain('Error 8');
       expect(summary).toContain('Error 9');
       expect(summary).toContain('Error 10');
-      expect(summary).not.toContain('Error 1');
+      // Check that early errors are not shown (use more specific check to avoid substring match with Error 10)
+      expect(summary).not.toContain('Error 1]');  // With closing bracket to avoid matching Error 10
+      expect(summary).not.toContain('Error 2');
+      expect(summary).not.toContain('Error 7');
     });
   });
 

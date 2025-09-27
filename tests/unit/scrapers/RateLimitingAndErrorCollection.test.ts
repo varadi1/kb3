@@ -5,7 +5,6 @@
 
 import { DomainRateLimiter } from '../../../src/scrapers/DomainRateLimiter';
 import { ScrapingErrorCollector } from '../../../src/scrapers/ScrapingErrorCollector';
-import { ScraperAwareContentFetcher } from '../../../src/fetchers/ScraperAwareContentFetcher';
 import { createDefaultConfiguration } from '../../../src/config/Configuration';
 import { ScraperFactory } from '../../../src/scrapers/ScraperFactory';
 import { FetcherRegistry } from '../../../src/fetchers/FetcherRegistry';

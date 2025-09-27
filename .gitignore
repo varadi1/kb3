@@ -4,11 +4,10 @@ node_modules/
 .pnp.js
 
 # Testing
-coverage/
+
 
 # Production build
-dist/
-build/
+
 
 # Environment files
 .env
@@ -42,7 +41,7 @@ Thumbs.db
 .temp/
 
 # Data and storage
-storage/
+
 
 # Lock files (keep package-lock.json)
 yarn.lock

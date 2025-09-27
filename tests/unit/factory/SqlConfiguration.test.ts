@@ -44,16 +44,18 @@ describe('Factory SQL Configuration', () => {
 
     test('should allow overriding SQL configuration', () => {
       const config = createSqlConfiguration({
-        storage: {
-          knowledgeStore: {
+        storage: {knowledgeStore: {
             type: 'sql',
             dbPath: './custom/knowledge.db',
             urlDbPath: './custom/urls.db'
           },
-          fileStorage: {
+        fileStorage: {
             basePath: './custom/files'
-          }
-        },
+          },
+        fileStore: {
+          path: './custom/files'
+        }
+      },
         processing: {
           concurrency: 20
         }
@@ -79,15 +81,17 @@ describe('Factory SQL Configuration', () => {
   describe('Factory with SQL Storage', () => {
     test('should create orchestrator with SQL knowledge store', () => {
       const config = createSqlConfiguration({
-        storage: {
-          knowledgeStore: {
+        storage: {knowledgeStore: {
             type: 'sql',
             dbPath: testDbPath
           },
-          fileStorage: {
+        fileStorage: {
             basePath: './test-data/files'
-          }
+          },
+        fileStore: {
+          path: './test-data/files'
         }
+      }
       });
 
       const orchestrator = KnowledgeBaseFactory.createKnowledgeBase(config);
@@ -99,16 +103,18 @@ describe('Factory SQL Configuration', () => {
 
     test('should create orchestrator with URL repository when SQL storage is used', () => {
       const config = createSqlConfiguration({
-        storage: {
-          knowledgeStore: {
+        storage: {knowledgeStore: {
             type: 'sql',
             dbPath: testDbPath,
             urlDbPath: testUrlDbPath
           },
-          fileStorage: {
+        fileStorage: {
             basePath: './test-data/files'
-          }
+          },
+        fileStore: {
+          path: './test-data/files'
         }
+      }
       });
 
       const orchestrator = KnowledgeBaseFactory.createKnowledgeBase(config);
@@ -126,6 +132,9 @@ describe('Factory SQL Configuration', () => {
           fileStorage: {
             basePath: './test-data/files'
           },
+          fileStore: {
+            path: './test-data/files'
+          },
           enableDuplicateDetection: true
         }
       });
@@ -138,15 +147,17 @@ describe('Factory SQL Configuration', () => {
 
     test('should not create URL repository when duplicate detection is disabled', () => {
       const config = createDefaultConfiguration({
-        storage: {
-          knowledgeStore: {
+        storage: {knowledgeStore: {
             type: 'memory'
           },
-          fileStorage: {
+        fileStorage: {
             basePath: './test-data/files'
           },
-          enableDuplicateDetection: false
-        }
+        fileStore: {
+          path: './test-data/files'
+        },
+        enableDuplicateDetection: false
+      }
       });
 
       const orchestrator = KnowledgeBaseFactory.createKnowledgeBase(config);
@@ -213,10 +224,13 @@ describe('Factory SQL Configuration', () => {
             type: 'sql'
             // dbPath not specified
           },
-          fileStorage: {
+        fileStorage: {
             basePath: './test-data/files'
-          }
+          },
+        fileStore: {
+          path: './test-data/files'
         }
+      }
       });
 
       expect(config.storage.knowledgeStore.dbPath).toBe('./data/knowledge.db');
@@ -224,15 +238,17 @@ describe('Factory SQL Configuration', () => {
 
     test('should use default URL database path if not specified', () => {
       const config = createSqlConfiguration({
-        storage: {
-          knowledgeStore: {
+        storage: {knowledgeStore: {
             type: 'sql'
             // urlDbPath not specified
           },
-          fileStorage: {
+        fileStorage: {
             basePath: './test-data/files'
-          }
+          },
+        fileStore: {
+          path: './test-data/files'
         }
+      }
       });
 
       expect(config.storage.knowledgeStore.urlDbPath).toBe('./data/urls.db');
@@ -256,15 +272,17 @@ describe('Factory SQL Configuration', () => {
 
     test('should maintain backward compatibility with file storage', () => {
       const config = createDefaultConfiguration({
-        storage: {
-          knowledgeStore: {
+        storage: {knowledgeStore: {
             type: 'file',
             path: './test-knowledge'
           },
-          fileStorage: {
+        fileStorage: {
             basePath: './test-data/files'
-          }
+          },
+        fileStore: {
+          path: './test-data/files'
         }
+      }
       });
 
       expect(config.storage.knowledgeStore.type).toBe('file');

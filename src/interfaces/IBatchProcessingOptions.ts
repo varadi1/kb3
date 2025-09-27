@@ -3,7 +3,7 @@
  * Single Responsibility: Defines contract for batch processing options
  */
 
-import { ProcessingOptions } from './IKnowledgeStore';
+import { ProcessingOptions } from './IContentProcessor';
 import { ScraperOptions } from './IScraper';
 
 /**

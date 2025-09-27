@@ -145,7 +145,7 @@ export class ScraperFactory {
   /**
    * Creates an error collector based on configuration
    */
-  private static createErrorCollector(config: KnowledgeBaseConfig): IErrorCollector {
+  private static createErrorCollector(_config: KnowledgeBaseConfig): IErrorCollector {
     // Configuration could be used in the future for max errors, etc.
     return new ScrapingErrorCollector();
   }
