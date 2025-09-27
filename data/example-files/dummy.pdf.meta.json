@@ -1,0 +1,38 @@
+{
+  "path": "/Users/varadiimre/0SWDEV/kb3/data/example-files/dummy.pdf",
+  "size": 13264,
+  "createdAt": "2025-09-26T10:13:11.779Z",
+  "updatedAt": "2025-09-26T10:13:11.779Z",
+  "mimeType": "application/pdf",
+  "checksum": "2942bfabb3d05332b66eb128e0842cff",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    "mimeType": "application/pdf",
+    "originalSize": 13264,
+    "fetchedAt": "2025-09-26T10:13:11.778Z",
+    "headers": {
+      "date": "Fri, 26 Sep 2025 10:13:11 GMT",
+      "content-type": "application/pdf; qs=0.001",
+      "content-length": "13264",
+      "connection": "keep-alive",
+      "cf-ray": "9851fcbafbc868b0-BUD",
+      "last-modified": "Mon, 27 Aug 2007 17:15:36 GMT",
+      "etag": "\"33d0-438b181451e00\"",
+      "cache-control": "max-age=21600",
+      "expires": "Fri, 26 Sep 2025 16:13:11 GMT",
+      "x-robots-tag": "noindex",
+      "x-backend": "www-mirrors",
+      "x-request-id": "9851fcbafbc868b0",
+      "strict-transport-security": "max-age=15552000; includeSubdomains; preload",
+      "content-security-policy": "frame-ancestors 'self' https://cms.w3.org/ https://cms-dev.w3.org/; upgrade-insecure-requests",
+      "cf-cache-status": "BYPASS",
+      "accept-ranges": "bytes",
+      "set-cookie": "__cf_bm=Ej.Jf7klxlBr0XpbOz55ndJSnHr5vZ_ezJELvn8sRYY-1758881591-1.0.1.1-t0uT2gWoHtPDqnVM1m1TBIuML8VFjxefvw1QfW1QN8VenfedVGo_WzevTpbSksiQ4hNshtvJ4ObodxJ3Jo8PkxHMsR7NDdH3EUMC4jdctMs; path=/; expires=Fri, 26-Sep-25 10:43:11 GMT; domain=.w3.org; HttpOnly; Secure; SameSite=None",
+      "vary": "Accept-Encoding",
+      "server": "cloudflare",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    }
+  }
+}

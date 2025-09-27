@@ -17,10 +17,25 @@
 | fetchers | `src/fetchers/SmartHttpFetcher.ts` | `SmartHttpFetcher` | — | HTTP fetcher handling redirects/special cases | — | — |
 | fetchers | `src/fetchers/FileFetcher.ts` | `FileFetcher` | — | Reads content from local files | — | — |
 | fetchers | `src/fetchers/FetcherRegistry.ts` | `FetcherRegistry` | — | Manages a set of fetchers | — | — |
+| fetchers | `src/fetchers/ScraperAwareContentFetcher.ts` | `ScraperAwareContentFetcher` | — | Content fetcher that integrates with scraping libraries | — | — |
 | fetchers | `src/fetchers/index.ts` | — | - `createDefaultFetcherRegistry` | Create registry with `SmartHttpFetcher` and `FileFetcher` | none | FetcherRegistry |
+| scrapers | `src/scrapers/BaseScraper.ts` | `BaseScraper` (abstract) | — | Abstract base for scraper implementations | — | — |
+| scrapers | `src/scrapers/HttpScraper.ts` | `HttpScraper` | — | Adapter for HTTP fetcher as scraper | — | — |
+| scrapers | `src/scrapers/PlaywrightScraper.ts` | `PlaywrightScraper` | — | Full browser automation with Playwright - supports JS, screenshots, PDFs, cookies | url: string, options?: ScraperOptions | ScrapedContent |
+| scrapers | `src/scrapers/Crawl4AIScraper.ts` | `Crawl4AIScraper` | — | AI-powered web crawling with extraction strategies and content chunking | url: string, options?: ScraperOptions | ScrapedContent |
+| scrapers | `src/scrapers/FirecrawlScraper.ts` | `FirecrawlScraper` | — | API-based scraping service (placeholder) | — | — |
+| scrapers | `src/scrapers/DoclingScraper.ts` | `DoclingScraper` | — | Document extraction with OCR support for PDF, DOCX, PPTX, images | url: string, options?: ScraperOptions | ScrapedContent |
+| scrapers | `src/scrapers/DeepDoctectionScraper.ts` | `DeepDoctectionScraper` | — | Deep document analysis (placeholder) | — | — |
+| scrapers | `src/scrapers/ScraperRegistry.ts` | `ScraperRegistry` | — | Singleton registry for managing scrapers | — | — |
+| scrapers | `src/scrapers/ScraperSelector.ts` | `ScraperSelector`, `DomainBasedSelectionStrategy` | — | Selects appropriate scraper for URLs based on rules | — | — |
+| scrapers | `src/scrapers/ScraperFactory.ts` | `ScraperFactory` | — | Factory for creating and configuring scrapers | — | — |
+| scrapers | `src/scrapers/ScraperParameterManager.ts` | `ScraperParameterManager`, `PlaywrightParameterValidator`, `Crawl4AIParameterValidator`, `DoclingParameterValidator` | — | Manages and validates scraper-specific parameters | url: string, config: ScraperConfiguration | void |
+| scrapers | `src/scrapers/BatchConfigurationManager.ts` | `BatchConfigurationManager` | — | Handles batch configuration operations and presets | operation: BatchOperation | BatchConfigurationResult |
 | interfaces | `src/interfaces/IUrlDetector.ts` | — | — | Interface definitions for URL detection | — | — |
 | interfaces | `src/interfaces/IOrchestrator.ts` | — | — | Orchestrator interfaces and types | — | — |
 | interfaces | `src/interfaces/IContentFetcher.ts` | — | — | Fetcher interfaces and types | — | — |
+| interfaces | `src/interfaces/IScraper.ts` | — | — | Scraper interfaces and types | — | — |
+| interfaces | `src/interfaces/IScraperParameters.ts` | — | — | Comprehensive parameter interfaces for all scrapers | — | — |
 | interfaces | `src/interfaces/IFileStorage.ts` | — | — | File storage interfaces and types | — | — |
 | interfaces | `src/interfaces/IKnowledgeStore.ts` | — | — | Knowledge store interfaces and types | — | — |
 | interfaces | `src/interfaces/IContentProcessor.ts` | — | — | Processor interfaces and types | — | — |

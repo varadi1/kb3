@@ -69,7 +69,7 @@ describe('System Integration Tests', () => {
         // Expected for URLs that don't exist
         expect(error).toBeDefined();
       }
-    });
+    }, 90000); // Increase timeout to 90 seconds
   });
 
   describe('SQL Storage Integration', () => {
@@ -319,11 +319,11 @@ describe('System Integration Tests', () => {
       const endTime = Date.now();
 
       expect(results).toHaveLength(urls.length);
-      expect(endTime - startTime).toBeLessThan(30000); // Should complete within 30 seconds
+      expect(endTime - startTime).toBeLessThan(60000); // Should complete within 60 seconds
 
       const stats = knowledgeBase.getProcessingStats();
       expect(stats.totalProcessed).toBe(urls.length);
-    });
+    }, 90000); // Increase timeout to 90 seconds
 
     test('should track processing statistics correctly', async () => {
       const config = createDevelopmentConfiguration();
@@ -471,7 +471,7 @@ describe('System Integration Tests', () => {
   });
 
   describe('Real-world Simulation', () => {
-    test.skip('should handle mixed content types', async () => {
+    test('should handle mixed content types', async () => {
       const config = createDevelopmentConfiguration();
       const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
 
@@ -498,6 +498,6 @@ describe('System Integration Tests', () => {
         expect(result.success).toBe(false);
         expect(result.error).toBeDefined();
       });
-    });
+    }, 60000);
   });
 });

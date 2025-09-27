@@ -42,7 +42,6 @@ Thumbs.db
 .temp/
 
 # Data and storage
-data/
 storage/
 
 # Lock files (keep package-lock.json)

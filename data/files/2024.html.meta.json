@@ -1,0 +1,39 @@
+{
+  "path": "/Users/varadiimre/0SWDEV/kb3/data/files/2024.html",
+  "size": 509081,
+  "createdAt": "2025-09-26T10:46:43.340Z",
+  "updatedAt": "2025-09-26T10:46:43.340Z",
+  "mimeType": "text/html",
+  "checksum": "580c535ee8c83e0e6b4ff15616821d92",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://data.europa.eu/en/open-data-maturity/2024",
+    "mimeType": "text/html",
+    "originalSize": 509081,
+    "fetchedAt": "2025-09-26T10:46:43.339Z",
+    "headers": {
+      "server": "CloudFront",
+      "content-type": "text/html; charset=UTF-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "date": "Fri, 26 Sep 2025 10:46:43 GMT",
+      "cache-control": "max-age=10800, public",
+      "x-drupal-dynamic-cache": "UNCACHEABLE (poor cacheability)",
+      "content-language": "en",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "expires": "Sun, 19 Nov 1978 05:00:00 GMT",
+      "last-modified": "Fri, 26 Sep 2025 06:53:02 GMT",
+      "etag": "W/\"1758869582\"",
+      "x-drupal-cache": "HIT",
+      "x-xss-protection": "1; mode=block",
+      "vary": "Accept-Encoding,Cookie",
+      "via": "1.1 4e9e6f7805c0c0019fa230a2ef31dcaa.cloudfront.net (CloudFront)",
+      "strict-transport-security": "max-age=63072000; includeSubdomains; preload",
+      "x-cache": "Miss from cloudfront",
+      "x-amz-cf-pop": "BUD50-P1",
+      "x-amz-cf-id": "RMMXvPWXMVFF6ex4ZMoQLM-XV72vnmbcwIJG76WVJK7DRh3hvgrZ9g=="
+    }
+  }
+}

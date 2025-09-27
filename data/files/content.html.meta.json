@@ -1,0 +1,28 @@
+{
+  "path": "/Users/varadiimre/0SWDEV/kb3/data/files/content.html",
+  "size": 1256,
+  "createdAt": "2025-09-26T07:47:45.259Z",
+  "updatedAt": "2025-09-26T07:47:45.259Z",
+  "mimeType": "text/html",
+  "checksum": "84238dfc8092e5d9c0dac8ef93371a07",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://example.com",
+    "mimeType": "text/html",
+    "originalSize": 1256,
+    "fetchedAt": "2025-09-26T07:47:45.258Z",
+    "headers": {
+      "accept-ranges": "bytes",
+      "content-type": "text/html",
+      "etag": "\"84238dfc8092e5d9c0dac8ef93371a07:1736799080.121134\"",
+      "last-modified": "Mon, 13 Jan 2025 20:11:20 GMT",
+      "vary": "Accept-Encoding",
+      "cache-control": "max-age=86000",
+      "date": "Fri, 26 Sep 2025 07:47:45 GMT",
+      "content-length": "648",
+      "connection": "keep-alive",
+      "alt-svc": "h3=\":443\"; ma=93600"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "path": "/Users/varadiimre/0SWDEV/kb3/data/files/github.json",
+  "size": 1241,
+  "createdAt": "2025-09-26T07:47:45.620Z",
+  "updatedAt": "2025-09-26T07:47:45.620Z",
+  "mimeType": "application/json",
+  "checksum": "10b941d9a7a69d5b59e375010d9de18c",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://api.github.com/users/github",
+    "mimeType": "application/json",
+    "originalSize": 1241,
+    "fetchedAt": "2025-09-26T07:47:45.619Z",
+    "headers": {
+      "date": "Fri, 26 Sep 2025 07:47:45 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "public, max-age=60, s-maxage=60",
+      "vary": "Accept,Accept-Encoding, Accept, X-Requested-With",
+      "etag": "W/\"efc403dcc56c49f1f21c8b027832bd8a8a0aca47cd6fb14218bf06fd6f737c4b\"",
+      "last-modified": "Tue, 29 Nov 2022 19:44:55 GMT",
+      "x-github-media-type": "github.v3",
+      "x-github-api-version-selected": "2022-11-28",
+      "access-control-expose-headers": "ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset",
+      "access-control-allow-origin": "*",
+      "strict-transport-security": "max-age=31536000; includeSubdomains; preload",
+      "x-frame-options": "deny",
+      "x-content-type-options": "nosniff",
+      "x-xss-protection": "0",
+      "referrer-policy": "origin-when-cross-origin, strict-origin-when-cross-origin",
+      "content-security-policy": "default-src 'none'",
+      "server": "github.com",
+      "accept-ranges": "bytes",
+      "x-ratelimit-limit": "60",
+      "x-ratelimit-remaining": "54",
+      "x-ratelimit-reset": "1758876309",
+      "x-ratelimit-resource": "core",
+      "x-ratelimit-used": "6",
+      "content-length": "517",
+      "x-github-request-id": "05A4:344AA8:1465644:1348135:68D64521"
+    }
+  }
+}

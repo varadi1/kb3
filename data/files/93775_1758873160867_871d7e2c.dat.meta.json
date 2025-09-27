@@ -1,0 +1,31 @@
+{
+  "path": "/Users/varadiimre/0SWDEV/kb3/data/files/93775_1758873160867_871d7e2c.dat",
+  "size": 718477,
+  "createdAt": "2025-09-26T07:52:40.869Z",
+  "updatedAt": "2025-09-26T07:52:40.869Z",
+  "mimeType": "application/octet-stream",
+  "checksum": "871d7e2c9e5606e99dd3b6c4ff2289bb",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://ec.europa.eu/newsroom/dae/redirection/document/93775",
+    "mimeType": "/",
+    "originalSize": 718477,
+    "fetchedAt": "2025-09-26T07:52:40.865Z",
+    "headers": {
+      "date": "Fri, 26 Sep 2025 07:52:40 GMT",
+      "expires": "Thu, 19 Nov 1981 08:52:00 GMT",
+      "cache-control": "no-store, no-cache, must-revalidate, no-cache, private",
+      "pragma": "no-cache",
+      "content-disposition": "attachment; filename=CNECT2023000710000GATRA00_KeoP1tQXI9oiQOfNZSd4eFruQ_93775.pdf",
+      "x-ratelimit-limit": "30",
+      "x-ratelimit-remaining": "29",
+      "server-timing": "dtSInfo;desc=\"0\", dtRpid;desc=\"-1171239871\"",
+      "transfer-encoding": "chunked",
+      "content-type": "/",
+      "set-cookie": "CASAuth=6c154159f3700ee0d030a9c43cc79c18; expires=Fri, 26 Sep 2025 09:52:40 GMT; Max-Age=7200; path=/newsroom/; HttpOnly",
+      "server": "Europa",
+      "connection": "keep-alive"
+    }
+  }
+}

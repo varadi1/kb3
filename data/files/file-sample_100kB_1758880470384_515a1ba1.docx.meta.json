@@ -1,0 +1,34 @@
+{
+  "path": "/Users/varadiimre/0SWDEV/kb3/data/files/file-sample_100kB_1758880470384_515a1ba1.docx",
+  "size": 111303,
+  "createdAt": "2025-09-26T09:54:30.385Z",
+  "updatedAt": "2025-09-26T09:54:30.385Z",
+  "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "checksum": "515a1ba1611a2212b4b6d2ae121898ad",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://file-examples.com/wp-content/storage/2017/02/file-sample_100kB.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "originalSize": 111303,
+    "fetchedAt": "2025-09-26T09:54:30.383Z",
+    "headers": {
+      "date": "Fri, 26 Sep 2025 09:54:30 GMT",
+      "content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "content-length": "111303",
+      "connection": "keep-alive",
+      "vary": "User-Agent, accept-encoding",
+      "last-modified": "Tue, 22 Mar 2022 12:47:25 GMT",
+      "etag": "\"1b2c7-5dace03cb0c52\"",
+      "accept-ranges": "bytes",
+      "cache-control": "max-age=14400",
+      "expires": "Fri, 26 Sep 2025 09:54:30 GMT",
+      "server": "cloudflare",
+      "cf-cache-status": "REVALIDATED",
+      "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+      "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=vxdm8bsj9atYS4Yge%2FWlPhWrvJXbsLa%2F%2FYpoYb3lBufwugbVjhCh3QZ988WgE1tjIt5XKb6%2FRgfuznqj8uEn8bA99nZToUZIA%2BXeMj6vjJQI\"}]}",
+      "cf-ray": "9851e15b3e882942-VIE",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    }
+  }
+}

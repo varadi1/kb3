@@ -53,9 +53,126 @@ kb3/
 │   ├── solid-compliance/ # SOLID principle tests
 │   ├── integration/      # System integration tests
 │   └── unit/            # Unit tests
+├── data/                # Runtime data storage
+│   ├── example-files/    # Example files for processing
+│   └── files/            # Processed files storage
+├── test-data/           # Test fixtures and samples
+│   └── files/            # Test files
+├── demo-data/           # Demo data for examples
+│   └── files/            # Demo files
+├── dev-data/            # Development data
+│   └── files/            # Development files
+├── verify-data/         # Verification test data
+│   └── files/            # Verification files
 ├── examples/            # Sample data and usage
-└── docs/               # Documentation
+│   └── configurations/   # Configuration examples
+└── docs/                # Documentation
 ```
+
+## Folder Structure Organization Rules
+
+### CRITICAL: Maintain Clean Folder Structure
+
+The folder structure is organized by purpose and MUST be respected at all times. Each directory has a specific role and content should ONLY go where it belongs.
+
+#### Directory Usage Guidelines
+
+**Source Code (`src/`)**
+- Production code ONLY
+- No test files, examples, or temporary code
+- Each subdirectory follows Single Responsibility Principle
+
+**Tests (`tests/`)**
+- `tests/unit/` - Unit tests for individual components
+- `tests/integration/` - Integration tests between components
+- `tests/solid-compliance/` - SOLID principle verification tests
+- NO temporary test files - use `dev-data/` for experiments
+
+**Data Directories**
+- `data/` - Production runtime data and processed content
+  - Downloaded web pages
+  - Processed documents
+  - Knowledge base storage
+  - User-uploaded files
+- `test-data/` - Static test fixtures only
+  - Sample files for tests
+  - Mock data for testing
+  - NEVER modify during runtime
+- `demo-data/` - Demo and presentation materials
+  - Sample files for demonstrations
+  - Example outputs
+- `dev-data/` - Development experiments
+  - Temporary test files
+  - Development scratchpad
+  - Experimental data (can be safely deleted)
+- `verify-data/` - Verification and validation data
+  - Golden test files
+  - Expected outputs for comparison
+
+**Documentation (`docs/`)**
+- Technical documentation
+- API documentation
+- Architecture diagrams
+- Design decisions
+- NO source code, NO test files
+
+**Examples (`examples/`)**
+- Working code examples
+- Configuration samples
+- Usage demonstrations
+- NO test code, NO incomplete code
+
+#### Strict Rules
+
+1. **NEVER mix concerns between folders**
+   ```
+   ❌ WRONG:
+   - Putting test files in src/
+   - Storing downloaded content in test-data/
+   - Creating temp test files in tests/
+   - Adding documentation to data/
+
+   ✅ CORRECT:
+   - Test files go in tests/
+   - Downloaded content goes in data/
+   - Temp test files go in dev-data/
+   - Documentation goes in docs/
+   ```
+
+2. **File Placement Examples**
+   ```
+   Downloaded webpage → data/files/webpage.html
+   Test fixture → test-data/files/sample.pdf
+   Temp test file → dev-data/files/temp-test.txt
+   Unit test → tests/unit/MyComponent.test.ts
+   API docs → docs/api-reference.md
+   Usage example → examples/basic-usage.ts
+   ```
+
+3. **Data Directory Hierarchy**
+   - Always use subdirectories within data folders
+   - Group by type or date when appropriate
+   - Example structure:
+     ```
+     data/
+     ├── files/           # General file storage
+     ├── downloads/       # Downloaded content
+     │   ├── 2024-01/    # By date if needed
+     │   └── pdfs/       # Or by type
+     └── knowledge/       # Processed knowledge base
+     ```
+
+4. **Test Data Management**
+   - `test-data/` is version controlled and static
+   - `dev-data/` is gitignored and ephemeral
+   - Never write to `test-data/` during test execution
+   - Use `dev-data/` for any temporary test outputs
+
+5. **Clean-up Requirements**
+   - `dev-data/` can be cleared anytime
+   - `data/` should have a retention policy
+   - `test-data/` must remain stable for tests
+   - Old files in `verify-data/` need explicit removal
 
 ## Development Rules
 
@@ -243,6 +360,198 @@ registry.register('my-detector', new MyDetector());
 3. Register in `ProcessorRegistry`
 4. Add tests including SOLID compliance
 
+### Adding a New Scraping Library
+
+1. Create the scraper in `src/scrapers/`:
+```typescript
+import { BaseScraper } from './BaseScraper';
+import { ScraperOptions, ScrapedContent, ScraperType } from '../interfaces/IScraper';
+import { MyScraperParameters } from '../interfaces/IScraperParameters';
+
+export class MyCustomScraper extends BaseScraper {
+  constructor() {
+    super('my-scraper', {
+      javascript: true,  // Supports JS rendering
+      cookies: true,     // Supports cookies
+      proxy: false,      // Proxy support
+      screenshot: false, // Can take screenshots
+      pdfGeneration: false,
+      multiPage: false
+    });
+  }
+
+  async scrape(url: string, options?: ScraperOptions): Promise<ScrapedContent> {
+    // Check URL validity
+    if (!this.canHandle(url)) {
+      throw new Error(`Invalid URL: ${url}`);
+    }
+
+    this.validateOptions(options);
+    const mergedOptions = this.mergeOptions(options);
+    const params = this.extractParameters(mergedOptions);
+
+    // Your scraping logic here
+    // Use dynamic imports for optional dependencies:
+    try {
+      const library = require('your-scraping-library');
+      // Scraping implementation
+    } catch {
+      // Return mock or throw error
+      return this.getMockResponse(url);
+    }
+
+    return {
+      url,
+      content: Buffer.from('scraped content'),
+      mimeType: 'text/html',
+      metadata: {
+        scraperConfig: params,
+        scraperMetadata: { /* custom metadata */ }
+      },
+      scraperName: this.name,
+      timestamp: new Date()
+    };
+  }
+
+  canHandle(url: string): boolean {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+```
+
+2. Register the scraper:
+```typescript
+const registry = ScraperRegistry.getInstance();
+registry.register('my-scraper', new MyCustomScraper());
+```
+
+3. Configure URL rules:
+```typescript
+const config = createDefaultConfiguration({
+  scraping: {
+    enabledScrapers: ['http', 'my-scraper'],
+    scraperRules: [
+      {
+        pattern: 'special-site.com',
+        scraperName: 'my-scraper',
+        priority: 10
+      }
+    ]
+  }
+});
+```
+
+### Configuring Scrapers for URLs
+
+#### Method 1: Configuration with Parameters
+Set up scraper rules with detailed parameters:
+
+```typescript
+import { ScraperAwareContentFetcher } from './src/fetchers/ScraperAwareContentFetcher';
+import { BatchConfigurationManager } from './src/scrapers/BatchConfigurationManager';
+
+const config = createDefaultConfiguration({
+  scraping: {
+    enabledScrapers: ['http', 'playwright', 'docling', 'crawl4ai'],
+    defaultScraper: 'http',
+    scraperRules: [
+      { pattern: '*.linkedin.com/*', scraperName: 'playwright', priority: 20 },
+      { pattern: /\.pdf$/, scraperName: 'docling', priority: 25 },
+      { pattern: 'medium.com', scraperName: 'crawl4ai', priority: 15 }
+    ]
+  }
+});
+
+// Configure URL-specific parameters
+const kb = KnowledgeBaseFactory.createKnowledgeBase(config);
+const fetcher = (kb as any).contentFetcher as ScraperAwareContentFetcher;
+
+// Set Playwright parameters for a specific URL
+fetcher.setUrlParameters('https://app.example.com', {
+  scraperType: 'playwright',
+  parameters: {
+    headless: true,
+    viewport: { width: 1920, height: 1080 },
+    waitUntil: 'networkidle',
+    screenshot: true,
+    cookies: [{ name: 'session', value: 'abc123', domain: '.example.com' }]
+  }
+});
+
+// Set Crawl4AI parameters
+fetcher.setUrlParameters('https://blog.example.com', {
+  scraperType: 'crawl4ai',
+  parameters: {
+    maxDepth: 2,
+    jsExecution: true,
+    extractionStrategy: 'llm',
+    magic: true,
+    onlyMainContent: true
+  }
+});
+
+// Set Docling parameters
+fetcher.setUrlParameters('https://docs.example.com/report.pdf', {
+  scraperType: 'docling',
+  parameters: {
+    format: 'markdown',
+    ocr: true,
+    tableStructure: true,
+    exportTables: true
+  }
+});
+```
+
+#### Method 2: Batch URL Configuration
+Configure multiple URLs at once programmatically:
+
+```typescript
+const kb = KnowledgeBaseFactory.createKnowledgeBase(config);
+
+// Access the scraper selector (if needed for dynamic configuration)
+const fetcher = kb as any;
+if (fetcher.contentFetcher?.getScraperSelector) {
+  const selector = fetcher.contentFetcher.getScraperSelector();
+
+  // Set scraper for a batch of URLs
+  selector.setScraperForUrls(
+    ['https://site1.com', 'https://site2.com', 'https://site3.com'],
+    'crawl4ai',  // scraper name
+    10           // priority
+  );
+
+  // Add individual rules
+  selector.addRule({
+    pattern: '*.example.com/api/*',
+    scraperName: 'firecrawl',
+    priority: 20
+  });
+}
+```
+
+#### Method 3: Domain-Based Strategy
+Use a domain-based fallback strategy:
+
+```typescript
+const strategy = new DomainBasedSelectionStrategy();
+strategy.setDomainScraper('example.com', 'playwright');
+strategy.setDomainScraper('api.service.com', 'firecrawl');
+
+selector.setFallbackStrategy(strategy);
+```
+
+#### Priority System
+Rules with higher priority values are evaluated first:
+- 25+: Critical patterns (e.g., file extensions)
+- 20: Specific URL matches
+- 15: Domain patterns
+- 10: General patterns
+- 0-5: Low-priority fallbacks
+
 ### Extending Storage
 
 1. Implement `IKnowledgeStore` or `IFileStorage`
@@ -299,6 +608,33 @@ Use the error categorization for troubleshooting:
 const error = ErrorHandler.categorizeError(e);
 console.log('Error category:', error.category);
 console.log('Recoverable:', error.recoverable);
+```
+
+### Tracking Scraper Usage and Parameters
+
+The system automatically tracks which scraper and parameters were used for each URL:
+
+1. **Processing Result**: Available immediately after processing
+```typescript
+const result = await kb.processUrl('https://example.com');
+console.log('Scraper used:', result.metadata.scraperUsed);
+console.log('Parameters:', result.metadata.scraperConfig);
+console.log('Custom metadata:', result.metadata.scraperMetadata);
+```
+
+2. **Database Storage**: Persisted for future reference
+- **URLs table** (`urls.metadata`): Stores complete scraper configuration as JSON
+- **Knowledge entries table** (`knowledge_entries.metadata`): Includes searchable scraper metadata
+- **File storage** (`.meta.json` files): Records scraper config and results
+
+3. **Query Scraper Usage**: (If you extend the system)
+```typescript
+// Example query to find all URLs processed by a specific scraper
+const sql = `
+  SELECT url, json_extract(metadata, '$.scraperUsed') as scraper
+  FROM urls
+  WHERE json_extract(metadata, '$.scraperUsed') = 'playwright'
+`;
 ```
 
 ## Continuous Improvement

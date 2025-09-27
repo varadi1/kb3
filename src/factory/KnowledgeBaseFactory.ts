@@ -12,6 +12,8 @@ import { UrlDetectorRegistry, createDefaultDetectorRegistry } from '../detectors
 
 // Fetchers
 import { FetcherRegistry, createDefaultFetcherRegistry } from '../fetchers';
+import { ScraperFactory } from '../scrapers/ScraperFactory';
+import { ScraperAwareContentFetcher } from '../fetchers/ScraperAwareContentFetcher';
 
 // Processors
 import { ProcessorRegistry, createDefaultProcessorRegistry } from '../processors';
@@ -76,7 +78,7 @@ export class KnowledgeBaseFactory {
    * @param config System configuration
    * @returns Content fetcher registry
    */
-  private static createContentFetcher(_config: KnowledgeBaseConfig): FetcherRegistry {
+  private static createContentFetcher(config: KnowledgeBaseConfig): FetcherRegistry | ScraperAwareContentFetcher {
     const registry = createDefaultFetcherRegistry();
 
     // Configure retry settings
@@ -86,6 +88,11 @@ export class KnowledgeBaseFactory {
       backoffFactor: 2,
       retryOn: ['ECONNRESET', 'ENOTFOUND', 'TIMEOUT']
     });
+
+    // If scraping is configured, wrap with ScraperAwareContentFetcher
+    if (config.scraping && config.scraping.enabledScrapers && config.scraping.enabledScrapers.length > 0) {
+      return ScraperFactory.createScraperAwareContentFetcher(registry, config);
+    }
 
     return registry;
   }

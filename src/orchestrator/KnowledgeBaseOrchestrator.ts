@@ -125,8 +125,17 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
             await this.urlRepository.updateStatus(urlRecordId, UrlStatus.PROCESSING);
           }
         } else {
+          // Include scraper information in metadata when registering URL
           urlRecordId = await this.urlRepository.register(url, {
-            processingStarted: new Date()
+            processingStarted: new Date(),
+            scraperUsed: fetchedContent.metadata?.scraperUsed,
+            scraperConfig: fetchedContent.metadata?.scraperConfig,
+            scraperMetadata: fetchedContent.metadata?.scraperMetadata,
+            fetchMetadata: {
+              statusCode: fetchedContent.metadata?.statusCode,
+              headers: fetchedContent.metadata?.headers,
+              contentLength: fetchedContent.metadata?.contentLength
+            }
           });
           await this.urlRepository.updateStatus(urlRecordId, UrlStatus.PROCESSING);
         }
@@ -189,8 +198,36 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
       this.updateOperationStage(operationId, ProcessingStage.STORING);
       const storagePath = await this.storeFile(fetchedContent, url, operationId);
 
+      // Update URL repository with final scraper metadata, rate limit info, and scraping issues
+      if (urlRecordId && this.urlRepository) {
+        const completeMetadata = {
+          scraperUsed: fetchedContent.metadata?.scraperUsed,
+          scraperConfig: fetchedContent.metadata?.scraperConfig,
+          scraperMetadata: fetchedContent.metadata?.scraperMetadata,
+          // Add rate limiting information
+          rateLimitInfo: fetchedContent.metadata?.rateLimitInfo,
+          // Add scraping issues (errors and warnings)
+          scrapingIssues: fetchedContent.metadata?.scrapingIssues
+        };
+        // Store complete metadata in the database
+        const existingInfo = await this.urlRepository.getUrlInfo(url);
+        if (existingInfo) {
+          const updatedMetadata = {
+            ...existingInfo.metadata,
+            ...completeMetadata
+          };
+          // Update metadata by re-registering with updated data
+          await this.urlRepository.register(url, updatedMetadata);
+        }
+      }
+
       // Stage 5: Knowledge Indexing
       this.updateOperationStage(operationId, ProcessingStage.INDEXING);
+      // Add scraper metadata to processedContent before indexing
+      processedContent.metadata = {
+        ...processedContent.metadata,
+        scraperUsed: fetchedContent.metadata?.scraperUsed
+      };
       const entryId = await this.indexKnowledge(
         url,
         processedContent,
@@ -218,7 +255,11 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
           ...processedContent.metadata,
           classification,
           storagePath,
-          processingStages: this.getCompletedStages()
+          processingStages: this.getCompletedStages(),
+          scraperUsed: fetchedContent.metadata?.scraperUsed,
+          scraperConfig: fetchedContent.metadata?.scraperConfig,
+          rateLimitInfo: fetchedContent.metadata?.rateLimitInfo,
+          scrapingIssues: fetchedContent.metadata?.scrapingIssues
         },
         processingTime: Date.now() - startTime,
         storagePath
@@ -284,6 +325,115 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
       } catch (error) {
         // This shouldn't happen with Promise.allSettled, but handle just in case
         console.error('Unexpected error in batch processing:', error);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Process URLs with individual rate limit configurations
+   * @param urlConfigs Array of URL configurations with individual settings
+   * @param globalOptions Global options applied to all URLs
+   */
+  async processUrlsWithConfigs(
+    urlConfigs: Array<{
+      url: string;
+      rateLimitMs?: number;
+      scraperOptions?: any;
+      processingOptions?: ProcessingOptions;
+    }>,
+    globalOptions: ProcessingOptions = {}
+  ): Promise<ProcessingResult[]> {
+    const results: ProcessingResult[] = [];
+    const concurrencyLimit = globalOptions.concurrency || 5;
+
+    // Set up per-URL rate limits if contentFetcher supports it
+    if (this.contentFetcher && 'setDomainRateLimit' in this.contentFetcher) {
+      const fetcher = this.contentFetcher as any;
+
+      // Apply individual rate limits for each URL's domain
+      for (const config of urlConfigs) {
+        if (config.rateLimitMs !== undefined) {
+          try {
+            const url = new URL(config.url);
+            fetcher.setDomainRateLimit(url.hostname, config.rateLimitMs);
+          } catch (e) {
+            console.warn(`Invalid URL for rate limit configuration: ${config.url}`);
+          }
+        }
+      }
+    }
+
+    // Process URLs in batches with their individual configurations
+    for (let i = 0; i < urlConfigs.length; i += concurrencyLimit) {
+      const batch = urlConfigs.slice(i, i + concurrencyLimit);
+
+      const batchPromises = batch.map(config => {
+        // Merge global options with URL-specific options
+        const mergedOptions: ProcessingOptions = {
+          ...globalOptions,
+          ...config.processingOptions,
+          scraperSpecific: {
+            ...globalOptions.scraperSpecific,
+            ...config.scraperOptions,
+            rateLimitMs: config.rateLimitMs,
+            errorContext: config.url
+          }
+        };
+
+        return this.processUrl(config.url, mergedOptions);
+      });
+
+      try {
+        const batchResults = await Promise.allSettled(batchPromises);
+
+        for (let j = 0; j < batchResults.length; j++) {
+          const result = batchResults[j];
+          const config = batch[j];
+
+          if (result.status === 'fulfilled') {
+            results.push(result.value);
+          } else {
+            // Create error result with proper URL
+            results.push({
+              success: false,
+              url: config.url,
+              error: {
+                code: ErrorCode.UNKNOWN_ERROR,
+                message: result.reason?.message || 'Unknown error',
+                stage: ProcessingStage.DETECTING
+              },
+              metadata: {
+                rateLimitMs: config.rateLimitMs,
+                failureReason: 'Processing failed'
+              },
+              processingTime: 0
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Unexpected error in batch processing with configs:', error);
+      }
+    }
+
+    // Collect and summarize all scraping issues
+    if (this.contentFetcher && 'getErrorCollector' in this.contentFetcher) {
+      const fetcher = this.contentFetcher as any;
+      const errorCollector = fetcher.getErrorCollector();
+      const allIssues = errorCollector.exportIssues();
+
+      // Add summary to results metadata
+      for (const result of results) {
+        const issues = allIssues.get(result.url);
+        if (issues) {
+          result.metadata = result.metadata || {};
+          result.metadata.batchScrapingIssues = {
+            errors: issues.summary.errorCount,
+            warnings: issues.summary.warningCount,
+            critical: issues.summary.criticalErrors
+          };
+        }
       }
     }
 
@@ -372,7 +522,8 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
           mimeType: fetchedContent.mimeType,
           originalSize: fetchedContent.size,
           fetchedAt: new Date(),
-          headers: fetchedContent.headers
+          headers: fetchedContent.headers,
+          scraperUsed: fetchedContent.metadata?.scraperUsed
         }
       });
     } catch (error) {

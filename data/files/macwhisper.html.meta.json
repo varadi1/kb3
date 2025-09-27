@@ -1,0 +1,41 @@
+{
+  "path": "/Users/varadiimre/0SWDEV/kb3/data/files/macwhisper.html",
+  "size": 62300,
+  "createdAt": "2025-09-26T07:48:19.953Z",
+  "updatedAt": "2025-09-26T07:48:19.953Z",
+  "mimeType": "text/html",
+  "checksum": "0e801412879197a6a2fbf962127681d4",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://goodsnooze.gumroad.com/l/macwhisper",
+    "mimeType": "text/html",
+    "originalSize": 62300,
+    "fetchedAt": "2025-09-26T07:48:19.952Z",
+    "headers": {
+      "date": "Fri, 26 Sep 2025 07:48:20 GMT",
+      "content-type": "text/html; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "x-revision": "ba02b012e610",
+      "x-gr": "PROD",
+      "link": "<https://assets.gumroad.com/packs/css/4977-08cc84f2.css>; rel=preload; as=style; crossorigin=anonymous; nopush,<https://assets.gumroad.com/packs/css/design-03a55045.css>; rel=preload; as=style; crossorigin=anonymous; nopush,<https://assets.gumroad.com/assets/application-cbf244e9109e70d7b04497041636f00173a1e588f9b879b3a3ef11f8dfb86e5c.js>; rel=preload; as=script; nopush",
+      "set-cookie": "_mkra_stck=mysql%3A1758872904.805526; path=/; max-age=10; expires=Fri, 26 Sep 2025 07:48:29 GMT; httponly; secure; SameSite=None",
+      "etag": "W/\"c96a6c1eb88e8ee01f93b310bb916c0c\"",
+      "cache-control": "max-age=0, private, must-revalidate",
+      "x-request-id": "28c34d4f-a1b4-49f8-bfd9-d0d81f39d267",
+      "x-runtime": "0.125199",
+      "vary": "Origin",
+      "x-original-headers-class": "Rack::Headers",
+      "x-content-type-options": "nosniff",
+      "x-xss-protection": "1; mode=block",
+      "x-download-options": "noopen",
+      "x-permitted-cross-domain-policies": "none",
+      "content-security-policy": "default-src https 'self'; child-src * data: blob:; connect-src 'self' blob: www.dropbox.com api.dropboxapi.com s3.amazonaws.com/gumroad s3.amazonaws.com/gumroad/ gumroad-public-storage.s3.amazonaws.com gumroad-public-storage.s3.amazonaws.com/ s3.amazonaws.com/gumroad-public-storage s3.amazonaws.com/gumroad-public-storage/ www.google.com www.gstatic.com *.facebook.com *.facebook.net *.google-analytics.com *.g.doubleclick.net *.googletagmanager.com analytics.google.com *.analytics.google.com files.gumroad.com/ d1bdh6c3ceakz5.cloudfront.net/ *.braintreegateway.com www.paypalobjects.com *.paypal.com *.braintree-api.com iframe.ly help.gumroad.com gumroad.com wss://cable.gumroad.com assets.gumroad.com; font-src * data: blob:; frame-src * data: blob:; img-src * data: blob:; media-src * data: blob:; object-src * data: blob:; script-src 'self' 'unsafe-eval' ajax.cloudflare.com static.cloudflareinsights.com js.stripe.com api.stripe.com connect-js.stripe.com *.braintreegateway.com *.braintree-api.com www.paypalobjects.com *.paypal.com *.google-analytics.com *.googletagmanager.com optimize.google.com www.googleadservices.com www.google.com www.gstatic.com *.facebook.net *.facebook.com www.dropbox.com s.ytimg.com cdn.iframe.ly platform.twitter.com cdn.jwplayer.com *.jwpcdn.com gumroad.us3.list-manage.com analytics.twitter.com help.gumroad.com unpkg.com/@lottiefiles/lottie-player@latest/ gumroad.com assets.gumroad.com 'nonce-WB7qx+e2fEBCwWcPt1rfdgrZzCENPhJMG5+nvHkta5A=' 'unsafe-inline'; style-src 'self' 'unsafe-inline' s.ytimg.com optimize.google.com fonts.googleapis.com assets.gumroad.com; worker-src * data: blob:",
+      "cf-cache-status": "DYNAMIC",
+      "server": "cloudflare",
+      "cf-ray": "985128851e3e8888-BUD",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    }
+  }
+}

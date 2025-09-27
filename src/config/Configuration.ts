@@ -53,6 +53,18 @@ export interface KnowledgeBaseConfig {
     enableConsole?: boolean;
     logFile?: string;
   };
+
+  // Scraping configuration
+  scraping?: {
+    defaultScraper?: string;
+    scraperRules?: Array<{
+      pattern: string;
+      scraperName: string;
+      priority?: number;
+    }>;
+    scraperConfigs?: Record<string, any>;
+    enabledScrapers?: string[];
+  };
 }
 
 export interface ProcessingOptionsConfig {
@@ -222,6 +234,18 @@ function mergeConfig(
     logging: {
       ...base.logging,
       ...overrides.logging
+    },
+    scraping: {
+      ...base.scraping,
+      ...overrides.scraping,
+      rateLimiting: {
+        ...base.scraping?.rateLimiting,
+        ...overrides.scraping?.rateLimiting
+      },
+      errorCollection: {
+        ...base.scraping?.errorCollection,
+        ...overrides.scraping?.errorCollection
+      }
     }
   };
 }
