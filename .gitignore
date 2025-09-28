@@ -4,9 +4,13 @@ node_modules/
 .pnp.js
 
 # Testing
-
+coverage/
+*.lcov
 
 # Production build
+dist/
+build/
+out/
 
 
 # Environment files
@@ -40,7 +44,19 @@ Thumbs.db
 .tmp/
 .temp/
 
+# Next.js build output
+.next/
+*.next/
+packages/frontend/.next/
+packages/*/.next/
+
 # Data and storage
+*.db-shm
+*.db-wal
+data/*.db-shm
+data/*.db-wal
+packages/backend/data/*.db-shm
+packages/backend/data/*.db-wal
 
 
 # Lock files (keep package-lock.json)
