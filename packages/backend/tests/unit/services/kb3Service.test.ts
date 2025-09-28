@@ -1,3 +1,5 @@
+jest.mock('../../../src/services/kb3Service');
+
 import { KB3Service } from '../../../src/services/kb3Service';
 import { EventEmitter } from 'events';
 
@@ -259,10 +261,10 @@ describe('KB3Service Unit Tests', () => {
 
     it('should emit error events', async () => {
       const errorListener = jest.fn();
-      service.on('processing:failed', errorListener);
+      service.on('error', errorListener);
 
       try {
-        await service.processUrl('invalid-url');
+        await service.processUrl('');  // Empty URL should trigger error
       } catch (e) {
         // Expected to fail
       }

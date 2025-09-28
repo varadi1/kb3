@@ -4,16 +4,36 @@
  * Dependency Inversion: Depends on IUrlRepository abstraction
  */
 import { IUrlRepository, UrlRecord, UrlMetadata, UrlStatus, UrlFilter } from '../interfaces/IUrlRepository';
+import { IUrlTagRepository } from '../interfaces/IUrlTagRepository';
+import { ITagManager } from '../interfaces/ITagManager';
+import { ITag } from '../interfaces/ITag';
+export interface UrlMetadataWithTags extends UrlMetadata {
+    tags?: string[];
+}
+export interface UrlRecordWithTags extends UrlRecord {
+    tags?: ITag[];
+}
 export declare class SqlUrlRepository implements IUrlRepository {
     private db;
     private readonly dbPath;
     private initPromise;
-    constructor(dbPath?: string);
+    private tagManager;
+    private urlTagRepository;
+    private readonly tagsEnabled;
+    constructor(dbPath?: string, enableTags?: boolean);
     /**
      * Initializes the SQLite database and creates tables if needed
      */
     private initialize;
     private _performInitialization;
+    /**
+     * Initialize tag support
+     */
+    private initializeTags;
+    /**
+     * Initialize repository with tag support (legacy compatibility)
+     */
+    initializeWithTags(): Promise<void>;
     /**
      * Helper method to run SQL queries
      */
@@ -49,6 +69,58 @@ export declare class SqlUrlRepository implements IUrlRepository {
      * Normalizes URL for consistent comparison
      */
     private normalizeUrl;
+    /**
+     * Register a URL with optional tags
+     */
+    registerWithTags(url: string, metadata?: UrlMetadataWithTags): Promise<string>;
+    /**
+     * Get URL info with tags
+     */
+    getUrlInfoWithTags(url: string): Promise<UrlRecordWithTags | null>;
+    /**
+     * Get URLs by tag names
+     */
+    getUrlsByTags(tagNames: string[], requireAll?: boolean): Promise<UrlRecordWithTags[]>;
+    /**
+     * Add tags to an existing URL
+     */
+    addTagsToUrl(url: string, tagNames: string[]): Promise<boolean>;
+    /**
+     * Remove tags from an existing URL
+     */
+    removeTagsFromUrl(url: string, tagNames: string[]): Promise<boolean>;
+    /**
+     * Set tags for a URL (replaces existing tags)
+     */
+    setUrlTags(url: string, tagNames: string[]): Promise<boolean>;
+    /**
+     * Get tags for a URL
+     */
+    getUrlTags(url: string): Promise<ITag[]>;
+    /**
+     * Batch register URLs with tags
+     */
+    batchRegisterWithTags(urlsWithTags: Array<{
+        url: string;
+        tags?: string[];
+        metadata?: UrlMetadata;
+    }>): Promise<string[]>;
+    /**
+     * Get URL record by ID (helper method)
+     */
+    private getUrlById;
+    /**
+     * Get tag manager for external use
+     */
+    getTagManager(): ITagManager | null;
+    /**
+     * Get URL-tag repository for external use
+     */
+    getUrlTagRepository(): IUrlTagRepository | null;
+    /**
+     * Check if tags are enabled
+     */
+    areTagsEnabled(): boolean;
     /**
      * Converts database row to UrlRecord
      */

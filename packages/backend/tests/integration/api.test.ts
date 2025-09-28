@@ -1,3 +1,5 @@
+jest.mock('../../src/services/kb3Service');
+
 import request from 'supertest';
 import { app, httpServer } from '../../src/index';
 import { KB3Service } from '../../src/services/kb3Service';

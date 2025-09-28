@@ -293,15 +293,20 @@ describe('KB3 Store Integration Tests', () => {
 
       const { result } = renderHook(() => useKb3Store())
 
-      const processPromise = act(async () => {
-        await result.current.processUrl('url-id')
-      })
+      // Start processing without awaiting
+      const processPromise = result.current.processUrl('url-id')
+
+      // Wait a bit for the task to be added
+      await new Promise(resolve => setTimeout(resolve, 10))
 
       // Task should be in progress
       expect(result.current.processingTasks.has('url-id')).toBe(true)
       expect(result.current.processingTasks.get('url-id')?.status).toBe('queued')
 
-      await processPromise
+      // Wait for processing to complete
+      await act(async () => {
+        await processPromise
+      })
 
       // Task should be removed after completion
       expect(result.current.processingTasks.has('url-id')).toBe(false)

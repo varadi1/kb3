@@ -215,9 +215,35 @@ export interface DoclingPipeline {
     params?: Record<string, any>;
 }
 /**
+ * DeepDoctection scraper parameters
+ */
+export interface DeepDoctectionParameters {
+    analyzerType?: 'auto' | 'layout' | 'table' | 'full';
+    ocr?: boolean;
+    ocrEngine?: 'tesseract' | 'easyocr' | 'paddleocr';
+    tableDetection?: boolean;
+    layoutDetection?: boolean;
+    figureDetection?: boolean;
+    formulaDetection?: boolean;
+    language?: string | string[];
+    dpi?: number;
+    maxPages?: number;
+    pageRange?: string;
+    confidenceThreshold?: number;
+    outputFormat?: 'json' | 'markdown' | 'text' | 'html';
+    extractImages?: boolean;
+    extractMetadata?: boolean;
+    mergeCells?: boolean;
+    timeout?: number;
+    batchSize?: number;
+    useGPU?: boolean;
+    userAgent?: string;
+    headers?: Record<string, string>;
+}
+/**
  * Union type for all scraper parameters
  */
-export type ScraperSpecificParameters = PlaywrightParameters | Crawl4AIParameters | DoclingParameters;
+export type ScraperSpecificParameters = PlaywrightParameters | Crawl4AIParameters | DoclingParameters | DeepDoctectionParameters;
 /**
  * Complete scraper configuration including base and specific parameters
  */

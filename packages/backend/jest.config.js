@@ -20,7 +20,16 @@ module.exports = {
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   moduleNameMapper: {
-    'kb3': '<rootDir>/../../src/index.ts'
+    '^kb3$': '<rootDir>/tests/mocks/kb3.mock.js',
+    '^sqlite3$': '<rootDir>/tests/mocks/sqlite3.mock.js'
+  },
+  transformIgnorePatterns: [
+    'node_modules/(?!(kb3|sqlite3)/)'
+  ],
+  globals: {
+    'ts-jest': {
+      isolatedModules: true
+    }
   },
   testTimeout: 30000
 };

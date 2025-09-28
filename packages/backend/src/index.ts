@@ -53,7 +53,7 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 // Health check
-app.get('/health', (req: Request, res: Response) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -73,7 +73,7 @@ app.use('/api/export', exportRoutes);
 setupWebSocket(io, kb3Service);
 
 // Error handling middleware
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   console.error('Error:', err);
 
   const status = err.status || 500;
@@ -99,9 +99,10 @@ app.use((req: Request, res: Response) => {
   });
 });
 
-// Server startup
-httpServer.listen(PORT, () => {
-  console.log(`
+// Server startup - only when running directly, not when imported for tests
+if (process.env.NODE_ENV !== 'test') {
+  httpServer.listen(PORT, () => {
+    console.log(`
 ╔════════════════════════════════════════╗
 ║     KB3 Backend API Server             ║
 ╠════════════════════════════════════════╣
@@ -111,8 +112,9 @@ httpServer.listen(PORT, () => {
 ║  API: http://localhost:${PORT}/api       ║
 ║  Health: http://localhost:${PORT}/health ║
 ╚════════════════════════════════════════╝
-  `);
-});
+    `);
+  });
+}
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {

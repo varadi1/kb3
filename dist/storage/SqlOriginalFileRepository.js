@@ -59,9 +59,17 @@ class SqlOriginalFileRepository {
             await fs.mkdir(dir, { recursive: true });
             // Create database connection
             this.db = await this.createDatabase();
-            // Enable foreign keys and WAL mode for better concurrency
+            // Enable foreign keys
             await this.run('PRAGMA foreign_keys = ON');
-            await this.run('PRAGMA journal_mode = WAL');
+            // Try to enable WAL mode, but fall back gracefully if it fails
+            // This prevents SQLITE_IOERR in test environments or systems that don't support WAL
+            try {
+                await this.run('PRAGMA journal_mode = WAL');
+            }
+            catch (walError) {
+                // Fall back to default journal mode if WAL fails
+                console.warn('Could not enable WAL mode, using default journal mode:', walError);
+            }
             // Create original_files table
             await this.run(`
         CREATE TABLE IF NOT EXISTS original_files (
@@ -151,6 +159,11 @@ class SqlOriginalFileRepository {
         try {
             // Generate download URL (this would typically be a route in your API)
             const downloadUrl = `/api/files/original/${fileId}/download`;
+            // Combine cleaningMetadata with general metadata for storage
+            const combinedMetadata = {
+                ...fileInfo.metadata,
+                cleaningMetadata: fileInfo.cleaningMetadata
+            };
             await this.run(`
         INSERT INTO original_files (
           id, url, file_path, mime_type, size, checksum,
@@ -165,7 +178,7 @@ class SqlOriginalFileRepository {
                 fileInfo.checksum,
                 fileInfo.scraperUsed || null,
                 IOriginalFileRepository_1.FileStatus.ACTIVE,
-                fileInfo.metadata ? JSON.stringify(fileInfo.metadata) : null,
+                combinedMetadata ? JSON.stringify(combinedMetadata) : null,
                 now,
                 now,
                 downloadUrl
@@ -174,9 +187,18 @@ class SqlOriginalFileRepository {
         }
         catch (error) {
             if (error.code === 'SQLITE_CONSTRAINT' && error.message.includes('file_path')) {
-                // File already exists, return existing ID
-                const existing = await this.get('SELECT id FROM original_files WHERE file_path = ?', [fileInfo.filePath]);
+                // File already exists, update with new metadata if cleaningMetadata is present
+                const existing = await this.get('SELECT id, metadata FROM original_files WHERE file_path = ?', [fileInfo.filePath]);
                 if (existing) {
+                    // If cleaningMetadata is provided, update the record
+                    if (fileInfo.cleaningMetadata) {
+                        const existingMetadata = existing.metadata ? JSON.parse(existing.metadata) : {};
+                        const updatedMetadata = {
+                            ...existingMetadata,
+                            cleaningMetadata: fileInfo.cleaningMetadata
+                        };
+                        await this.run('UPDATE original_files SET metadata = ?, updated_at = ? WHERE id = ?', [JSON.stringify(updatedMetadata), Date.now(), existing.id]);
+                    }
                     return existing.id;
                 }
             }
@@ -354,6 +376,10 @@ class SqlOriginalFileRepository {
         return mapping[sortBy] || 'created_at';
     }
     rowToRecord(row) {
+        // Parse the stored metadata
+        const parsedMetadata = row.metadata ? JSON.parse(row.metadata) : {};
+        // Extract cleaningMetadata from the stored metadata
+        const { cleaningMetadata, ...otherMetadata } = parsedMetadata;
         return {
             id: row.id,
             url: row.url,
@@ -362,8 +388,9 @@ class SqlOriginalFileRepository {
             size: row.size,
             checksum: row.checksum,
             scraperUsed: row.scraper_used || undefined,
+            cleaningMetadata: cleaningMetadata || undefined,
             status: row.status,
-            metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+            metadata: Object.keys(otherMetadata).length > 0 ? otherMetadata : undefined,
             createdAt: new Date(row.created_at),
             updatedAt: new Date(row.updated_at),
             accessedAt: row.accessed_at ? new Date(row.accessed_at) : undefined,

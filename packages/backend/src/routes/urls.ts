@@ -6,10 +6,11 @@ const router = Router();
 const kb3Service = KB3Service.getInstance();
 
 // Validation middleware
-const handleValidationErrors = (req: Request, res: Response, next: NextFunction) => {
+const handleValidationErrors = (req: Request, res: Response, next: NextFunction): void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+    res.status(400).json({ errors: errors.array() });
+    return;
   }
   next();
 };
@@ -137,9 +138,9 @@ router.delete('/:id',
     param('id').isString()
   ],
   handleValidationErrors,
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (_req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      // const { id } = req.params;
 
       // This would need implementation in KB3Service
       res.json({
@@ -233,10 +234,10 @@ router.delete('/:id/tags',
     body('tags.*').isString()
   ],
   handleValidationErrors,
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (_req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
-      const { tags } = req.body;
+      // const { id } = req.params;
+      // const { tags } = req.body;
 
       // This would need implementation in KB3Service
       res.json({

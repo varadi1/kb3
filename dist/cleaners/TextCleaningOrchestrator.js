@@ -178,21 +178,14 @@ class TextCleaningOrchestrator {
     /**
      * Store cleaning metadata for a URL
      */
-    async storeCleaningMetadata(url, result) {
-        // This would integrate with the existing URL metadata storage
-        // For now, we'll just log it
-        const metadata = {
-            url,
-            timestamp: new Date(),
-            cleanersUsed: result.cleanerResults.map(r => r.metadata.cleanerName),
-            totalProcessingTime: result.totalProcessingTime,
-            finalLength: result.finalText.length,
-            compressionRatio: result.cleanerResults.length > 0
-                ? 1 - (result.finalText.length / result.cleanerResults[0].originalLength)
-                : 0
-        };
-        console.log('Cleaning metadata:', metadata);
+    async storeCleaningMetadata(_url, _result) {
         // TODO: Integrate with URL metadata storage system
+        // Will store cleaning metadata including:
+        // - URL
+        // - Cleaners used
+        // - Processing time
+        // - Compression ratio
+        // Currently a placeholder for future implementation
     }
     /**
      * Get recommended cleaners for a format

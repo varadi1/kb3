@@ -8,10 +8,25 @@ exports.createDefaultConfiguration = createDefaultConfiguration;
 exports.createProductionConfiguration = createProductionConfiguration;
 exports.createDevelopmentConfiguration = createDevelopmentConfiguration;
 exports.createSqlConfiguration = createSqlConfiguration;
+exports.createUnifiedConfiguration = createUnifiedConfiguration;
 exports.validateConfiguration = validateConfiguration;
 function createDefaultConfiguration(overrides) {
     const defaultConfig = {
         storage: {
+            // Use unified storage by default
+            unified: {
+                enabled: true,
+                dbPath: './data/unified.db',
+                enableWAL: true,
+                enableForeignKeys: true,
+                backupEnabled: false,
+                autoMigrate: true,
+                migrationOptions: {
+                    backupOriginal: true,
+                    deleteOriginalAfterSuccess: false
+                }
+            },
+            // Legacy configuration kept for compatibility
             knowledgeStore: {
                 type: 'memory',
                 indexedFields: ['url', 'contentType', 'tags', 'title'],
@@ -114,8 +129,18 @@ function createDevelopmentConfiguration() {
     });
 }
 function createSqlConfiguration(overrides) {
+    // Now uses unified storage by default (single database file)
     const baseConfig = createDefaultConfiguration({
         storage: {
+            unified: {
+                enabled: true,
+                dbPath: './data/unified.db',
+                enableWAL: true,
+                enableForeignKeys: true,
+                backupEnabled: true,
+                autoMigrate: true
+            },
+            // Legacy config kept for shape compatibility
             knowledgeStore: {
                 type: 'sql',
                 dbPath: './data/knowledge.db',
@@ -141,11 +166,67 @@ function createSqlConfiguration(overrides) {
     });
     return mergeConfig(baseConfig, overrides);
 }
+function createUnifiedConfiguration(overrides) {
+    const baseConfig = createDefaultConfiguration({
+        storage: {
+            unified: {
+                enabled: true,
+                dbPath: './data/kb3.db',
+                enableWAL: true,
+                enableForeignKeys: true,
+                backupEnabled: true,
+                autoMigrate: true,
+                migrationOptions: {
+                    backupOriginal: true,
+                    deleteOriginalAfterSuccess: false
+                }
+            },
+            // Still need these for file storage
+            knowledgeStore: {
+                type: 'sql', // For compatibility
+                backupEnabled: true
+            },
+            fileStorage: {
+                basePath: './data/files',
+                compressionEnabled: true
+            },
+            fileStore: {
+                path: './data/files'
+            },
+            originalFileStore: {
+                type: 'sql'
+            },
+            processedFileStore: {
+                type: 'sql',
+                enabled: true
+            },
+            enableDuplicateDetection: true,
+            enableUrlTracking: true
+        },
+        processing: {
+            concurrency: 10,
+            skipUnchangedContent: true
+        },
+        logging: {
+            level: 'info',
+            logFile: './logs/knowledgebase.log'
+        }
+    });
+    return mergeConfig(baseConfig, overrides);
+}
 function mergeConfig(base, overrides) {
     if (!overrides)
         return base;
     return {
         storage: {
+            unified: overrides.storage?.unified ? {
+                ...base.storage.unified,
+                ...overrides.storage.unified,
+                migrationOptions: {
+                    ...base.storage.unified?.migrationOptions,
+                    ...overrides.storage.unified?.migrationOptions
+                }
+            } : base.storage.unified,
             knowledgeStore: {
                 ...base.storage.knowledgeStore,
                 ...overrides.storage?.knowledgeStore
@@ -158,6 +239,14 @@ function mergeConfig(base, overrides) {
                 ...base.storage.fileStore,
                 ...overrides.storage?.fileStore
             },
+            originalFileStore: overrides.storage?.originalFileStore ? {
+                ...base.storage.originalFileStore,
+                ...overrides.storage.originalFileStore
+            } : base.storage.originalFileStore,
+            processedFileStore: overrides.storage?.processedFileStore ? {
+                ...base.storage.processedFileStore,
+                ...overrides.storage.processedFileStore
+            } : base.storage.processedFileStore,
             enableDuplicateDetection: overrides.storage?.enableDuplicateDetection ?? base.storage.enableDuplicateDetection,
             enableUrlTracking: overrides.storage?.enableUrlTracking ?? base.storage.enableUrlTracking,
             urlRepositoryPath: overrides.storage?.urlRepositoryPath ?? base.storage.urlRepositoryPath

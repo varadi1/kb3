@@ -87,7 +87,10 @@ export function UrlsTable() {
   if (urlsLoading && urls.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
-        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+        <RefreshCw
+          className="h-8 w-8 animate-spin text-muted-foreground"
+          data-testid="loading-spinner"
+        />
       </div>
     )
   }

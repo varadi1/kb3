@@ -1,8 +1,9 @@
 
 please think ultrahard about this issue: we have many tests failing! Stick to solid principles! 
-Run 'npm test' and Examine and analyze the situation, think of the root cause of this, use driver tree method to find it, and then fix it. DO NOT STOP until you can make ALL TESTS PASS!
+Run 'npm test' in packages/backend folder and Examine and analyze the situation, think of the root cause of this, use driver tree method to find it, and then fix it. DO NOT STOP until you can make ALL TESTS PASS!
 
 Fix EACH failure one by one, showing the related test passes after each fix.
+Please avoid overmocking!
 Do not assume a test is passing or a completed fix is good until you verify it with its test that you can see passing! Skipping tests is not acceptable.
 Before you want to claim success make sure to run the full suite, run npm run test and wait for the results, if ALL! passes this will prove ALL! tests PASS! 
 Keep working on this until ALL! tests PASS!, DON'T STOP before or don't move on to anything else
@@ -55,7 +56,7 @@ you to analyse the situation and answer me to this question. Don't apologise, ju
 
 ---
 
-please design me a frontend now that is make use of how the system works and support its processes. 
+please think ultrahard and tell me if the followings are in place with the system: a frontend now that is make use of how the system works and support its processes. 
 	- So if I can see all the stored urls in a table view,
 	- add new urls one by one or in batches
 	- I can set tags to one or all selected urls
@@ -68,3 +69,4 @@ please design me a frontend now that is make use of how the system works and sup
 	- I can edit the metadata of the url 
 	- I can access to a link that would open / download the original or the processed file or open the url
 	- I can export and import urls and meta data in json or txt
+In case there is is something missing, please design the next steps to create those. Keep SOLID principles in mind and update tests and documentations (claude.md, readme.md, components.md)

@@ -79,12 +79,14 @@ export class KB3Service extends EventEmitter {
     tags?: string[];
     search?: string;
   }): Promise<any[]> {
-    const store = this.config.storage.unified?.store;
-    if (!store) throw new Error('Store not initialized');
-
-    // This would need to be implemented in the KB3 core
-    // For now, we'll return a placeholder
-    return [];
+    try {
+      // Use orchestrator's repository following SOLID principles
+      const urlRepo = this.orchestrator.getUrlRepository();
+      return await urlRepo.getAll(options);
+    } catch (error) {
+      console.error('Error getting URLs:', error);
+      return [];
+    }
   }
 
   async addUrl(url: string, tags?: string[]): Promise<ProcessingResult> {
@@ -147,10 +149,13 @@ export class KB3Service extends EventEmitter {
 
   // Tag Management
   async getTags(): Promise<ITag[]> {
-    const tagService = this.config.storage.unified?.tagService;
-    if (!tagService) throw new Error('Tag service not initialized');
-
-    return await tagService.getAllTags();
+    try {
+      const tagRepo = this.orchestrator.getTagRepository();
+      return await tagRepo.getAll();
+    } catch (error) {
+      console.error('Error getting tags:', error);
+      return [];
+    }
   }
 
   async createTag(name: string, parentName?: string): Promise<ITag> {
@@ -160,25 +165,31 @@ export class KB3Service extends EventEmitter {
   }
 
   async updateTag(id: number, updates: Partial<ITag>): Promise<boolean> {
-    const tagService = this.config.storage.unified?.tagService;
-    if (!tagService) throw new Error('Tag service not initialized');
-
-    const success = await tagService.updateTag(id, updates);
-    if (success) {
-      this.emit('tag:updated', { id, updates });
+    try {
+      const tagRepo = this.orchestrator.getTagRepository();
+      const success = await tagRepo.update(id, updates);
+      if (success) {
+        this.emit('tag:updated', { id, updates });
+      }
+      return success;
+    } catch (error) {
+      console.error('Error updating tag:', error);
+      return false;
     }
-    return success;
   }
 
   async deleteTag(id: number): Promise<boolean> {
-    const tagService = this.config.storage.unified?.tagService;
-    if (!tagService) throw new Error('Tag service not initialized');
-
-    const success = await tagService.deleteTag(id);
-    if (success) {
-      this.emit('tag:deleted', { id });
+    try {
+      const tagRepo = this.orchestrator.getTagRepository();
+      const success = await tagRepo.delete(id);
+      if (success) {
+        this.emit('tag:deleted', { id });
+      }
+      return success;
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+      return false;
     }
-    return success;
   }
 
   async addTagsToUrl(url: string, tagNames: string[]): Promise<boolean> {
@@ -278,39 +289,66 @@ export class KB3Service extends EventEmitter {
 
   // Content Access
   async getOriginalContent(urlId: string): Promise<Buffer | null> {
-    const fileRepo = this.config.storage.unified?.originalFileRepository;
-    if (!fileRepo) throw new Error('File repository not initialized');
+    try {
+      // Use orchestrator's abstraction instead of direct config access
+      const originalRepo = this.orchestrator.getOriginalFileRepository();
+      const record = await originalRepo.getFileByUrlId(parseInt(urlId));
+      if (!record || !record.file_path) return null;
 
-    const record = await fileRepo.getFileByUrlId(parseInt(urlId));
-    if (!record || !record.file_path) return null;
-
-    const fs = await import('fs/promises');
-    return await fs.readFile(record.file_path);
+      const fs = await import('fs/promises');
+      return await fs.readFile(record.file_path);
+    } catch (error) {
+      console.error('Error getting original content:', error);
+      return null;
+    }
   }
 
   async getCleanedContent(urlId: string): Promise<string | null> {
-    const store = this.config.storage.unified?.store;
-    if (!store) throw new Error('Store not initialized');
+    try {
+      // Use orchestrator's knowledge store abstraction
+      const knowledgeStore = this.orchestrator.getKnowledgeStore();
+      const entries = await knowledgeStore.search({ url: urlId });
+      if (entries.length === 0) return null;
 
-    const entries = await store.search({ url: urlId });
-    if (entries.length === 0) return null;
-
-    return entries[0].text;
+      return entries[0].text;
+    } catch (error) {
+      console.error('Error getting cleaned content:', error);
+      return null;
+    }
   }
 
   // Statistics
   async getStatistics(): Promise<any> {
-    const store = this.config.storage.unified?.store;
-    if (!store) throw new Error('Store not initialized');
+    try {
+      // Follow SOLID principles - use orchestrator's interface, not config internals
+      const urlRepo = this.orchestrator.getUrlRepository();
+      const tagRepo = this.orchestrator.getTagRepository();
+      const knowledgeStore = this.orchestrator.getKnowledgeStore();
 
-    // Would need implementation in KB3 core
-    return {
-      totalUrls: 0,
-      processedUrls: 0,
-      failedUrls: 0,
-      totalSize: 0,
-      tags: 0
-    };
+      const [urls, tags, stats] = await Promise.all([
+        urlRepo.getAll().catch(() => []),
+        tagRepo.getAll().catch(() => []),
+        knowledgeStore.getStats().catch(() => ({ totalSize: 0, totalEntries: 0 }))
+      ]);
+
+      return {
+        totalUrls: urls.length,
+        processedUrls: urls.filter(u => u.status === 'completed').length,
+        failedUrls: urls.filter(u => u.status === 'failed').length,
+        totalSize: stats.totalSize || 0,
+        tags: tags.length
+      };
+    } catch (error) {
+      console.error('Statistics error:', error);
+      // Return safe defaults during initialization
+      return {
+        totalUrls: 0,
+        processedUrls: 0,
+        failedUrls: 0,
+        totalSize: 0,
+        tags: 0
+      };
+    }
   }
 
   // Export/Import
@@ -320,11 +358,21 @@ export class KB3Service extends EventEmitter {
     urlIds?: string[];
     tags?: string[];
   }): Promise<any> {
-    const store = this.config.storage.unified?.store;
-    if (!store) throw new Error('Store not initialized');
+    try {
+      // Use orchestrator's repositories following SOLID principles
+      const urlRepo = this.orchestrator.getUrlRepository();
+      const tagRepo = this.orchestrator.getTagRepository();
 
-    // Would need implementation
-    return {};
+      const [urls, tags] = await Promise.all([
+        urlRepo.getAll({ tags: options.tags }),
+        tagRepo.getAll()
+      ]);
+
+      return { urls, tags, format: options.format };
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      return { urls: [], tags: [], format: options.format };
+    }
   }
 
   async importData(data: any, format: 'json' | 'csv' | 'txt'): Promise<any> {

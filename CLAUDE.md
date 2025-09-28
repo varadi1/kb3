@@ -39,7 +39,7 @@ This codebase **MUST** follow SOLID principles at all times:
 
 ```
 kb3/
-├── src/
+├── src/                  # Core KB3 library
 │   ├── interfaces/       # Abstract contracts (ISP)
 │   ├── detectors/        # URL type detection (SRP)
 │   ├── fetchers/         # Content retrieval (SRP)
@@ -50,6 +50,19 @@ kb3/
 │   ├── factory/          # Dependency injection (DIP)
 │   ├── config/           # Configuration management
 │   └── utils/            # Utilities and error handling
+├── packages/             # Frontend/Backend applications
+│   ├── backend/          # Express.js API server
+│   │   ├── src/
+│   │   │   ├── services/ # KB3 integration layer
+│   │   │   ├── routes/   # REST API endpoints
+│   │   │   ├── websocket/# Real-time events
+│   │   │   └── index.ts  # Server entry point
+│   │   └── package.json
+│   └── frontend/         # Next.js web interface
+│       ├── app/          # App router pages
+│       ├── components/   # React components
+│       ├── lib/          # Utilities and store
+│       └── package.json
 ├── tests/
 │   ├── solid-compliance/ # SOLID principle tests
 │   ├── integration/      # Integration tests
@@ -163,6 +176,74 @@ All public APIs MUST have JSDoc comments:
  * @throws ProcessingError if content is invalid
  */
 async process(content: Buffer, options?: ProcessingOptions): Promise<ProcessingResult>
+```
+
+## Web Interface (Frontend & Backend)
+
+### Architecture
+
+The KB3 system includes a full-featured web interface with:
+
+#### **Backend API Server** (Express.js + TypeScript)
+- REST API for all KB3 operations
+- WebSocket server for real-time updates
+- Singleton KB3 service integration
+- Input validation and error handling
+- Rate limiting and security middleware
+
+#### **Frontend Application** (Next.js 14 + React)
+- Modern React with TypeScript
+- Real-time updates via Socket.io
+- Advanced data grid with TanStack Table
+- State management with Zustand
+- UI components with shadcn/ui and Tailwind CSS
+
+### Features
+
+1. **URL Management Dashboard**
+   - Table view with sorting, filtering, pagination
+   - Multi-select operations
+   - Inline editing of metadata
+   - Status indicators and progress tracking
+
+2. **Tag Management**
+   - Hierarchical tag tree
+   - Drag-and-drop organization
+   - Bulk tag assignment
+
+3. **Scraper & Cleaner Configuration**
+   - Per-URL configuration
+   - Tool chain selection
+   - Template management
+   - Test configurations
+
+4. **Processing Monitor**
+   - Real-time progress updates
+   - Queue management
+   - Error recovery
+   - Batch operations
+
+5. **Import/Export**
+   - JSON, CSV, TXT formats
+   - Validation and preview
+   - Template downloads
+
+### Running the Web Interface
+
+```bash
+# Install dependencies
+cd packages/backend && npm install
+cd ../frontend && npm install
+
+# Start backend (port 4000)
+cd packages/backend
+npm run dev
+
+# Start frontend (port 3000)
+cd packages/frontend
+npm run dev
+
+# Access at http://localhost:3000
 ```
 
 ## Installation

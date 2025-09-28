@@ -27,6 +27,8 @@ __exportStar(require("./IKnowledgeStore"), exports);
 __exportStar(require("./IFileStorage"), exports);
 __exportStar(require("./IOrchestrator"), exports);
 __exportStar(require("./IUrlRepository"), exports);
+__exportStar(require("./IOriginalFileRepository"), exports);
+__exportStar(require("./IProcessedFileRepository"), exports);
 // Common types and enums
 var IUrlDetector_1 = require("./IUrlDetector");
 Object.defineProperty(exports, "ContentType", { enumerable: true, get: function () { return IUrlDetector_1.ContentType; } });

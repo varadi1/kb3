@@ -1,6 +1,6 @@
-# Knowledge Base System - SOLID Principles Implementation
+# KB3 - Advanced Knowledge Base System
 
-A comprehensive knowledge base system built following SOLID principles for scalable content management and processing.
+A comprehensive knowledge base system built following SOLID principles for scalable content management and processing. Features a modern web interface for managing URLs, configuring scrapers, and monitoring processing tasks.
 
 ## Architecture Overview
 
@@ -32,11 +32,71 @@ This system is designed with clear separation of concerns and follows SOLID prin
    - Both depend on abstractions (interfaces)
    - Dependency injection throughout the system
 
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+ and npm
+- Python 3.8+ (for advanced scrapers)
+- SQLite3
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/kb3.git
+cd kb3
+
+# Install core dependencies
+npm install
+
+# Install Python dependencies (optional, for advanced scrapers)
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# Install frontend and backend dependencies
+cd packages/backend && npm install
+cd ../frontend && npm install
+```
+
+### Running the System
+
+```bash
+# Terminal 1: Start the backend API server
+cd packages/backend
+npm run dev
+# Backend runs on http://localhost:4000
+
+# Terminal 2: Start the frontend application
+cd packages/frontend
+npm run dev
+# Frontend runs on http://localhost:3000
+```
+
+Open your browser and navigate to `http://localhost:3000`
+
+## 🎯 Features
+
+### Web Interface
+- **URL Management Dashboard**: View, add, edit, and delete URLs with bulk operations
+- **Tag System**: Organize URLs with hierarchical tags
+- **Scraper Configuration**: Configure different scrapers per URL or use templates
+- **Real-time Processing**: Monitor processing status with WebSocket updates
+- **Import/Export**: Support for JSON, CSV, and TXT formats
+
+### Core Capabilities
+- **Multiple Scrapers**: HTTP, Playwright, Crawl4AI, Docling, DeepDoctection
+- **Content Cleaners**: HTML sanitization, XSS protection, text normalization
+- **Unified Storage**: Single SQLite database with automatic migration
+- **File Tracking**: SHA256 checksums, metadata preservation
+- **Extensible Architecture**: Plugin-based system following SOLID principles
+
 ## Project Structure
 
 ```
 kb3/
-├── src/
+├── src/                     # Core KB3 library
 │   ├── interfaces/          # Abstract interfaces and contracts
 │   ├── detectors/           # URL type detection and classification
 │   ├── fetchers/            # Content retrieval from various sources
@@ -48,6 +108,17 @@ kb3/
 │   ├── factory/             # Dependency injection and object creation
 │   ├── config/              # Configuration management
 │   └── utils/               # Utility functions and helpers
+├── packages/                # Web interface
+│   ├── backend/             # Express.js API server
+│   │   ├── src/
+│   │   │   ├── services/    # KB3 integration
+│   │   │   ├── routes/      # REST API endpoints
+│   │   │   └── websocket/   # Real-time events
+│   │   └── package.json
+│   └── frontend/            # Next.js application
+│       ├── app/             # App router pages
+│       ├── components/      # React components
+│       └── lib/             # Utilities and store
 ├── tests/                   # Comprehensive test suite
 │   ├── solid-compliance/    # SOLID principle compliance tests
 │   ├── integration/         # Integration tests
@@ -220,6 +291,68 @@ Python-based scrapers (Crawl4AI, Docling, DeepDoctection) use a Python Bridge sy
 - Handles JSON serialization between Node.js and Python
 - Provides graceful fallbacks when dependencies are missing
 - Suppresses verbose ML library output
+
+## 📡 API Documentation
+
+### REST Endpoints
+
+#### URL Management
+- `GET /api/urls` - List URLs with pagination and filtering
+- `POST /api/urls` - Add single URL
+- `POST /api/urls/batch` - Add multiple URLs
+- `PUT /api/urls/:id` - Update URL metadata
+- `DELETE /api/urls/:id` - Delete URL
+- `POST /api/urls/batch-update` - Bulk update URLs
+- `POST /api/urls/:id/tags` - Add tags to URL
+
+#### Tag Management
+- `GET /api/tags` - Get hierarchical tag tree
+- `POST /api/tags` - Create new tag
+- `PUT /api/tags/:id` - Update tag
+- `DELETE /api/tags/:id` - Delete tag
+
+#### Processing
+- `POST /api/process/url/:id` - Process single URL
+- `POST /api/process/batch` - Batch process URLs
+- `POST /api/process/by-tags` - Process URLs by tags
+- `GET /api/process/status/:id` - Get processing status
+- `GET /api/process/queue` - Get queue status
+
+#### Configuration
+- `GET /api/config/scrapers` - Get available scrapers
+- `GET /api/config/cleaners` - Get available cleaners
+- `POST /api/config/url/:id` - Set URL-specific config
+- `GET /api/config/templates` - Get config templates
+
+#### Content Access
+- `GET /api/content/:id/original` - Download original content
+- `GET /api/content/:id/cleaned` - Get cleaned content
+- `POST /api/content/:id/reprocess` - Reprocess with new settings
+
+#### Import/Export
+- `POST /api/export` - Export data (JSON/CSV/TXT)
+- `POST /api/export/import` - Import data
+- `GET /api/export/templates` - Download import templates
+
+### WebSocket Events
+
+The system uses Socket.io for real-time updates:
+
+#### Server → Client Events
+- `processing:started` - Processing begun for URL
+- `processing:progress` - Progress update
+- `processing:completed` - Processing finished
+- `processing:failed` - Processing error
+- `batch:completed` - Batch processing done
+- `url:added` - New URL added
+- `tag:created` - New tag created
+- `stats:update` - Statistics update
+
+#### Client → Server Events
+- `subscribe:url` - Subscribe to URL updates
+- `unsubscribe:url` - Unsubscribe from URL
+- `cancel:processing` - Cancel active processing
+- `queue:status` - Request queue status
 
 ### Data Persistence
 

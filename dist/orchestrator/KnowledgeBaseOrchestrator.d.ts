@@ -11,6 +11,21 @@ import { IKnowledgeStore } from '../interfaces/IKnowledgeStore';
 import { IFileStorage } from '../interfaces/IFileStorage';
 import { IUrlRepository } from '../interfaces/IUrlRepository';
 import { IContentChangeDetector } from '../interfaces/IContentChangeDetector';
+import { IOriginalFileRepository } from '../interfaces/IOriginalFileRepository';
+import { UrlMetadataWithTags } from '../storage/SqlUrlRepository';
+import { ITag } from '../interfaces/ITag';
+export interface ProcessingOptionsWithTags extends ProcessingOptions {
+    tags?: string[];
+}
+export interface UrlWithTags {
+    url: string;
+    tags?: string[];
+    metadata?: UrlMetadataWithTags;
+}
+export interface BatchProcessingByTagOptions extends ProcessingOptions {
+    includeChildTags?: boolean;
+    requireAllTags?: boolean;
+}
 export declare class KnowledgeBaseOrchestrator implements IOrchestrator {
     private readonly urlDetector;
     private readonly contentFetcher;
@@ -19,9 +34,11 @@ export declare class KnowledgeBaseOrchestrator implements IOrchestrator {
     private readonly fileStorage;
     private readonly urlRepository?;
     private readonly contentChangeDetector?;
+    private readonly originalFileRepository?;
+    private urlRepositoryWithTags?;
     private readonly currentOperations;
     private processingStats;
-    constructor(urlDetector: IUrlDetector, contentFetcher: IContentFetcher, contentProcessor: IContentProcessor, knowledgeStore: IKnowledgeStore, fileStorage: IFileStorage, urlRepository?: IUrlRepository, contentChangeDetector?: IContentChangeDetector);
+    constructor(urlDetector: IUrlDetector, contentFetcher: IContentFetcher, contentProcessor: IContentProcessor, knowledgeStore: IKnowledgeStore, fileStorage: IFileStorage, urlRepository?: IUrlRepository, contentChangeDetector?: IContentChangeDetector, originalFileRepository?: IOriginalFileRepository);
     processUrl(url: string, options?: ProcessingOptions): Promise<ProcessingResult>;
     processUrls(urls: string[], options?: ProcessingOptions): Promise<ProcessingResult[]>;
     /**
@@ -78,6 +95,54 @@ export declare class KnowledgeBaseOrchestrator implements IOrchestrator {
      * Cancels all current operations (graceful shutdown)
      */
     cancelAllOperations(): Promise<void>;
+    /**
+     * Get the original file repository for direct access
+     */
+    getOriginalFileRepository(): IOriginalFileRepository | undefined;
+    /**
+     * Process a single URL with optional tags
+     */
+    processUrlWithTags(url: string, options?: ProcessingOptionsWithTags): Promise<ProcessingResult>;
+    /**
+     * Process multiple URLs with tags
+     */
+    processUrlsWithTags(urlsWithTags: UrlWithTags[], globalOptions?: ProcessingOptions): Promise<ProcessingResult[]>;
+    /**
+     * Process all URLs with specific tags
+     */
+    processUrlsByTags(tagNames: string[], options?: BatchProcessingByTagOptions): Promise<ProcessingResult[]>;
+    /**
+     * Add tags to a URL
+     */
+    addTagsToUrl(url: string, tagNames: string[]): Promise<boolean>;
+    /**
+     * Remove tags from a URL
+     */
+    removeTagsFromUrl(url: string, tagNames: string[]): Promise<boolean>;
+    /**
+     * Get all tags for a URL
+     */
+    getUrlTags(url: string): Promise<ITag[]>;
+    /**
+     * Create a new tag
+     */
+    createTag(name: string, parentName?: string, description?: string): Promise<ITag>;
+    /**
+     * List all tags
+     */
+    listTags(): Promise<ITag[]>;
+    /**
+     * Alias for listTags for compatibility
+     */
+    getTags(): Promise<ITag[]>;
+    /**
+     * Delete a tag
+     */
+    deleteTag(tagName: string, deleteChildren?: boolean): Promise<boolean>;
+    /**
+     * Get tag hierarchy
+     */
+    getTagHierarchy(tagName: string): Promise<ITag[]>;
 }
 export interface ProcessingStats {
     totalProcessed: number;

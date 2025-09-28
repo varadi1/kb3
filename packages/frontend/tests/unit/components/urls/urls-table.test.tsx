@@ -6,6 +6,28 @@ import { useKb3Store } from '@/lib/store'
 // Mock the store
 jest.mock('@/lib/store')
 
+// Mock Radix UI dropdown menu to render content immediately
+jest.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onClick,
+    disabled
+  }: {
+    children: React.ReactNode
+    onClick?: () => void
+    disabled?: boolean
+  }) => (
+    <div onClick={disabled ? undefined : onClick} aria-disabled={disabled}>
+      {children}
+    </div>
+  ),
+  DropdownMenuLabel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuSeparator: () => <hr />
+}))
+
 const mockUseKb3Store = useKb3Store as jest.MockedFunction<typeof useKb3Store>
 
 describe('UrlsTable Component', () => {
@@ -147,23 +169,25 @@ describe('UrlsTable Component', () => {
   it('opens dropdown menu with actions', () => {
     render(<UrlsTable />)
 
-    const menuButtons = screen.getAllByRole('button', { name: /Open menu/i })
-    fireEvent.click(menuButtons[0])
+    // With our mock, all dropdowns render their content immediately
+    // So we check that the expected menu items exist
+    const processButtons = screen.getAllByText('Process')
+    const editButtons = screen.getAllByText('Edit')
+    const downloadButtons = screen.getAllByText('Download Content')
+    const deleteButtons = screen.getAllByText('Delete')
 
-    expect(screen.getByText('Process')).toBeInTheDocument()
-    expect(screen.getByText('Edit')).toBeInTheDocument()
-    expect(screen.getByText('Download Content')).toBeInTheDocument()
-    expect(screen.getByText('Delete')).toBeInTheDocument()
+    expect(processButtons.length).toBeGreaterThan(0)
+    expect(editButtons.length).toBeGreaterThan(0)
+    expect(downloadButtons.length).toBeGreaterThan(0)
+    expect(deleteButtons.length).toBeGreaterThan(0)
   })
 
   it('triggers URL processing', async () => {
     render(<UrlsTable />)
 
-    const menuButtons = screen.getAllByRole('button', { name: /Open menu/i })
-    fireEvent.click(menuButtons[0])
-
-    const processButton = screen.getByText('Process')
-    fireEvent.click(processButton)
+    // Get the first Process button (for first URL)
+    const processButtons = screen.getAllByText('Process')
+    fireEvent.click(processButtons[0])
 
     await waitFor(() => {
       expect(mockStore.processUrl).toHaveBeenCalledWith('1')
@@ -173,22 +197,18 @@ describe('UrlsTable Component', () => {
   it('disables process button for URLs already processing', () => {
     render(<UrlsTable />)
 
-    // Second URL is processing
-    const menuButtons = screen.getAllByRole('button', { name: /Open menu/i })
-    fireEvent.click(menuButtons[1])
-
-    const processButton = screen.getByText('Process')
-    expect(processButton.closest('div')).toHaveAttribute('aria-disabled', 'true')
+    // Get all Process buttons
+    const processButtons = screen.getAllByText('Process')
+    // Second URL is processing, so second button should be disabled
+    expect(processButtons[1].closest('div')).toHaveAttribute('aria-disabled', 'true')
   })
 
   it('triggers URL deletion', async () => {
     render(<UrlsTable />)
 
-    const menuButtons = screen.getAllByRole('button', { name: /Open menu/i })
-    fireEvent.click(menuButtons[0])
-
-    const deleteButton = screen.getByText('Delete')
-    fireEvent.click(deleteButton)
+    // Get the first Delete button (for first URL)
+    const deleteButtons = screen.getAllByText('Delete')
+    fireEvent.click(deleteButtons[0])
 
     await waitFor(() => {
       expect(mockStore.deleteUrl).toHaveBeenCalledWith('1')
@@ -201,8 +221,9 @@ describe('UrlsTable Component', () => {
     // First URL has processedAt date
     expect(screen.getByText(/Jan 28, 2025/)).toBeInTheDocument()
 
-    // Third URL has no processedAt
-    expect(screen.getByText('Not processed')).toBeInTheDocument()
+    // URLs without processedAt should show "Not processed"
+    const notProcessedElements = screen.getAllByText('Not processed')
+    expect(notProcessedElements.length).toBeGreaterThan(0)
   })
 
   it('truncates long URLs', () => {

@@ -47,6 +47,25 @@ export interface ProcessedContent {
     links?: ExtractedLink[];
     tables?: ExtractedTable[];
     structure?: ContentStructure;
+    cleaningMetadata?: CleaningMetadata;
+}
+export interface CleaningMetadata {
+    cleanersUsed: string[];
+    cleaningConfig?: {
+        format?: string;
+        autoSelected?: boolean;
+        preservedOriginal?: boolean;
+        url?: string;
+    };
+    statistics: {
+        originalLength: number;
+        cleanedLength: number;
+        compressionRatio: string;
+        processingTimeMs: number;
+    };
+    warnings?: string[];
+    cleanedFilePath?: string;
+    processedFileId?: string;
 }
 export interface ExtractedImage {
     src: string;

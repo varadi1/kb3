@@ -2,6 +2,38 @@
 
 ## Recent Updates (2025-01-28)
 
+### Web Interface Addition
+
+A complete web interface has been added with:
+
+#### Backend API Server (`packages/backend/`)
+- **Express.js** server with TypeScript
+- **KB3Service**: Singleton service wrapping KB3 orchestrator
+- **REST API**: Complete CRUD operations for all features
+- **WebSocket**: Real-time updates via Socket.io
+- **Validation**: Express-validator for input validation
+- **Security**: Rate limiting, CORS, helmet middleware
+
+#### Frontend Application (`packages/frontend/`)
+- **Next.js 14**: App Router with server components
+- **React 18**: Modern React with TypeScript
+- **Tailwind CSS**: Utility-first styling
+- **shadcn/ui**: Accessible component library
+- **TanStack Table**: Advanced data grid
+- **Zustand**: Global state management
+- **Socket.io Client**: Real-time updates
+- **React Query**: Server state management
+
+### Running the Web Interface
+
+```bash
+# Backend (port 4000)
+cd packages/backend && npm run dev
+
+# Frontend (port 3000)
+cd packages/frontend && npm run dev
+```
+
 ### Scraper Implementation Status
 
 All scrapers have been verified to work with real content (not mock data):
@@ -575,4 +607,37 @@ const result = await orchestrator.cleanAuto(htmlText, TextFormat.HTML);
 - **Format Tests**: Format-specific cleaning scenarios
 - **Configuration Tests**: Per-URL and batch configuration
 - **Error Handling Tests**: Graceful failure scenarios
+
+## Frontend Components
+
+### Backend API Components
+
+| Component | File | Classes | Description |
+|---|---|---|---|
+| KB3Service | `packages/backend/src/services/kb3Service.ts` | KB3Service | Singleton service wrapping KB3 orchestrator |
+| URL Routes | `packages/backend/src/routes/urls.ts` | — | REST endpoints for URL management |
+| Tag Routes | `packages/backend/src/routes/tags.ts` | — | REST endpoints for tag management |
+| Processing Routes | `packages/backend/src/routes/processing.ts` | — | REST endpoints for processing operations |
+| Config Routes | `packages/backend/src/routes/config.ts` | — | REST endpoints for configuration |
+| Content Routes | `packages/backend/src/routes/content.ts` | — | REST endpoints for content access |
+| Export Routes | `packages/backend/src/routes/export.ts` | — | REST endpoints for import/export |
+| Socket Handler | `packages/backend/src/websocket/socketHandler.ts` | — | WebSocket event handling |
+
+### Frontend React Components
+
+| Component | File | Description | Features |
+|---|---|---|---|
+| Providers | `packages/frontend/components/providers.tsx` | Context providers wrapper | React Query, Theme, WebSocket |
+| Navigation | `packages/frontend/components/layout/navigation.tsx` | Top navigation bar | Theme toggle, connection status |
+| UrlsTable | `packages/frontend/components/urls/urls-table.tsx` | URL management data grid | Sorting, filtering, multi-select |
+| Button | `packages/frontend/components/ui/button.tsx` | Reusable button component | Multiple variants and sizes |
+| Card | `packages/frontend/components/ui/card.tsx` | Card container component | Header, content, footer sections |
+| Tabs | `packages/frontend/components/ui/tabs.tsx` | Tab navigation component | Accessible tab interface |
+| Toast | `packages/frontend/components/ui/toast.tsx` | Toast notification component | Success, error, info messages |
+
+### State Management
+
+| Store | File | Description | State |
+|---|---|---|---|
+| KB3 Store | `packages/frontend/lib/store.ts` | Zustand global state | URLs, tags, processing tasks, stats |
 

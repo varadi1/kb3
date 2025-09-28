@@ -9,6 +9,8 @@ export * from './IKnowledgeStore';
 export * from './IFileStorage';
 export * from './IOrchestrator';
 export * from './IUrlRepository';
+export * from './IOriginalFileRepository';
+export * from './IProcessedFileRepository';
 export { ContentType } from './IUrlDetector';
 export { ProcessingStatus, SortField, SortOrder } from './IKnowledgeStore';
 export { FileSort, SortOrder as FileSortOrder } from './IFileStorage';

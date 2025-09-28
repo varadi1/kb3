@@ -32,7 +32,7 @@ class TextCleanerRegistry {
             console.warn(`Cleaner '${cleaner.name}' is already registered. Overwriting...`);
         }
         this.cleaners.set(cleaner.name, cleaner);
-        console.log(`Registered text cleaner: ${cleaner.name}`);
+        // Successfully registered cleaner
     }
     /**
      * Unregister a cleaner
@@ -43,7 +43,7 @@ class TextCleanerRegistry {
             return;
         }
         this.cleaners.delete(cleanerName);
-        console.log(`Unregistered text cleaner: ${cleanerName}`);
+        // Successfully unregistered cleaner
     }
     /**
      * Get a cleaner by name
@@ -74,7 +74,7 @@ class TextCleanerRegistry {
      */
     clear() {
         this.cleaners.clear();
-        console.log('Cleared all registered text cleaners');
+        // Successfully cleared all cleaners
     }
     /**
      * Get registry statistics
@@ -114,7 +114,7 @@ class TextCleanerRegistry {
         this.register(new VocaCleaner());
         this.register(new StringJsCleaner());
         this.register(new RemarkCleaner());
-        console.log('Initialized default text cleaners');
+        // Successfully initialized default cleaners
     }
     /**
      * Get cleaners sorted by priority
@@ -151,7 +151,7 @@ class TextCleanerRegistry {
             const cleaner = this.cleaners.get(name);
             if (cleaner && settings.config) {
                 cleaner.updateConfig(settings.config);
-                console.log(`Updated configuration for cleaner: ${name}`);
+                // Successfully updated configuration
             }
         }
     }

@@ -9,8 +9,7 @@
  * - Standard knowledge base functionality
  */
 import { KnowledgeBaseConfig } from '../config/Configuration';
-import { KnowledgeBaseOrchestratorWithTags } from '../orchestrator/KnowledgeBaseOrchestratorWithTags';
-import { IOriginalFileRepository } from '../interfaces/IOriginalFileRepository';
+import { KnowledgeBaseOrchestrator } from '../orchestrator/KnowledgeBaseOrchestrator';
 /**
  * Extended configuration interface with all features
  */
@@ -36,17 +35,25 @@ export interface KnowledgeBaseConfigExtended extends KnowledgeBaseConfig {
 /**
  * Knowledge base with both file tracking and tag support
  */
-export interface KnowledgeBaseWithFullFeatures extends KnowledgeBaseOrchestratorWithTags {
-    getOriginalFileRepository(): IOriginalFileRepository;
+export interface KnowledgeBaseWithFullFeatures extends KnowledgeBaseOrchestrator {
 }
 export declare class KnowledgeBaseFactory {
     /**
      * Creates a fully configured knowledge base orchestrator with all features
      * Now includes tag support and file tracking by default
+     * Supports unified storage for simpler database management
      * @param config System configuration
      * @returns Configured orchestrator with all features
      */
     static createKnowledgeBase(config: KnowledgeBaseConfigExtended): Promise<KnowledgeBaseWithFullFeatures>;
+    /**
+     * Creates knowledge base with unified storage (single database)
+     */
+    private static createUnifiedKnowledgeBase;
+    /**
+     * Perform automatic migration from multiple databases to unified
+     */
+    private static performAutoMigration;
     /**
      * Creates URL detector based on configuration
      * @param config System configuration
@@ -66,30 +73,11 @@ export declare class KnowledgeBaseFactory {
      */
     private static createContentProcessor;
     /**
-     * Creates knowledge store based on configuration
-     * @param config System configuration
-     * @returns Knowledge store implementation
-     */
-    private static createKnowledgeStore;
-    /**
      * Creates file storage based on configuration
      * @param config System configuration
      * @returns File storage implementation
      */
     private static createFileStorage;
-    /**
-     * Creates URL repository with tag support (always enabled now)
-     * @param config System configuration
-     * @returns URL repository with tags
-     */
-    private static createUrlRepositoryWithTags;
-    /**
-     * Creates content change detector if enabled
-     * @param config System configuration
-     * @param urlRepository URL repository instance
-     * @returns Content change detector or undefined
-     */
-    private static createContentChangeDetector;
     /**
      * Creates a knowledge base with default configuration (with all features)
      * @returns Knowledge base with default settings and all features

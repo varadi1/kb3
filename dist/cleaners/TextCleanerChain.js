@@ -39,7 +39,7 @@ class TextCleanerChain {
             return this;
         }
         this.cleaners.splice(index, 1);
-        console.log(`Removed cleaner '${cleanerName}' from chain`);
+        // Successfully removed cleaner from chain
         return this;
     }
     /**
@@ -51,11 +51,11 @@ class TextCleanerChain {
         let currentText = input;
         // Filter and sort cleaners by priority
         const activeCleaners = this.cleaners.filter(({ cleaner, config }) => config.enabled && cleaner.canClean(currentText, format));
-        console.log(`Processing through ${activeCleaners.length} active cleaners`);
+        // Processing through cleaners
         // Process through each cleaner
         for (const { cleaner, config } of activeCleaners) {
             try {
-                console.log(`Applying cleaner: ${cleaner.name}`);
+                // Applying cleaner
                 const result = await cleaner.clean(currentText, config);
                 cleanerResults.push(result);
                 currentText = result.cleanedText;
@@ -105,7 +105,7 @@ class TextCleanerChain {
      */
     clear() {
         this.cleaners = [];
-        console.log('Cleared all cleaners from chain');
+        // Cleared all cleaners
     }
     /**
      * Sort cleaners by priority (higher priority = earlier execution)

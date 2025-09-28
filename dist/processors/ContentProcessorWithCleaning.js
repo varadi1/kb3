@@ -11,11 +11,14 @@ const ITextCleaner_1 = require("../interfaces/ITextCleaner");
 const TextCleaningOrchestrator_1 = require("../cleaners/TextCleaningOrchestrator");
 const TextCleanerRegistry_1 = require("../cleaners/TextCleanerRegistry");
 const TextCleanerConfigManager_1 = require("../cleaners/TextCleanerConfigManager");
+const IProcessedFileRepository_1 = require("../interfaces/IProcessedFileRepository");
 class ContentProcessorWithCleaning {
     baseProcessor;
     cleaningOrchestrator;
-    constructor(baseProcessor, orchestrator) {
+    processedFileStorage;
+    constructor(baseProcessor, orchestrator, processedFileStorage) {
         this.baseProcessor = baseProcessor;
+        this.processedFileStorage = processedFileStorage;
         if (!orchestrator) {
             // Initialize with default configuration
             const registry = TextCleanerRegistry_1.TextCleanerRegistry.getInstance();
@@ -87,6 +90,69 @@ class ContentProcessorWithCleaning {
                             .filter((w, i, arr) => arr.indexOf(w) === i) // Unique warnings
                     }
                 };
+            }
+            // Always populate cleaningMetadata for standardized access
+            const cleaningMetadata = {
+                cleanersUsed: cleaningResult.cleanerResults.map(r => r.metadata.cleanerName),
+                cleaningConfig: {
+                    format: textFormat,
+                    autoSelected: options.textCleaning.autoSelect,
+                    preservedOriginal: options.textCleaning.preserveOriginal,
+                    url: options.textCleaning.url
+                },
+                statistics: {
+                    originalLength: baseResult.text.length,
+                    cleanedLength: cleaningResult.finalText.length,
+                    compressionRatio: (1 - cleaningResult.finalText.length / baseResult.text.length).toFixed(2),
+                    processingTimeMs: cleaningResult.totalProcessingTime
+                },
+                warnings: cleaningResult.cleanerResults
+                    .flatMap(r => r.warnings || [])
+                    .filter((w, i, arr) => arr.indexOf(w) === i)
+            };
+            result.cleaningMetadata = cleaningMetadata;
+            // Save cleaned file if requested and storage is available
+            if (options.textCleaning.saveCleanedFile && this.processedFileStorage) {
+                try {
+                    const cleanedContent = Buffer.from(result.text, 'utf8');
+                    const filename = `cleaned_${Date.now()}.txt`;
+                    const storagePath = await this.processedFileStorage.store(cleanedContent, filename, {
+                        metadata: {
+                            url: options.textCleaning.url || 'unknown',
+                            mimeType: 'text/plain',
+                            originalFileId: options.textCleaning.originalFileId,
+                            processingType: IProcessedFileRepository_1.ProcessingType.CLEANED,
+                            cleanersUsed: cleaningResult.cleanerResults.map(r => r.metadata.cleanerName),
+                            cleaningConfig: {
+                                format: textFormat,
+                                autoSelected: options.textCleaning.autoSelect,
+                                preservedOriginal: options.textCleaning.preserveOriginal
+                            },
+                            contentType: contentType,
+                            originalLength: baseResult.text.length,
+                            cleanedLength: result.text.length
+                        }
+                    });
+                    result.cleanedFilePath = storagePath;
+                    // Extract processed file ID from metadata if available
+                    const metadata = await this.processedFileStorage.getMetadata(storagePath);
+                    if (metadata?.metadata?.processedFileId) {
+                        result.processedFileId = metadata.metadata.processedFileId;
+                    }
+                    // Add file paths to cleaningMetadata
+                    if (result.cleaningMetadata) {
+                        result.cleaningMetadata.cleanedFilePath = storagePath;
+                        result.cleaningMetadata.processedFileId = result.processedFileId;
+                    }
+                    console.log(`Cleaned content saved to: ${storagePath}`);
+                }
+                catch (error) {
+                    console.error('Failed to save cleaned file:', error);
+                    result.metadata = {
+                        ...result.metadata,
+                        fileSaveError: error instanceof Error ? error.message : 'Unknown error'
+                    };
+                }
             }
             console.log(`Text cleaning applied: ${baseResult.text.length} -> ${result.text.length} characters`);
         }

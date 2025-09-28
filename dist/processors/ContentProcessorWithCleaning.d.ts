@@ -7,6 +7,7 @@ import { IContentProcessor, ProcessingOptions, ProcessedContent } from '../inter
 import { ContentType } from '../interfaces/IUrlDetector';
 import { TextFormat, IChainResult } from '../interfaces/ITextCleaner';
 import { TextCleaningOrchestrator } from '../cleaners/TextCleaningOrchestrator';
+import { IFileStorage } from '../interfaces/IFileStorage';
 export interface ProcessingOptionsWithCleaning extends ProcessingOptions {
     textCleaning?: {
         enabled: boolean;
@@ -16,16 +17,21 @@ export interface ProcessingOptionsWithCleaning extends ProcessingOptions {
         storeMetadata?: boolean;
         preserveOriginal?: boolean;
         format?: TextFormat;
+        saveCleanedFile?: boolean;
+        originalFileId?: string;
     };
 }
 export interface ProcessedContentWithCleaning extends ProcessedContent {
     cleaningResult?: IChainResult;
     originalText?: string;
+    cleanedFilePath?: string;
+    processedFileId?: string;
 }
 export declare class ContentProcessorWithCleaning implements IContentProcessor {
     private baseProcessor;
     private cleaningOrchestrator;
-    constructor(baseProcessor: IContentProcessor, orchestrator?: TextCleaningOrchestrator);
+    private processedFileStorage?;
+    constructor(baseProcessor: IContentProcessor, orchestrator?: TextCleaningOrchestrator, processedFileStorage?: IFileStorage);
     /**
      * Get supported content types (delegates to base processor)
      */

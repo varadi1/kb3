@@ -51,6 +51,17 @@ export interface OriginalFileInfo {
     size: number;
     checksum: string;
     scraperUsed?: string;
+    cleaningMetadata?: {
+        cleanersUsed: string[];
+        cleaningConfig?: Record<string, any>;
+        statistics?: {
+            originalLength: number;
+            cleanedLength: number;
+            compressionRatio: string;
+            processingTimeMs: number;
+        };
+        processedFileId?: string;
+    };
     metadata?: Record<string, any>;
 }
 export interface OriginalFileRecord extends OriginalFileInfo {

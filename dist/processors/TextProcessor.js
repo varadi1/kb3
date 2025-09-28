@@ -13,7 +13,8 @@ class TextProcessor extends BaseProcessor_1.BaseProcessor {
             IUrlDetector_1.ContentType.TXT,
             IUrlDetector_1.ContentType.CSV,
             IUrlDetector_1.ContentType.JSON,
-            IUrlDetector_1.ContentType.XML
+            IUrlDetector_1.ContentType.XML,
+            IUrlDetector_1.ContentType.MARKDOWN
         ], maxTextLength);
     }
     async performProcessing(content, contentType, options) {
@@ -44,6 +45,9 @@ class TextProcessor extends BaseProcessor_1.BaseProcessor {
                 return this.processXmlContent(text);
             case IUrlDetector_1.ContentType.CSV:
                 return this.processCsvContent(text);
+            case IUrlDetector_1.ContentType.MARKDOWN:
+                // Markdown is returned as-is since it's already readable text
+                return text;
             default:
                 return text;
         }

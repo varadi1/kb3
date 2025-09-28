@@ -41,6 +41,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.KnowledgeBaseOrchestrator = void 0;
 const IOrchestrator_1 = require("../interfaces/IOrchestrator");
 const IUrlRepository_1 = require("../interfaces/IUrlRepository");
+const ErrorHandler_1 = require("../utils/ErrorHandler");
 const crypto = __importStar(require("crypto"));
 class KnowledgeBaseOrchestrator {
     urlDetector;
@@ -50,6 +51,9 @@ class KnowledgeBaseOrchestrator {
     fileStorage;
     urlRepository;
     contentChangeDetector;
+    // Optional features
+    originalFileRepository;
+    urlRepositoryWithTags;
     // Processing state tracking
     currentOperations = new Map();
     processingStats = {
@@ -57,7 +61,7 @@ class KnowledgeBaseOrchestrator {
         successful: 0,
         failed: 0
     };
-    constructor(urlDetector, contentFetcher, contentProcessor, knowledgeStore, fileStorage, urlRepository, contentChangeDetector) {
+    constructor(urlDetector, contentFetcher, contentProcessor, knowledgeStore, fileStorage, urlRepository, contentChangeDetector, originalFileRepository) {
         this.urlDetector = urlDetector;
         this.contentFetcher = contentFetcher;
         this.contentProcessor = contentProcessor;
@@ -65,6 +69,11 @@ class KnowledgeBaseOrchestrator {
         this.fileStorage = fileStorage;
         this.urlRepository = urlRepository;
         this.contentChangeDetector = contentChangeDetector;
+        this.originalFileRepository = originalFileRepository;
+        // Check if URL repository has tag support
+        if (urlRepository && 'getTagManager' in urlRepository) {
+            this.urlRepositoryWithTags = urlRepository;
+        }
     }
     async processUrl(url, options = {}) {
         const startTime = Date.now();
@@ -186,7 +195,7 @@ class KnowledgeBaseOrchestrator {
             // Stage 4: File Storage
             this.updateOperationStage(operationId, IOrchestrator_1.ProcessingStage.STORING);
             const storagePath = await this.storeFile(fetchedContent, url, operationId);
-            // Update URL repository with final scraper metadata, rate limit info, and scraping issues
+            // Update URL repository with final scraper metadata, rate limit info, scraping issues, and cleaning metadata
             if (urlRecordId && this.urlRepository) {
                 const completeMetadata = {
                     scraperUsed: fetchedContent.metadata?.scraperUsed,
@@ -195,7 +204,13 @@ class KnowledgeBaseOrchestrator {
                     // Add rate limiting information
                     rateLimitInfo: fetchedContent.metadata?.rateLimitInfo,
                     // Add scraping issues (errors and warnings)
-                    scrapingIssues: fetchedContent.metadata?.scrapingIssues
+                    scrapingIssues: fetchedContent.metadata?.scrapingIssues,
+                    // Add cleaning metadata
+                    cleaningMetadata: processedContent.cleaningMetadata ? {
+                        cleanersUsed: processedContent.cleaningMetadata.cleanersUsed,
+                        cleaningConfig: processedContent.cleaningMetadata.cleaningConfig,
+                        statistics: processedContent.cleaningMetadata.statistics
+                    } : undefined
                 };
                 // Store complete metadata in the database
                 const existingInfo = await this.urlRepository.getUrlInfo(url);
@@ -219,9 +234,22 @@ class KnowledgeBaseOrchestrator {
             // Complete operation
             this.completeOperation(operationId);
             this.processingStats.successful++;
-            // Update URL repository status
+            // Update URL repository status and metadata
             if (this.urlRepository && urlRecordId) {
+                // Update status
                 await this.urlRepository.updateStatus(urlRecordId, IUrlRepository_1.UrlStatus.COMPLETED);
+                // Update metadata with cleaning information if available
+                if (processedContent.cleaningMetadata) {
+                    await this.urlRepository.register(url, {
+                        cleaningMetadata: {
+                            cleanersUsed: processedContent.cleaningMetadata.cleanersUsed,
+                            cleaningConfig: processedContent.cleaningMetadata.cleaningConfig,
+                            statistics: processedContent.cleaningMetadata.statistics,
+                            processedFileId: processedContent.cleaningMetadata.processedFileId,
+                            cleanedFilePath: processedContent.cleaningMetadata.cleanedFilePath
+                        }
+                    });
+                }
             }
             const result = {
                 success: true,
@@ -237,11 +265,47 @@ class KnowledgeBaseOrchestrator {
                     scraperUsed: fetchedContent.metadata?.scraperUsed,
                     scraperConfig: fetchedContent.metadata?.scraperConfig,
                     rateLimitInfo: fetchedContent.metadata?.rateLimitInfo,
-                    scrapingIssues: fetchedContent.metadata?.scrapingIssues
+                    scrapingIssues: fetchedContent.metadata?.scrapingIssues,
+                    cleaningMetadata: processedContent.cleaningMetadata
                 },
                 processingTime: Date.now() - startTime,
                 storagePath
             };
+            // Track original file if repository is available
+            if (result.success && result.storagePath && this.originalFileRepository) {
+                try {
+                    const fileInfo = {
+                        url,
+                        filePath: result.storagePath,
+                        mimeType: fetchedContent.mimeType || classification.type || 'unknown',
+                        size: fetchedContent.size || 0,
+                        checksum: contentHash,
+                        scraperUsed: fetchedContent.metadata?.scraperUsed,
+                        cleaningMetadata: processedContent.cleaningMetadata ? {
+                            cleanersUsed: processedContent.cleaningMetadata.cleanersUsed,
+                            cleaningConfig: processedContent.cleaningMetadata.cleaningConfig,
+                            statistics: processedContent.cleaningMetadata.statistics,
+                            processedFileId: processedContent.cleaningMetadata.processedFileId
+                        } : undefined,
+                        metadata: {
+                            headers: fetchedContent.headers,
+                            scraperConfig: result.metadata?.scraperConfig,
+                            scraperMetadata: result.metadata?.scraperMetadata,
+                            fetchedAt: new Date().toISOString(),
+                            processingResult: {
+                                entryId: result.entryId,
+                                contentType: result.contentType
+                            }
+                        }
+                    };
+                    const fileId = await this.originalFileRepository.recordOriginalFile(fileInfo);
+                    result.metadata.originalFileId = fileId;
+                }
+                catch (error) {
+                    console.error('Failed to track original file:', error);
+                    result.metadata.originalFileTrackingError = error;
+                }
+            }
             this.processingStats.totalProcessed++;
             return result;
         }
@@ -693,6 +757,253 @@ class KnowledgeBaseOrchestrator {
      */
     async cancelAllOperations() {
         this.currentOperations.clear();
+    }
+    // ============================================
+    // FILE TRACKING FEATURES
+    // ============================================
+    /**
+     * Get the original file repository for direct access
+     */
+    getOriginalFileRepository() {
+        return this.originalFileRepository;
+    }
+    // ============================================
+    // TAG SUPPORT FEATURES
+    // ============================================
+    /**
+     * Process a single URL with optional tags
+     */
+    async processUrlWithTags(url, options = {}) {
+        try {
+            // If tags are provided and URL repository supports tags
+            if (options.tags && options.tags.length > 0 && this.urlRepositoryWithTags) {
+                // Ensure repository is initialized
+                if (!this.urlRepositoryWithTags.tagManager) {
+                    await this.urlRepositoryWithTags.initializeWithTags();
+                }
+                // Register URL with tags before processing
+                const metadata = {
+                    tags: options.tags,
+                    processingStarted: new Date()
+                };
+                await this.urlRepositoryWithTags.registerWithTags(url, metadata);
+            }
+            // Process the URL using parent method
+            const result = await this.processUrl(url, options);
+            // Add tags to result metadata if available
+            if (this.urlRepositoryWithTags && result.success) {
+                const tags = await this.urlRepositoryWithTags.getUrlTags(url);
+                result.metadata = {
+                    ...result.metadata,
+                    tags: tags.map(t => t.name)
+                };
+            }
+            return result;
+        }
+        catch (error) {
+            throw ErrorHandler_1.ErrorHandler.createError('PROCESS_URL_WITH_TAGS_ERROR', 'Failed to process URL with tags', { url, options, error });
+        }
+    }
+    /**
+     * Process multiple URLs with tags
+     */
+    async processUrlsWithTags(urlsWithTags, globalOptions = {}) {
+        const results = [];
+        const concurrencyLimit = globalOptions.concurrency || 5;
+        // Process URLs in batches
+        for (let i = 0; i < urlsWithTags.length; i += concurrencyLimit) {
+            const batch = urlsWithTags.slice(i, i + concurrencyLimit);
+            const batchPromises = batch.map(item => {
+                const options = {
+                    ...globalOptions,
+                    tags: item.tags
+                };
+                return this.processUrlWithTags(item.url, options);
+            });
+            try {
+                const batchResults = await Promise.allSettled(batchPromises);
+                for (const result of batchResults) {
+                    if (result.status === 'fulfilled') {
+                        results.push(result.value);
+                    }
+                    else {
+                        // Create error result for rejected promise
+                        results.push({
+                            success: false,
+                            url: 'unknown',
+                            error: {
+                                code: 'PROCESSING_ERROR',
+                                message: result.reason?.message || 'Processing failed',
+                                stage: 'UNKNOWN'
+                            },
+                            metadata: {},
+                            processingTime: 0
+                        });
+                    }
+                }
+            }
+            catch (error) {
+                console.error('Batch processing error:', error);
+            }
+        }
+        return results;
+    }
+    /**
+     * Process all URLs with specific tags
+     */
+    async processUrlsByTags(tagNames, options = {}) {
+        if (!this.urlRepositoryWithTags) {
+            throw ErrorHandler_1.ErrorHandler.createError('NO_TAG_SUPPORT', 'URL repository does not support tags', {});
+        }
+        try {
+            // Get all URLs with the specified tags
+            const urlRecords = await this.urlRepositoryWithTags.getUrlsByTags(tagNames, options.requireAllTags || false);
+            // If including child tags, get URLs with child tags too
+            if (options.includeChildTags) {
+                const tagManager = this.urlRepositoryWithTags.getTagManager();
+                if (!tagManager) {
+                    throw new Error('Tag manager not available');
+                }
+                const allTagNames = new Set(tagNames);
+                // Get child tags for each specified tag
+                for (const tagName of tagNames) {
+                    const tag = await tagManager.getTagByName(tagName);
+                    if (tag) {
+                        const childTags = await tagManager.getChildTags(tag.id, true);
+                        childTags.forEach(child => allTagNames.add(child.name));
+                    }
+                }
+                // Get URLs with expanded tag list if different
+                if (allTagNames.size > tagNames.length) {
+                    const expandedUrlRecords = await this.urlRepositoryWithTags.getUrlsByTags(Array.from(allTagNames), options.requireAllTags || false);
+                    // Merge and deduplicate URLs
+                    const urlMap = new Map(urlRecords.map(r => [r.url, r]));
+                    expandedUrlRecords.forEach(r => urlMap.set(r.url, r));
+                    urlRecords.length = 0;
+                    urlRecords.push(...urlMap.values());
+                }
+            }
+            // Process the URLs
+            const results = await this.processUrls(urlRecords.map(r => r.url), options);
+            // Add tag information to results
+            results.forEach((result, index) => {
+                if (urlRecords[index] && urlRecords[index].tags) {
+                    result.metadata = {
+                        ...result.metadata,
+                        tags: urlRecords[index].tags.map(t => t.name)
+                    };
+                }
+            });
+            return results;
+        }
+        catch (error) {
+            throw ErrorHandler_1.ErrorHandler.createError('PROCESS_BY_TAGS_ERROR', 'Failed to process URLs by tags', { tagNames, options, error });
+        }
+    }
+    /**
+     * Add tags to a URL
+     */
+    async addTagsToUrl(url, tagNames) {
+        if (!this.urlRepositoryWithTags) {
+            throw ErrorHandler_1.ErrorHandler.createError('NO_TAG_SUPPORT', 'URL repository does not support tags', {});
+        }
+        return await this.urlRepositoryWithTags.addTagsToUrl(url, tagNames);
+    }
+    /**
+     * Remove tags from a URL
+     */
+    async removeTagsFromUrl(url, tagNames) {
+        if (!this.urlRepositoryWithTags) {
+            throw ErrorHandler_1.ErrorHandler.createError('NO_TAG_SUPPORT', 'URL repository does not support tags', {});
+        }
+        return await this.urlRepositoryWithTags.removeTagsFromUrl(url, tagNames);
+    }
+    /**
+     * Get all tags for a URL
+     */
+    async getUrlTags(url) {
+        if (!this.urlRepositoryWithTags) {
+            return [];
+        }
+        return await this.urlRepositoryWithTags.getUrlTags(url);
+    }
+    /**
+     * Create a new tag
+     */
+    async createTag(name, parentName, description) {
+        if (!this.urlRepositoryWithTags) {
+            throw ErrorHandler_1.ErrorHandler.createError('NO_TAG_SUPPORT', 'URL repository does not support tags', {});
+        }
+        const tagManager = this.urlRepositoryWithTags.getTagManager();
+        if (!tagManager) {
+            throw new Error('Tag manager not available');
+        }
+        let parentId;
+        if (parentName) {
+            const parent = await tagManager.getTagByName(parentName);
+            if (!parent) {
+                throw ErrorHandler_1.ErrorHandler.createError('PARENT_TAG_NOT_FOUND', 'Parent tag does not exist', { parentName });
+            }
+            parentId = parent.id;
+        }
+        return await tagManager.createTag({
+            name,
+            parentId,
+            description
+        });
+    }
+    /**
+     * List all tags
+     */
+    async listTags() {
+        if (!this.urlRepositoryWithTags) {
+            return [];
+        }
+        const tagManager = this.urlRepositoryWithTags.getTagManager();
+        if (!tagManager) {
+            throw new Error('Tag manager not available');
+        }
+        return await tagManager.listTags();
+    }
+    /**
+     * Alias for listTags for compatibility
+     */
+    async getTags() {
+        return this.listTags();
+    }
+    /**
+     * Delete a tag
+     */
+    async deleteTag(tagName, deleteChildren = false) {
+        if (!this.urlRepositoryWithTags) {
+            throw ErrorHandler_1.ErrorHandler.createError('NO_TAG_SUPPORT', 'URL repository does not support tags', {});
+        }
+        const tagManager = this.urlRepositoryWithTags.getTagManager();
+        if (!tagManager) {
+            throw new Error('Tag manager not available');
+        }
+        const tag = await tagManager.getTagByName(tagName);
+        if (!tag) {
+            throw ErrorHandler_1.ErrorHandler.createError('TAG_NOT_FOUND', 'Tag does not exist', { tagName });
+        }
+        return await tagManager.deleteTag(tag.id, deleteChildren);
+    }
+    /**
+     * Get tag hierarchy
+     */
+    async getTagHierarchy(tagName) {
+        if (!this.urlRepositoryWithTags) {
+            return [];
+        }
+        const tagManager = this.urlRepositoryWithTags.getTagManager();
+        if (!tagManager) {
+            throw new Error('Tag manager not available');
+        }
+        const tag = await tagManager.getTagByName(tagName);
+        if (!tag) {
+            return [];
+        }
+        return await tagManager.getTagPath(tag.id);
     }
 }
 exports.KnowledgeBaseOrchestrator = KnowledgeBaseOrchestrator;

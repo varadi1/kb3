@@ -306,7 +306,7 @@ class Crawl4AIScraper extends BaseScraper_1.BaseScraper {
             loadTime,
             scraperConfig: params,
             scraperMetadata: {
-                sessionId: result.session_id,
+                sessionId: result.session_id || params.sessionId,
                 extractionStrategy: params.extractionStrategy,
                 linkCount: (result.links?.internal?.length || 0) + (result.links?.external?.length || 0),
                 imageCount: result.images?.length || 0,
@@ -315,6 +315,7 @@ class Crawl4AIScraper extends BaseScraper_1.BaseScraper {
                 cacheMode: params.cacheMode,
                 jsExecution: params.jsExecution,
                 magic: params.magic,
+                crawlDepth: params.maxDepth || 1,
                 responseHeaders: result.response_headers
             }
         };

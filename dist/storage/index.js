@@ -4,7 +4,7 @@
  * Facilitates easy import and dependency injection
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SqlOriginalFileRepository = exports.SqlUrlTagRepository = exports.SqlTagManager = exports.SqlUrlRepositoryWithTags = exports.SqlUrlRepository = exports.LocalFileStorage = exports.BaseFileStorage = exports.SqlKnowledgeStore = exports.FileKnowledgeStore = exports.MemoryKnowledgeStore = exports.BaseKnowledgeStore = void 0;
+exports.FileStorageWithTracking = exports.ProcessedFileStorageWithTracking = exports.SqlProcessedFileRepository = exports.SqlOriginalFileRepository = exports.SqlUrlTagRepository = exports.SqlTagManager = exports.SqlUrlRepositoryWithTags = exports.SqlUrlRepository = exports.LocalFileStorage = exports.BaseFileStorage = exports.SqlKnowledgeStore = exports.FileKnowledgeStore = exports.MemoryKnowledgeStore = exports.BaseKnowledgeStore = void 0;
 exports.createDefaultKnowledgeStore = createDefaultKnowledgeStore;
 exports.createDefaultFileStorage = createDefaultFileStorage;
 // Knowledge stores
@@ -24,8 +24,9 @@ Object.defineProperty(exports, "LocalFileStorage", { enumerable: true, get: func
 // URL Repository
 var SqlUrlRepository_1 = require("./SqlUrlRepository");
 Object.defineProperty(exports, "SqlUrlRepository", { enumerable: true, get: function () { return SqlUrlRepository_1.SqlUrlRepository; } });
-var SqlUrlRepositoryWithTags_1 = require("./SqlUrlRepositoryWithTags");
-Object.defineProperty(exports, "SqlUrlRepositoryWithTags", { enumerable: true, get: function () { return SqlUrlRepositoryWithTags_1.SqlUrlRepositoryWithTags; } });
+// SqlUrlRepositoryWithTags is now integrated into SqlUrlRepository
+var SqlUrlRepository_2 = require("./SqlUrlRepository"); // Backward compatibility
+Object.defineProperty(exports, "SqlUrlRepositoryWithTags", { enumerable: true, get: function () { return SqlUrlRepository_2.SqlUrlRepository; } });
 // Tag Management
 var SqlTagManager_1 = require("./SqlTagManager");
 Object.defineProperty(exports, "SqlTagManager", { enumerable: true, get: function () { return SqlTagManager_1.SqlTagManager; } });
@@ -34,6 +35,13 @@ Object.defineProperty(exports, "SqlUrlTagRepository", { enumerable: true, get: f
 // Original File Repository
 var SqlOriginalFileRepository_1 = require("./SqlOriginalFileRepository");
 Object.defineProperty(exports, "SqlOriginalFileRepository", { enumerable: true, get: function () { return SqlOriginalFileRepository_1.SqlOriginalFileRepository; } });
+// Processed File Repository and Storage
+var SqlProcessedFileRepository_1 = require("./SqlProcessedFileRepository");
+Object.defineProperty(exports, "SqlProcessedFileRepository", { enumerable: true, get: function () { return SqlProcessedFileRepository_1.SqlProcessedFileRepository; } });
+var ProcessedFileStorageWithTracking_1 = require("./ProcessedFileStorageWithTracking");
+Object.defineProperty(exports, "ProcessedFileStorageWithTracking", { enumerable: true, get: function () { return ProcessedFileStorageWithTracking_1.ProcessedFileStorageWithTracking; } });
+var FileStorageWithTracking_1 = require("./FileStorageWithTracking");
+Object.defineProperty(exports, "FileStorageWithTracking", { enumerable: true, get: function () { return FileStorageWithTracking_1.FileStorageWithTracking; } });
 const MemoryKnowledgeStore_2 = require("./MemoryKnowledgeStore");
 const FileKnowledgeStore_2 = require("./FileKnowledgeStore");
 const LocalFileStorage_2 = require("./LocalFileStorage");

@@ -4,6 +4,18 @@
  */
 export interface KnowledgeBaseConfig {
     storage: {
+        unified?: {
+            enabled: boolean;
+            dbPath: string;
+            enableWAL?: boolean;
+            enableForeignKeys?: boolean;
+            backupEnabled?: boolean;
+            autoMigrate?: boolean;
+            migrationOptions?: {
+                backupOriginal?: boolean;
+                deleteOriginalAfterSuccess?: boolean;
+            };
+        };
         knowledgeStore: {
             type: 'memory' | 'file' | 'sql';
             path?: string;
@@ -23,6 +35,11 @@ export interface KnowledgeBaseConfig {
         originalFileStore?: {
             type?: 'sql';
             path?: string;
+        };
+        processedFileStore?: {
+            type?: 'sql';
+            path?: string;
+            enabled?: boolean;
         };
         enableDuplicateDetection?: boolean;
         enableUrlTracking?: boolean;
@@ -88,5 +105,6 @@ export declare function createDefaultConfiguration(overrides?: Partial<Knowledge
 export declare function createProductionConfiguration(): KnowledgeBaseConfig;
 export declare function createDevelopmentConfiguration(): KnowledgeBaseConfig;
 export declare function createSqlConfiguration(overrides?: Partial<KnowledgeBaseConfig>): KnowledgeBaseConfig;
+export declare function createUnifiedConfiguration(overrides?: Partial<KnowledgeBaseConfig>): KnowledgeBaseConfig;
 export declare function validateConfiguration(config: KnowledgeBaseConfig): void;
 //# sourceMappingURL=Configuration.d.ts.map

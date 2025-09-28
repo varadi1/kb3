@@ -18,7 +18,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SqlUrlRepository = exports.SqlKnowledgeStore = exports.LocalFileStorage = exports.FileKnowledgeStore = exports.BaseKnowledgeStore = exports.BaseFileStorage = exports.validateConfiguration = exports.createSqlConfiguration = exports.createDevelopmentConfiguration = exports.createProductionConfiguration = exports.createDefaultConfiguration = exports.KnowledgeBaseFactory = exports.KnowledgeBaseOrchestrator = void 0;
+exports.SqlUrlRepository = exports.SqlKnowledgeStore = exports.LocalFileStorage = exports.FileKnowledgeStore = exports.BaseKnowledgeStore = exports.BaseFileStorage = exports.validateConfiguration = exports.createUnifiedConfiguration = exports.createSqlConfiguration = exports.createDevelopmentConfiguration = exports.createProductionConfiguration = exports.createDefaultConfiguration = exports.KnowledgeBaseFactory = exports.KnowledgeBaseOrchestrator = void 0;
 exports.createKnowledgeBase = createKnowledgeBase;
 // Main orchestrator and factory
 var orchestrator_1 = require("./orchestrator");
@@ -31,6 +31,7 @@ Object.defineProperty(exports, "createDefaultConfiguration", { enumerable: true,
 Object.defineProperty(exports, "createProductionConfiguration", { enumerable: true, get: function () { return config_1.createProductionConfiguration; } });
 Object.defineProperty(exports, "createDevelopmentConfiguration", { enumerable: true, get: function () { return config_1.createDevelopmentConfiguration; } });
 Object.defineProperty(exports, "createSqlConfiguration", { enumerable: true, get: function () { return config_1.createSqlConfiguration; } });
+Object.defineProperty(exports, "createUnifiedConfiguration", { enumerable: true, get: function () { return config_1.createUnifiedConfiguration; } });
 Object.defineProperty(exports, "validateConfiguration", { enumerable: true, get: function () { return config_1.validateConfiguration; } });
 // Core interfaces
 __exportStar(require("./interfaces"), exports);

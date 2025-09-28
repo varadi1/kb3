@@ -4,7 +4,7 @@
  */
 export { KnowledgeBaseOrchestrator, ProcessingStats } from './orchestrator';
 export { KnowledgeBaseFactory } from './factory';
-export { KnowledgeBaseConfig, ProcessingOptionsConfig, createDefaultConfiguration, createProductionConfiguration, createDevelopmentConfiguration, createSqlConfiguration, validateConfiguration } from './config';
+export { KnowledgeBaseConfig, ProcessingOptionsConfig, createDefaultConfiguration, createProductionConfiguration, createDevelopmentConfiguration, createSqlConfiguration, createUnifiedConfiguration, validateConfiguration } from './config';
 export * from './interfaces';
 export * from './detectors';
 export * from './fetchers';

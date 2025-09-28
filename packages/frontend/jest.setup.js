@@ -51,3 +51,42 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: jest.fn(),
   })),
 })
+
+// Mock Socket.io (for real-time features)
+global.io = jest.fn(() => ({
+  on: jest.fn(),
+  off: jest.fn(),
+  emit: jest.fn(),
+  connect: jest.fn(),
+  disconnect: jest.fn()
+}))
+
+// Optionally silence expected console errors in tests
+// These are intentional errors from error handling tests
+const originalError = console.error
+beforeAll(() => {
+  console.error = jest.fn((...args) => {
+    const errorString = args.join(' ')
+
+    // List of expected error messages to suppress
+    const expectedErrors = [
+      'Failed to fetch URLs:',
+      'Failed to fetch tags:',
+      'Failed to process URL:',
+      'Failed to fetch stats:',
+      'Failed to process URLs:',
+      'Failed to process by tags:',
+      'An update to TestComponent',
+      'You called act'
+    ]
+
+    // Only log if it's not an expected error
+    if (!expectedErrors.some(expected => errorString.includes(expected))) {
+      originalError(...args)
+    }
+  })
+})
+
+afterAll(() => {
+  console.error = originalError
+})
