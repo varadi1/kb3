@@ -6,6 +6,10 @@
 import { KnowledgeBaseFactory } from '../../src/factory/KnowledgeBaseFactory';
 import { createDefaultConfiguration, createDevelopmentConfiguration, createSqlConfiguration } from '../../src/config';
 import * as fs from 'fs/promises';
+import axios from 'axios';
+
+// Mock axios to prevent real network calls
+jest.mock('axios');
 
 // Mock data for testing - uncomment when needed
 // const sampleUrls = [
@@ -26,6 +30,80 @@ describe('System Integration Tests', () => {
     } catch (e) {
       // Ignore if doesn't exist
     }
+
+    // Setup axios mocks
+    const mockedAxios = axios as jest.Mocked<typeof axios>;
+
+    // Default mock response for GET requests
+    mockedAxios.get = jest.fn().mockImplementation((url: string) => {
+      // Return different content based on URL extension
+      if (url.endsWith('.txt')) {
+        return Promise.resolve({
+          status: 200,
+          statusText: 'OK',
+          headers: {
+            'content-type': 'text/plain',
+            'content-length': '100'
+          },
+          data: Buffer.from('This is a test text file content'),
+          config: {}
+        });
+      } else if (url.endsWith('.html')) {
+        return Promise.resolve({
+          status: 200,
+          statusText: 'OK',
+          headers: {
+            'content-type': 'text/html',
+            'content-length': '200'
+          },
+          data: Buffer.from('<html><body>Test HTML content</body></html>'),
+          config: {}
+        });
+      } else if (url.endsWith('.pdf')) {
+        return Promise.resolve({
+          status: 200,
+          statusText: 'OK',
+          headers: {
+            'content-type': 'application/pdf',
+            'content-length': '1000'
+          },
+          data: Buffer.from('Mock PDF content'),
+          config: {}
+        });
+      } else if (url.endsWith('.csv')) {
+        return Promise.resolve({
+          status: 200,
+          statusText: 'OK',
+          headers: {
+            'content-type': 'text/csv',
+            'content-length': '150'
+          },
+          data: Buffer.from('header1,header2\nvalue1,value2'),
+          config: {}
+        });
+      } else {
+        // Default response
+        return Promise.resolve({
+          status: 200,
+          statusText: 'OK',
+          headers: {
+            'content-type': 'text/plain',
+            'content-length': '50'
+          },
+          data: Buffer.from('Default mock response'),
+          config: {}
+        });
+      }
+    });
+
+    // Mock HEAD requests
+    mockedAxios.head = jest.fn().mockResolvedValue({
+      status: 200,
+      headers: {
+        'content-type': 'text/plain',
+        'content-length': '100'
+      }
+    });
   });
 
   afterEach(async () => {
@@ -34,6 +112,9 @@ describe('System Integration Tests', () => {
     } catch (e) {
       // Ignore cleanup errors
     }
+
+    // Clear all mocks after each test
+    jest.clearAllMocks();
   });
   describe('End-to-End Processing', () => {
     test('should process URLs through complete pipeline', async () => {
@@ -466,7 +547,7 @@ describe('System Integration Tests', () => {
 
       const finalCount = knowledgeBase.getCurrentOperationsCount();
       expect(finalCount).toBe(0);
-    });
+    }, 5000); // Set explicit timeout to 5 seconds
   });
 
   describe('Cleanup and Resource Management', () => {
