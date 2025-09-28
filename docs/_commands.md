@@ -1,7 +1,7 @@
 
 please think ultrahard about this issue: we have many tests failing! Stick to solid principles! 
-Examine and analyze the situation, think of the root cause of this, use driver tree method to find it, and then fix it. DO NOT STOP until you can make ALL TESTS PASS!
-1. 		
+Run 'npm test' and Examine and analyze the situation, think of the root cause of this, use driver tree method to find it, and then fix it. DO NOT STOP until you can make ALL TESTS PASS!
+1. 
 
 Fix EACH failure one by one, showing the related test passes after each fix.
 Do not assume a test is passing or a completed fix is good until you verify it with its test that you can see passing!
@@ -43,6 +43,8 @@ production usecase how could I use the features and functions? what are the opti
 can you confirm that the scrapers that are available to the system are actually working for real? I don't care
 if the documentation is saying it does or if the tests are passing, DO they really work?
 
+---
+please update the documentation with all recent changes to reflect reality. keep the entries short and concise! (readme.md, claude.md and components.md)
 
 ---
 --- <THINK>

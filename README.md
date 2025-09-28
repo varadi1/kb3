@@ -222,13 +222,18 @@ Python-based scrapers (Crawl4AI, Docling, DeepDoctection) use a Python Bridge sy
 - Suppresses verbose ML library output
 
 ### Data Persistence
-- **Complete Metadata Storage**: All settings, errors, and rate limit info saved to database
-- **Scraper Configuration Tracking**: Track which scraper and parameters were used
-- **SQL and File Storage**: Dual storage with SQL for queries and files for content
-- **Original File Repository**: Dedicated database for tracking all original scraped files
-- **Batch Configuration Management**: Configure multiple URLs at once with presets
-- **Historical Data**: Maintain history of all processing attempts and results
-- **File Lineage**: Track original files separately from processed/transformed versions
+
+#### Unified Database Architecture (NEW)
+- **Single Database Option**: Consolidate all data into one SQLite database with foreign keys
+- **Automatic Migration**: Migrate from legacy 3-database setup to unified structure
+- **ACID Transactions**: Full transactional support across all tables
+- **Foreign Key Integrity**: Enforced relationships prevent orphaned data
+
+#### Storage Options
+- **Unified Mode**: Single database with urls, tags, knowledge_entries, original_files tables
+- **Legacy Mode**: Separate databases (knowledge.db, urls.db, original_files.db) for backward compatibility
+- **Complete Metadata**: All scraper settings, errors, and rate limits persisted
+- **File Lineage**: Track original files separately from processed versions
 
 ### Testing & Quality
 - **95%+ Test Coverage**: Comprehensive unit, integration, and edge case tests
@@ -445,6 +450,31 @@ batchManager.createConfigurationBuilder()
 batchManager.applyPreset('aggressive-crawl', ['https://news.site.com']);
 batchManager.applyPreset('spa-rendering', ['https://app.example.com']);
 ```
+
+### Unified Database Configuration (NEW)
+
+Use a single database for all data with automatic migration:
+
+```typescript
+import { createUnifiedConfiguration } from './src/config/Configuration';
+
+// Create configuration for unified storage
+const config = createUnifiedConfiguration({
+  dbPath: './data/unified.db',
+  autoMigrate: true  // Automatically migrate from legacy databases
+});
+
+const kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
+
+// All features work seamlessly with unified storage
+await kb.processUrl('https://example.com');
+```
+
+Benefits of unified storage:
+- Single file backup captures entire state
+- Foreign key integrity prevents orphaned data
+- Better performance with fewer file handles
+- Simplified CI/CD deployment
 
 ### Original File Tracking
 

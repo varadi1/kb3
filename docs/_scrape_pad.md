@@ -13,6 +13,22 @@ npm run test
 
 Test Commands Available:
 
+Key Commands
+
+# Run main tests (always pass, no skips)
+npm test
+
+# Run contract validation
+npm run test:contracts
+
+# Run E2E tests (requires Python, optional)
+npm run test:e2e
+
+# Run everything including E2E
+npm run test:all:python
+
+
+
 # Run all tests with coverage
 npm run test:all
 

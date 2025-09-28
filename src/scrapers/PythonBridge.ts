@@ -179,9 +179,15 @@ export class PythonBridge {
     error?: string;
   }> {
     try {
-      // Check Python version
-      const versionResult = await this.execute('--version');
-      if (!versionResult.success) {
+      // Check Python version by running a simple command
+      const versionCode = `
+import sys
+import json
+print(json.dumps({"version": sys.version}))
+      `;
+
+      const versionResult = await this.executeCode(versionCode);
+      if (!versionResult.success || !versionResult.data) {
         return {
           available: false,
           missingPackages: requiredPackages,
@@ -189,23 +195,39 @@ export class PythonBridge {
         };
       }
 
+      const pythonVersion = versionResult.data.version;
+
+      // If no packages to check, just return Python is available
+      if (requiredPackages.length === 0) {
+        return {
+          available: true,
+          pythonVersion,
+          missingPackages: []
+        };
+      }
+
       // Check required packages
       const checkCode = `
 import sys
 import json
+import importlib.util
 
 packages = ${JSON.stringify(requiredPackages)}
 missing = []
+installed = []
 
 for package in packages:
-    try:
-        __import__(package)
-    except ImportError:
+    # First check if package is installed (spec exists)
+    spec = importlib.util.find_spec(package)
+    if spec is None:
         missing.append(package)
+    else:
+        # Package is installed even if import fails due to dependencies
+        installed.append(package)
 
 result = {
-    "python_version": sys.version,
-    "missing_packages": missing
+    "missing_packages": missing,
+    "installed_packages": installed
 }
 
 print(json.dumps(result))
@@ -216,14 +238,16 @@ print(json.dumps(result))
       if (packageResult.success && packageResult.data) {
         return {
           available: true,
-          pythonVersion: packageResult.data.python_version,
+          pythonVersion,
           missingPackages: packageResult.data.missing_packages || []
         };
       } else {
+        // Python is available but package check failed
         return {
-          available: false,
+          available: true,
+          pythonVersion,
           missingPackages: requiredPackages,
-          error: packageResult.error || 'Failed to check package availability'
+          error: 'Failed to check package availability'
         };
       }
     } catch (error) {

@@ -1,0 +1,151 @@
+# Pre-commit hooks configuration
+# Install with: pip install pre-commit && pre-commit install
+
+repos:
+  # TypeScript/JavaScript hooks
+  - repo: local
+    hooks:
+      - id: typescript-check
+        name: TypeScript Type Check
+        entry: npx tsc --noEmit
+        language: system
+        types: [typescript]
+        pass_filenames: false
+
+      - id: eslint
+        name: ESLint
+        entry: npx eslint
+        language: system
+        types: [typescript]
+        args: [--fix]
+
+      - id: contract-tests
+        name: Contract Tests
+        entry: npm run test:contracts -- --testNamePattern="Mock Response Contract Validation"
+        language: system
+        types: [typescript]
+        files: ^tests/unit/scrapers/.*\.test\.ts$
+        pass_filenames: false
+
+  # Python hooks
+  - repo: local
+    hooks:
+      - id: python-syntax-check
+        name: Python Syntax Check
+        entry: python -m py_compile
+        language: system
+        types: [python]
+        files: ^src/scrapers/python_wrappers/.*\.py$
+
+      - id: python-wrapper-validation
+        name: Validate Python Wrappers
+        entry: python
+        language: system
+        types: [python]
+        files: ^src/scrapers/python_wrappers/.*\.py$
+        args: [-c, "
+import sys
+import json
+import ast
+
+def validate_wrapper(filepath):
+    '''Validate Python wrapper structure'''
+    with open(filepath, 'r') as f:
+        source = f.read()
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as e:
+        print(f'Syntax error in {filepath}: {e}')
+        return False
+
+    # Check for required imports
+    has_json = False
+    has_sys = False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == 'json':
+                    has_json = True
+                elif alias.name == 'sys':
+                    has_sys = True
+        elif isinstance(node, ast.ImportFrom):
+            if node.module == 'json':
+                has_json = True
+            elif node.module == 'sys':
+                has_sys = True
+
+    if not has_json:
+        print(f'{filepath}: Missing json import')
+        return False
+
+    if not has_sys:
+        print(f'{filepath}: Missing sys import')
+        return False
+
+    # Check for main block
+    has_main = any(
+        isinstance(node, ast.If) and
+        isinstance(node.test, ast.Compare) and
+        isinstance(node.test.left, ast.Name) and
+        node.test.left.id == '__name__'
+        for node in ast.walk(tree)
+    )
+
+    if not has_main:
+        print(f'{filepath}: Missing if __name__ == \"__main__\" block')
+        return False
+
+    print(f'✓ {filepath}')
+    return True
+
+# Process all file arguments
+all_valid = True
+for filepath in sys.argv[1:]:
+    if filepath.endswith('.py'):
+        if not validate_wrapper(filepath):
+            all_valid = False
+
+sys.exit(0 if all_valid else 1)
+        "]
+
+  # Contract validation for mock changes
+  - repo: local
+    hooks:
+      - id: validate-mock-contracts
+        name: Validate Mock Contracts
+        entry: npx tsx scripts/validate-mocks.ts
+        language: system
+        types: [typescript]
+        files: ^tests/unit/scrapers/.*\.test\.ts$
+        pass_filenames: true
+
+  # General Python checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-ast
+        files: \.py$
+      - id: check-json
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+  # Optional: Python code quality
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3.11
+        files: ^src/scrapers/python_wrappers/.*\.py$
+        args: [--line-length=100]
+
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: v0.1.9
+    hooks:
+      - id: ruff
+        files: ^src/scrapers/python_wrappers/.*\.py$
+        args: [--fix, --exit-non-zero-on-fix]

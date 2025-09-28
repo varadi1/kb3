@@ -13,9 +13,20 @@ describe('DoclingScraper', () => {
   jest.setTimeout(10000); // 10 seconds should be plenty for unit tests with mocks
   let scraper: DoclingScraper;
   let mockPythonBridgeExecute: jest.SpyInstance;
+  let originalFetch: typeof global.fetch;
 
   beforeEach(() => {
     scraper = new DoclingScraper();
+
+    // Save original fetch
+    originalFetch = global.fetch;
+
+    // Mock global fetch to prevent actual HTTP requests
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(100),
+      headers: new Map([['content-type', 'application/pdf']])
+    } as any);
 
     // Mock the PythonBridge execute method to prevent actual Python subprocess execution
     // This follows SOLID's Dependency Inversion Principle - unit tests should use mocks
@@ -75,6 +86,9 @@ describe('DoclingScraper', () => {
     if (mockPythonBridgeExecute) {
       mockPythonBridgeExecute.mockRestore();
     }
+
+    // Restore original fetch
+    global.fetch = originalFetch;
 
     // Clean up any resources
     await scraper.cleanup();

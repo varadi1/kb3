@@ -11,12 +11,72 @@ import {
 
 describe('Crawl4AIScraper', () => {
   let scraper: Crawl4AIScraper;
+  let mockPythonBridgeExecute: jest.SpyInstance;
+  let originalFetch: typeof global.fetch;
 
   beforeEach(() => {
     scraper = new Crawl4AIScraper();
+
+    // Save original fetch
+    originalFetch = global.fetch;
+
+    // Mock global fetch to prevent actual HTTP requests
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: async () => '<html><body>Example Domain content</body></html>',
+      headers: new Map([['content-type', 'text/html']])
+    } as any);
+
+    // Mock the PythonBridge execute method to prevent actual Python subprocess execution
+    const pythonBridge = (scraper as any).pythonBridge;
+    mockPythonBridgeExecute = jest.spyOn(pythonBridge, 'execute').mockImplementation(
+      async (...mockArgs: unknown[]) => {
+        const args = mockArgs[1] as any[] || [];
+        const config = args[0] || {};
+        const options = config.options || {};
+
+        // Create mock response based on extraction strategy
+        const extractionStrategy = options.extraction_strategy || 'cosine';
+
+        return {
+          success: true,
+          data: {
+            success: true,
+            content: 'Example Domain\nThis domain is for use in illustrative examples',
+            markdown: '# Example Domain\n\nThis domain is for use in illustrative examples',
+            html: '<h1>Example Domain</h1><p>This domain is for use in illustrative examples</p>',
+            metadata: {
+              title: 'Example Domain',
+              description: 'Example domain for documentation',
+              extraction_strategy: extractionStrategy,
+              links: [
+                { url: 'https://www.iana.org/domains/example', text: 'More information...' }
+              ],
+              images: [],
+              word_count: 30,
+              crawl_depth: options.max_depth || 1,
+              session_id: options.session_id,
+              cache_mode: options.cache_mode || 'enabled',
+              magic: options.magic || false
+            }
+          },
+          stderr: '',
+          exitCode: 0,
+          executionTime: 150
+        };
+      }
+    );
   });
 
   afterEach(async () => {
+    // Restore mocks
+    if (mockPythonBridgeExecute) {
+      mockPythonBridgeExecute.mockRestore();
+    }
+
+    // Restore original fetch
+    global.fetch = originalFetch;
+
     // Clean up any resources
     await scraper.cleanup();
   });
@@ -123,7 +183,7 @@ describe('Crawl4AIScraper', () => {
       const result = await scraper.scrape('https://example.com');
 
       expect(result.metadata?.scraperMetadata?.extractionStrategy).toBe('css');
-    }, 60000);
+    });
 
     test('should handle XPath extraction', async () => {
       const params: Crawl4AIParameters = {
@@ -365,7 +425,7 @@ describe('Crawl4AIScraper', () => {
       const result = await scraper.scrape('https://example.com');
 
       expect(result.scraperName).toBe('crawl4ai');
-    }, 60000);
+    });
   });
 
   describe('Content Processing', () => {
@@ -381,7 +441,7 @@ describe('Crawl4AIScraper', () => {
       const result = await scraper.scrape('https://example.com');
 
       expect(result.scraperName).toBe('crawl4ai');
-    }, 60000);
+    });
 
     test('should handle word count threshold', async () => {
       const params: Crawl4AIParameters = {
@@ -392,7 +452,7 @@ describe('Crawl4AIScraper', () => {
       const result = await scraper.scrape('https://example.com');
 
       expect(result.scraperName).toBe('crawl4ai');
-    }, 60000);
+    });
   });
 
   describe('Anti-Bot Features', () => {
@@ -424,7 +484,7 @@ describe('Crawl4AIScraper', () => {
       expect(results[0].url).toBe(urls[0]);
       expect(results[1].url).toBe(urls[1]);
       expect(results[2].url).toBe(urls[2]);
-    }, 60000); // Increased timeout to 60 seconds for batch processing
+    }); // Increased timeout to 60 seconds for batch processing
 
     test('should adjust batch size for deep crawling', () => {
       const deepParams: Crawl4AIParameters = {
