@@ -318,7 +318,10 @@ describe('System Integration Tests', () => {
       expect(sqlKB).toBeDefined();
     });
 
-    test('should support mixed configurations', () => {
+    test('should support mixed configurations', async () => {
+      // Ensure test directory exists
+      await fs.mkdir(testDataDir, { recursive: true });
+
       const config = {
         ...createDefaultConfiguration(),
         storage: {
@@ -342,7 +345,7 @@ describe('System Integration Tests', () => {
         }
       };
 
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config as any);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config as any);
       expect(knowledgeBase).toBeDefined();
     });
   });

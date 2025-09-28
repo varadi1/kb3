@@ -362,6 +362,10 @@ function mergeConfig(
         ...base.storage.originalFileStore,
         ...overrides.storage.originalFileStore
       } : base.storage.originalFileStore,
+      processedFileStore: overrides.storage?.processedFileStore ? {
+        ...base.storage.processedFileStore,
+        ...overrides.storage.processedFileStore
+      } : base.storage.processedFileStore,
       enableDuplicateDetection: overrides.storage?.enableDuplicateDetection ?? base.storage.enableDuplicateDetection,
       enableUrlTracking: overrides.storage?.enableUrlTracking ?? base.storage.enableUrlTracking,
       urlRepositoryPath: overrides.storage?.urlRepositoryPath ?? base.storage.urlRepositoryPath

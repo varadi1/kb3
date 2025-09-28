@@ -1,12 +1,10 @@
 	- [x] scraping
 	- [x] cleaning
-	- [] scraped output stored and cleaned output stored
-	
-	
-	- [x] 3 orchestrator
-	- [-] 2 storage file (with tag)
-	
-	- [x] have one single database
+	- [x] scraped output stored and cleaned output stored
+	- [] is data storage and database storage a function or is it more detailed. maybe it should be wrapped like that. 
+	- [] new git branch
+	- [] 
+	- [] frontend
 	
 	
 ---

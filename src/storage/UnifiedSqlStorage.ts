@@ -612,6 +612,21 @@ class UrlRepositoryImpl implements IUrlRepositoryWithTags {
     );
 
     if (existing) {
+      // Update metadata if provided
+      if (metadata) {
+        const existingMetadata = await this.get<{ metadata: string }>(
+          'SELECT metadata FROM urls WHERE id = ?',
+          [existing.id]
+        );
+
+        const currentMetadata = existingMetadata?.metadata ? JSON.parse(existingMetadata.metadata) : {};
+        const updatedMetadata = { ...currentMetadata, ...metadata };
+
+        await this.run(
+          'UPDATE urls SET metadata = ?, last_checked = ? WHERE id = ?',
+          [JSON.stringify(updatedMetadata), now, existing.id]
+        );
+      }
       return existing.id;
     }
 
@@ -820,6 +835,76 @@ class UrlRepositoryImpl implements IUrlRepositoryWithTags {
     await this.run('DELETE FROM urls');
   }
 
+  // Tag management methods for compatibility
+  getTagManager(): ITagManager {
+    return this.tagManager;
+  }
+
+  async initializeWithTags(): Promise<void> {
+    // No-op for compatibility - tags are already initialized
+    return Promise.resolve();
+  }
+
+  async addTagsToUrl(url: string, tagNames: string[]): Promise<boolean> {
+    const urlInfo = await this.getUrlInfo(url);
+    if (!urlInfo) {
+      throw new Error(`URL not found: ${url}`);
+    }
+
+    const tagIds = await this.tagManager.ensureTagsExist(tagNames);
+    await this.urlTagRepository.addTagsToUrl(urlInfo.id, tagIds);
+    return true;
+  }
+
+  async removeTagsFromUrl(url: string, tagNames: string[]): Promise<boolean> {
+    const urlInfo = await this.getUrlInfo(url);
+    if (!urlInfo) {
+      throw new Error(`URL not found: ${url}`);
+    }
+
+    const tags = await Promise.all(
+      tagNames.map(name => this.tagManager.getTagByName(name))
+    );
+    const tagIds = tags.filter(t => t !== null).map(t => t!.id);
+
+    if (tagIds.length > 0) {
+      await this.urlTagRepository.removeTagsFromUrl(urlInfo.id, tagIds);
+    }
+    return true;
+  }
+
+  async getUrlTags(url: string): Promise<ITag[]> {
+    const urlInfo = await this.getUrlInfo(url);
+    if (!urlInfo) {
+      return [];
+    }
+    return await this.urlTagRepository.getTagsForUrl(urlInfo.id);
+  }
+
+  async setUrlTags(url: string, tagNames: string[]): Promise<boolean> {
+    const urlInfo = await this.getUrlInfo(url);
+    if (!urlInfo) {
+      throw new Error(`URL not found: ${url}`);
+    }
+
+    // Get all existing tags for this URL
+    const existingTags = await this.urlTagRepository.getTagsForUrl(urlInfo.id);
+
+    // Remove all existing tags if there are any
+    if (existingTags.length > 0) {
+      const existingTagIds = existingTags.map(t => t.id);
+      await this.urlTagRepository.removeTagsFromUrl(urlInfo.id, existingTagIds);
+    }
+
+    // Add new tags
+    if (tagNames.length > 0) {
+      const tagIds = await this.tagManager.ensureTagsExist(tagNames);
+      await this.urlTagRepository.addTagsToUrl(urlInfo.id, tagIds);
+    }
+
+    return true;
+  }
+
   private normalizeUrl(url: string): string {
     try {
       const urlObj = new URL(url);
@@ -902,21 +987,53 @@ class OriginalFileRepositoryImpl implements IOriginalFileRepository {
 
     const downloadUrl = `/api/files/original/${id}/download`;
 
-    await this.run(
-      `INSERT INTO original_files
-       (id, url_id, url, file_path, mime_type, size, checksum, scraper_used,
-        status, metadata, created_at, updated_at, download_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id, urlId, fileInfo.url, fileInfo.filePath, fileInfo.mimeType,
-        fileInfo.size, fileInfo.checksum, fileInfo.scraperUsed || null,
-        FileStatus.ACTIVE,
-        JSON.stringify(fileInfo.metadata || {}),
-        now, now, downloadUrl
-      ]
-    );
+    try {
+      await this.run(
+        `INSERT INTO original_files
+         (id, url_id, url, file_path, mime_type, size, checksum, scraper_used,
+          status, metadata, created_at, updated_at, download_url)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id, urlId, fileInfo.url, fileInfo.filePath, fileInfo.mimeType,
+          fileInfo.size, fileInfo.checksum, fileInfo.scraperUsed || null,
+          FileStatus.ACTIVE,
+          JSON.stringify({
+            ...fileInfo.metadata,
+            cleaningMetadata: fileInfo.cleaningMetadata
+          }),
+          now, now, downloadUrl
+        ]
+      );
 
-    return id;
+      return id;
+    } catch (error: any) {
+      // Check if error is due to duplicate file_path
+      if (error.code === 'SQLITE_CONSTRAINT' && error.message.includes('file_path')) {
+        // File already exists, update with cleaningMetadata if provided
+        const existing = await this.get<{ id: string; metadata: string }>(
+          'SELECT id, metadata FROM original_files WHERE file_path = ?',
+          [fileInfo.filePath]
+        );
+
+        if (existing) {
+          // If cleaningMetadata is provided, update the record
+          if (fileInfo.cleaningMetadata) {
+            const existingMetadata = existing.metadata ? JSON.parse(existing.metadata) : {};
+            const updatedMetadata = {
+              ...existingMetadata,
+              cleaningMetadata: fileInfo.cleaningMetadata
+            };
+
+            await this.run(
+              'UPDATE original_files SET metadata = ?, updated_at = ? WHERE id = ?',
+              [JSON.stringify(updatedMetadata), Date.now(), existing.id]
+            );
+          }
+          return existing.id;
+        }
+      }
+      throw error;
+    }
   }
 
   async getOriginalFile(fileId: string): Promise<OriginalFileRecord | null> {
@@ -1104,6 +1221,12 @@ class OriginalFileRepositoryImpl implements IOriginalFileRepository {
   }
 
   private rowToFileRecord(row: any): OriginalFileRecord {
+    // Parse the stored metadata
+    const parsedMetadata = row.metadata ? JSON.parse(row.metadata) : {};
+
+    // Extract cleaningMetadata from the stored metadata
+    const { cleaningMetadata, ...otherMetadata } = parsedMetadata;
+
     return {
       id: row.id,
       url: row.url,
@@ -1112,8 +1235,9 @@ class OriginalFileRepositoryImpl implements IOriginalFileRepository {
       size: row.size,
       checksum: row.checksum,
       scraperUsed: row.scraper_used,
+      cleaningMetadata: cleaningMetadata || undefined,
       status: row.status,
-      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      metadata: Object.keys(otherMetadata).length > 0 ? otherMetadata : undefined,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
       accessedAt: row.accessed_at ? new Date(row.accessed_at) : undefined,

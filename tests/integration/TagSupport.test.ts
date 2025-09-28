@@ -4,8 +4,7 @@
  */
 
 import { KnowledgeBaseOrchestrator } from '../../src/orchestrator/KnowledgeBaseOrchestrator';
-import { KnowledgeBaseFactoryWithTags } from '../../src/factory/KnowledgeBaseFactory';
-import { SqlUrlRepository } from '../../src/storage/SqlUrlRepository';
+import { KnowledgeBaseFactory } from '../../src/factory/KnowledgeBaseFactory';
 import { createDefaultConfiguration } from '../../src/config/Configuration';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -14,18 +13,24 @@ import * as os from 'os';
 describe('Tag Support - Integration Tests', () => {
   let kb: KnowledgeBaseOrchestrator;
   let testDataPath: string;
-  let urlRepository: SqlUrlRepository;
+  let urlRepository: any;
 
   beforeEach(async () => {
     // Create a unique test directory for each test
     testDataPath = path.join(os.tmpdir(), 'kb3-tag-test-' + Date.now() + '-' + Math.random().toString(36).substring(7));
     await fs.mkdir(testDataPath, { recursive: true });
 
-    // Create KB with tag support
+    // Create KB with tag support using unified storage
     const config = createDefaultConfiguration({
       storage: {
+        unified: {
+          enabled: true,
+          dbPath: path.join(testDataPath, 'test.db'),
+          enableWAL: true,
+          enableForeignKeys: true,
+          autoMigrate: false // Don't migrate for tests
+        },
         enableUrlTracking: true,
-        urlRepositoryPath: path.join(testDataPath, 'test-urls.db'),
         knowledgeStore: {
           type: 'memory'
         },
@@ -42,25 +47,14 @@ describe('Tag Support - Integration Tests', () => {
       }
     });
 
-    kb = await KnowledgeBaseFactoryWithTags.createKnowledgeBaseWithTags({
-      ...config,
-      enableTags: true
-    });
+    kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
     // Get URL repository for direct testing
-    urlRepository = (kb as any).urlRepository as SqlUrlRepository;
-
-    // Initialize the repository with tags
-    if (urlRepository) {
-      await urlRepository.initializeWithTags();
-    }
+    urlRepository = (kb as any).urlRepository;
   });
 
   afterEach(async () => {
-    // Close database connections
-    if (urlRepository) {
-      await urlRepository.close();
-    }
+    // The unified storage handles closing internally
 
     // Cleanup test data
     try {
@@ -158,7 +152,7 @@ describe('Tag Support - Integration Tests', () => {
       // Verify tags were created and associated
       const tags = await urlRepository.getUrlTags(testUrl);
       expect(tags).toHaveLength(3);
-      expect(tags.map(t => t.name).sort()).toEqual(['html', 'sample', 'test']);
+      expect(tags.map((t: any) => t.name).sort()).toEqual(['html', 'sample', 'test']);
     });
 
     test('should add and remove tags from URLs', async () => {
@@ -228,12 +222,12 @@ describe('Tag Support - Integration Tests', () => {
       // Get URLs with 'docs' tag
       let urls = await urlRepository.getUrlsByTags(['docs']);
       expect(urls).toHaveLength(2);
-      expect(urls.map(u => u.url).sort()).toEqual([url1, url2].sort());
+      expect(urls.map((u: any) => u.url).sort()).toEqual([url1, url2].sort());
 
       // Get URLs with 'public' tag
       urls = await urlRepository.getUrlsByTags(['public']);
       expect(urls).toHaveLength(2);
-      expect(urls.map(u => u.url).sort()).toEqual([url1, url3].sort());
+      expect(urls.map((u: any) => u.url).sort()).toEqual([url1, url3].sort());
 
       // Get URLs with both 'docs' AND 'public' tags
       urls = await urlRepository.getUrlsByTags(['docs', 'public'], true);
@@ -254,7 +248,7 @@ describe('Tag Support - Integration Tests', () => {
 
       // Verify tags were stored
       const tags = await urlRepository.getUrlTags(testUrl);
-      expect(tags.map(t => t.name).sort()).toEqual(['batch', 'test']);
+      expect(tags.map((t: any) => t.name).sort()).toEqual(['batch', 'test']);
 
       // Now test batch processing with multiple URLs
       const files = [];
@@ -399,29 +393,25 @@ describe('Tag Support - Integration Tests', () => {
 
       await urlRepository.registerWithTags(testUrl, { tags: ['persistent-tag'] });
 
-      // Close current repository
-      await urlRepository.close();
+      // In unified architecture, persistence is automatic
+      // We can verify persistence using the same DB path
+      const newConfig = createDefaultConfiguration();
+      // Update the unified dbPath to use same database
+      newConfig.storage.unified!.dbPath = path.join(testDataPath, 'test.db');
 
-      // Create new repository instance
-      const newRepository = new SqlUrlRepository(
-        path.join(testDataPath, 'test-urls.db'),
-        true // Enable tags
-      );
-      await newRepository.initializeWithTags();
+      const newKb = await KnowledgeBaseFactory.createKnowledgeBase(newConfig);
+      const newUrlRepo = (newKb as any).urlRepository;
 
       // Verify tag persisted
-      const tagManager = newRepository.getTagManager();
-      expect(tagManager).toBeDefined();
-      const retrievedTag = await tagManager!.getTagByName('persistent-tag');
-      expect(retrievedTag).toBeDefined();
-      expect(retrievedTag?.id).toBe(tag.id);
+      const tags = await (newKb as any).getTags();
+      const persistentTag = tags.find((t: any) => t.name === 'persistent-tag');
+      expect(persistentTag).toBeDefined();
+      expect(persistentTag?.id).toBe(tag.id);
 
       // Verify URL-tag association persisted
-      const tags = await newRepository.getUrlTags(testUrl);
-      expect(tags).toHaveLength(1);
-      expect(tags[0].name).toBe('persistent-tag');
-
-      await newRepository.close();
+      const urlTags = await newUrlRepo.getUrlTags(testUrl);
+      expect(urlTags).toHaveLength(1);
+      expect(urlTags[0].name).toBe('persistent-tag');
     });
   });
 });

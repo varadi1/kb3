@@ -4,12 +4,6 @@
 
 KB3 is a scalable knowledge base system built with TypeScript that processes URLs and documents while strictly adhering to SOLID principles. The system can detect content types, fetch content from various sources, process different file formats, and store knowledge with metadata.
 
-## Recent Architecture Updates (2025-01-28)
-
-- **SqlUrlRepository Consolidation**: Merged SqlUrlRepositoryWithTags into SqlUrlRepository with optional tag support via constructor parameter
-- **Improved Composition**: Tags are now an optional feature, not inheritance-based
-- **Backward Compatibility**: Legacy imports work via export aliases
-
 ## Architecture Principles
 
 ### SOLID Compliance
@@ -58,128 +52,21 @@ kb3/
 │   └── utils/            # Utilities and error handling
 ├── tests/
 │   ├── solid-compliance/ # SOLID principle tests
-│   ├── integration/      # System integration tests
+│   ├── integration/      # Integration tests
 │   └── unit/            # Unit tests
-├── data/                # Runtime data storage
-│   ├── example-files/    # Example files for processing
-│   └── files/            # Processed files storage
-├── test-data/           # Test fixtures and samples
-│   └── files/            # Test files
-├── demo-data/           # Demo data for examples
-│   └── files/            # Demo files
-├── dev-data/            # Development data
-│   └── files/            # Development files
-├── verify-data/         # Verification test data
-│   └── files/            # Verification files
-├── examples/            # Sample data and usage
-│   └── configurations/   # Configuration examples
+├── data/                # Runtime data (Downloaded content, Knowledge base)
+├── test-data/           # Static test fixtures (NEVER modify during runtime)
+├── dev-data/            # Development experiments (can be deleted anytime)
+├── examples/            # Working code examples
 └── docs/                # Documentation
 ```
 
-## Folder Structure Organization Rules
-
-### CRITICAL: Maintain Clean Folder Structure
-
-The folder structure is organized by purpose and MUST be respected at all times. Each directory has a specific role and content should ONLY go where it belongs.
-
-#### Directory Usage Guidelines
-
-**Source Code (`src/`)**
-- Production code ONLY
-- No test files, examples, or temporary code
-- Each subdirectory follows Single Responsibility Principle
-
-**Tests (`tests/`)**
-- `tests/unit/` - Unit tests for individual components
-- `tests/integration/` - Integration tests between components
-- `tests/solid-compliance/` - SOLID principle verification tests
-- NO temporary test files - use `dev-data/` for experiments
-
-**Data Directories**
-- `data/` - Production runtime data and processed content
-  - Downloaded web pages
-  - Processed documents
-  - Knowledge base storage
-  - User-uploaded files
-- `test-data/` - Static test fixtures only
-  - Sample files for tests
-  - Mock data for testing
-  - NEVER modify during runtime
-- `demo-data/` - Demo and presentation materials
-  - Sample files for demonstrations
-  - Example outputs
-- `dev-data/` - Development experiments
-  - Temporary test files
-  - Development scratchpad
-  - Experimental data (can be safely deleted)
-- `verify-data/` - Verification and validation data
-  - Golden test files
-  - Expected outputs for comparison
-
-**Documentation (`docs/`)**
-- Technical documentation
-- API documentation
-- Architecture diagrams
-- Design decisions
-- NO source code, NO test files
-
-**Examples (`examples/`)**
-- Working code examples
-- Configuration samples
-- Usage demonstrations
-- NO test code, NO incomplete code
-
-#### Strict Rules
+### Strict Folder Rules
 
 1. **NEVER mix concerns between folders**
-   ```
-   ❌ WRONG:
-   - Putting test files in src/
-   - Storing downloaded content in test-data/
-   - Creating temp test files in tests/
-   - Adding documentation to data/
-
-   ✅ CORRECT:
-   - Test files go in tests/
-   - Downloaded content goes in data/
-   - Temp test files go in dev-data/
-   - Documentation goes in docs/
-   ```
-
-2. **File Placement Examples**
-   ```
-   Downloaded webpage → data/files/webpage.html
-   Test fixture → test-data/files/sample.pdf
-   Temp test file → dev-data/files/temp-test.txt
-   Unit test → tests/unit/MyComponent.test.ts
-   API docs → docs/api-reference.md
-   Usage example → examples/basic-usage.ts
-   ```
-
-3. **Data Directory Hierarchy**
-   - Always use subdirectories within data folders
-   - Group by type or date when appropriate
-   - Example structure:
-     ```
-     data/
-     ├── files/           # General file storage
-     ├── downloads/       # Downloaded content
-     │   ├── 2024-01/    # By date if needed
-     │   └── pdfs/       # Or by type
-     └── knowledge/       # Processed knowledge base
-     ```
-
-4. **Test Data Management**
-   - `test-data/` is version controlled and static
-   - `dev-data/` is gitignored and ephemeral
-   - Never write to `test-data/` during test execution
-   - Use `dev-data/` for any temporary test outputs
-
-5. **Clean-up Requirements**
-   - `dev-data/` can be cleared anytime
-   - `data/` should have a retention policy
-   - `test-data/` must remain stable for tests
-   - Old files in `verify-data/` need explicit removal
+2. **Never write to `test-data/` during test execution**
+3. **Use `dev-data/` for temporary test outputs**
+4. **Production code goes in `src/` ONLY**
 
 ## Development Rules
 
@@ -209,46 +96,12 @@ All new components MUST:
 - Be registered in the appropriate registry
 - Include comprehensive tests
 
-Example for adding a new processor:
-```typescript
-// 1. Implement the interface
-class MarkdownProcessor extends BaseProcessor {
-  canProcess(type: ContentType): boolean {
-    return type === ContentType.MARKDOWN;
-  }
-
-  async process(content: Buffer): Promise<ProcessingResult> {
-    // Process markdown content
-  }
-}
-
-// 2. Register in ProcessorRegistry
-registry.register(ContentType.MARKDOWN, new MarkdownProcessor());
-```
-
 ### 3. Testing Requirements
 
 Every component MUST have:
 - Unit tests covering all public methods
 - SOLID compliance tests
 - Integration tests with other components
-
-Test structure:
-```typescript
-describe('ComponentName', () => {
-  describe('SOLID Compliance', () => {
-    test('follows Single Responsibility', () => {});
-    test('is open for extension', () => {});
-    test('is substitutable', () => {});
-  });
-
-  describe('Functionality', () => {
-    test('handles normal cases', () => {});
-    test('handles edge cases', () => {});
-    test('handles errors gracefully', () => {});
-  });
-});
-```
 
 ### 4. Error Handling
 
@@ -257,37 +110,6 @@ All errors MUST be:
 - Logged with context
 - Collected for analysis (use `IErrorCollector`)
 - Handled gracefully without breaking the system
-
-```typescript
-try {
-  const result = await processor.process(content);
-} catch (error) {
-  const categorized = ErrorHandler.categorizeError(error);
-  logger.error('Processing failed', { error: categorized, context });
-
-  // Collect error for analysis
-  if (errorCollector) {
-    errorCollector.recordError(context, error, {
-      scraper: scraperName,
-      url: currentUrl
-    });
-  }
-
-  if (categorized.recoverable) {
-    return fallbackResult;
-  }
-  throw categorized;
-}
-```
-
-#### Error Severity Classification
-
-Classify errors by severity:
-- **Critical**: System failures, invalid configuration
-- **Error**: Standard processing errors
-- **Recoverable**: Timeouts, network issues (can retry)
-- **Warning**: Slow responses, deprecations
-- **Info**: General information
 
 ### 5. Dependency Injection
 
@@ -307,22 +129,6 @@ class MyClass {
 class MyClass {
   private fetcher = new HttpFetcher();  // WRONG!
 }
-```
-
-### 6. Configuration
-
-All configuration should be:
-- Type-safe (use TypeScript interfaces)
-- Validated before use
-- Provided through the factory
-
-```typescript
-const config = createDefaultConfiguration({
-  processing: { concurrency: 5 },
-  fetching: { timeout: 30000 }
-});
-
-const kb = KnowledgeBaseFactory.createKnowledgeBase(config);
 ```
 
 ## Code Quality Standards
@@ -359,1060 +165,173 @@ All public APIs MUST have JSDoc comments:
 async process(content: Buffer, options?: ProcessingOptions): Promise<ProcessingResult>
 ```
 
-## Installation Requirements
+## Installation
 
 ### Node.js Dependencies
-
-Core dependencies are installed via npm:
 ```bash
 npm install
 ```
 
 ### Python Dependencies
-
-Python scrapers require a virtual environment:
-
 ```bash
 # Create and activate virtual environment
 python3 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install all Python dependencies
+# Install Python dependencies
 pip install -r requirements.txt
 ```
 
-#### Core Python Packages
-- `playwright==1.55.0` - Browser automation
-- `Crawl4AI==0.7.4` - AI-powered web crawling
-- `docling==2.54.0` - Document processing
-- `deepdoctection==0.46` - Document layout analysis
-- `python-doctr[torch]==1.0.0` - OCR capabilities
-
-#### Optional ML Dependencies
-
-For full DeepDoctection capabilities:
+### Verification
 ```bash
-# OCR and text detection
-pip install python-doctr[torch]
-
-# Advanced layout detection (platform-specific)
-# macOS ARM64:
-pip install 'git+https://github.com/facebookresearch/detectron2.git'
-
-# Linux/Windows with CUDA:
-python -m pip install detectron2 -f \
-  https://dl.fbaipublicfiles.com/detectron2/wheels/cu118/torch2.0/index.html
-```
-
-### Verifying Installation
-
-```bash
-# Run the verification script
 npx tsx verify-scrapers.ts
-
-# Check Python packages
-.venv/bin/pip list | grep -E "crawl4ai|docling|deepdoctection|playwright"
 ```
 
-## Common Tasks
+## System Features
 
-### Database Storage Options
+### Database Storage
 
-The system supports two database architectures:
-
-#### 1. Unified Storage (Recommended)
-Single SQLite database with all tables and foreign key relationships:
+#### Unified Storage (Recommended)
+Single SQLite database with all tables:
 
 ```typescript
-import { createUnifiedConfiguration } from './src/config/Configuration';
-
 const config = createUnifiedConfiguration({
   dbPath: './data/unified.db',
-  enableWAL: true,           // Write-Ahead Logging for better concurrency
-  enableForeignKeys: true,    // Enforce referential integrity
-  autoMigrate: true          // Auto-migrate from legacy databases
-});
-
-const kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
-```
-
-**Tables in unified database:**
-- `urls` - URL tracking and metadata
-- `tags` - Hierarchical tag definitions
-- `url_tags` - Many-to-many URL-tag relationships
-- `knowledge_entries` - Processed content (FK → urls)
-- `original_files` - File tracking (FK → urls)
-
-**Benefits:**
-- Single file backup/restore
-- ACID transactions across all data
-- Foreign key integrity
-- Simplified CI/CD
-
-#### 2. Legacy Storage (Backward Compatible)
-Multiple databases for different concerns:
-- `knowledge.db` - Knowledge entries
-- `urls.db` - URLs and tags
-- `original_files.db` - File tracking
-
-```typescript
-const config = createSqlConfiguration({
-  storage: {
-    knowledgeStore: { type: 'sql', dbPath: './data/knowledge.db' },
-    urlRepositoryPath: './data/urls.db',
-    originalFileStore: { path: './data/original_files.db' }
-  }
+  enableWAL: true,
+  enableForeignKeys: true,
+  autoMigrate: true
 });
 ```
 
-#### Migration from Legacy to Unified
-
-Automatic migration preserves all data:
-
+#### Migration from Legacy
 ```typescript
 const config = createUnifiedConfiguration({
   dbPath: './data/unified.db',
   autoMigrate: true,
   migrationOptions: {
-    backupOriginal: true,           // Create .backup files
-    deleteOriginalAfterSuccess: false,  // Keep originals
-    verbose: true                    // Show migration progress
+    backupOriginal: true,
+    deleteOriginalAfterSuccess: false
   }
 });
-
-// Migration happens automatically on initialization
-const kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
 ```
 
-Manual migration for more control:
+### File Tracking System
+
+Tracks all scraped/downloaded files with:
+- Unique IDs per file
+- SHA256 checksums
+- Download URLs
+- Status management
+- Access tracking
+- Scraper metadata
+- **Cleaning metadata** (cleaners used, configuration, statistics)
+
+### Tag System
+
+Organize URLs into logical groups:
 
 ```typescript
-import { DatabaseMigration } from './src/storage/DatabaseMigration';
-
-const migration = new DatabaseMigration({
-  knowledgeDbPath: './data/knowledge.db',
-  urlsDbPath: './data/urls.db',
-  originalFilesDbPath: './data/original_files.db',
-  targetDbPath: './data/unified.db'
-});
-
-const result = await migration.migrate();
-console.log(`Migrated ${result.migratedTables.urls} URLs`);
-```
-
-### Working with Original File Tracking
-
-The original file tracking system maintains a separate database of all scraped and downloaded files, enabling file lineage tracking and separate processing pipelines:
-
-1. **Enable file tracking**:
-```typescript
-import { KnowledgeBaseFactory } from './src/factory/KnowledgeBaseFactory';
-import { createSqlConfiguration } from './src/config/Configuration';
-
-const config = createSqlConfiguration({
-  storage: {
-    knowledgeStore: {
-      type: 'sql',
-      dbPath: './data/knowledge.db'
-    },
-    originalFileStore: {
-      type: 'sql',
-      path: './data/original_files.db'
-    }
-  }
-});
-
-// File tracking and tags are now integrated by default
-const kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
-```
-
-2. **Access tracked files**:
-```typescript
-const repository = kb.getOriginalFileRepository();
-
-// Get files for a specific URL
-const files = await repository.getOriginalFilesByUrl(url);
-
-// Get a specific file by ID
-const file = await repository.getOriginalFile(fileId);
-
-// List all files with filters
-const pdfFiles = await repository.listOriginalFiles({
-  mimeType: 'application/pdf',
-  status: 'active'
-});
-```
-
-3. **Implementation pattern (Decorator/Wrapper)**:
-```typescript
-// The system uses a storage-level wrapper to intercept file operations
-class FileStorageWithTracking implements IFileStorage {
-  constructor(
-    private baseStorage: IFileStorage,
-    private originalFileRepository: IOriginalFileRepository
-  ) {}
-
-  async store(content: Buffer, filename: string, options?: StorageOptions): Promise<string> {
-    // Store file using base storage
-    const storagePath = await this.baseStorage.store(content, filename, options);
-
-    // Track the original file
-    const fileInfo: OriginalFileInfo = {
-      url: options?.metadata?.url || 'unknown',
-      filePath: storagePath,
-      mimeType: options?.metadata?.mimeType || this.guessMimeType(filename),
-      size: content.length,
-      checksum: crypto.createHash('sha256').update(content).digest('hex'),
-      scraperUsed: options?.metadata?.scraperUsed
-    };
-
-    await this.originalFileRepository.recordOriginalFile(fileInfo);
-    return storagePath;
-  }
-}
-```
-
-4. **Key features**:
-- **Unique IDs**: Each file gets a unique identifier (e.g., `file_1759017759658_b3e29cd4695b7927`)
-- **SHA256 Checksums**: Integrity verification for all files
-- **Download URLs**: Frontend-ready links (`/api/files/original/{id}/download`)
-- **Status Management**: Track lifecycle (active, archived, deleted, processing, error)
-- **Access Tracking**: Automatic `accessed_at` timestamp updates
-- **Statistics**: Aggregate data by type, status, and scraper
-
-5. **Database schema**:
-```sql
-CREATE TABLE original_files (
-  id TEXT PRIMARY KEY,
-  url TEXT NOT NULL,
-  file_path TEXT NOT NULL UNIQUE,
-  mime_type TEXT NOT NULL,
-  size INTEGER NOT NULL,
-  checksum TEXT NOT NULL,
-  scraper_used TEXT,
-  status TEXT NOT NULL DEFAULT 'active',
-  metadata TEXT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  accessed_at INTEGER,
-  download_url TEXT
-);
-```
-
-### Working with Tags
-
-Tags allow organizing URLs into logical groups for batch processing:
-
-1. **Create tags with hierarchy**:
-```typescript
-// Tags are now integrated in the main factory
-const kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
+// Create hierarchical tags
 await kb.createTag('documentation');
-await kb.createTag('api-docs', 'documentation'); // Child of documentation
-```
+await kb.createTag('api-docs', 'documentation');
 
-2. **Process URLs with tags**:
-```typescript
-const urlsWithTags = [
-  { url: 'https://example.com/api', tags: ['api-docs', 'v1'] },
-  { url: 'https://example.com/guide', tags: ['documentation', 'tutorial'] }
-];
-await kb.processUrlsWithTags(urlsWithTags);
-```
+// Process URLs with tags
+await kb.processUrlsWithTags([
+  { url: 'https://example.com/api', tags: ['api-docs'] }
+]);
 
-3. **Batch process by tags**:
-```typescript
-// Process all URLs with 'api-docs' tag
+// Batch process by tags
 await kb.processUrlsByTags(['api-docs']);
-
-// Process URLs with ALL specified tags
-await kb.processUrlsByTags(['tutorial', 'beginner'], { requireAllTags: true });
-
-// Include child tags in processing
-await kb.processUrlsByTags(['documentation'], { includeChildTags: true });
 ```
 
-### Adding a New URL Detector
+### Text Cleaning System
 
-1. Create the detector in `src/detectors/`:
-```typescript
-export class MyDetector extends BaseUrlDetector {
-  canHandle(url: string): boolean { /* ... */ }
-  async detect(url: string): Promise<UrlClassification> { /* ... */ }
-}
-```
+Multi-stage text sanitization with:
+- Chain processing through multiple cleaners
+- Auto-selection based on content type
+- Per-URL configuration
+- Statistics tracking
+- Original text preservation
+- Error resilience
 
-2. Register in `UrlDetectorRegistry`:
-```typescript
-registry.register('my-detector', new MyDetector());
-```
+Available cleaners:
+- **SanitizeHtmlCleaner**: Remove dangerous HTML
+- **XssCleaner**: Prevent XSS attacks
+- **VocaCleaner**: Text normalization
+- **RemarkCleaner**: Markdown processing
+- **ReadabilityCleaner**: Extract main content
 
-3. Add tests in `tests/unit/detectors/`
+### Scraper System
 
-### Adding a New Content Processor
+All scrapers verified working (2025-01-28):
 
-1. Create processor in `src/processors/`
-2. Implement `IContentProcessor` interface
-3. Register in `ProcessorRegistry`
-4. Add tests including SOLID compliance
+1. **HttpScraper** - ✅ Native Node.js HTTP/HTTPS
+2. **PlaywrightScraper** - ✅ Browser automation
+3. **Crawl4AIScraper** - ✅ AI-powered extraction
+4. **DoclingScraper** - ✅ PDF/document processing
+5. **DeepDoctectionScraper** - ✅ Layout analysis (with fallback)
 
-### Working with Text Cleaning
-
-The text cleaning system provides multi-stage text sanitization and normalization:
-
-1. **Enable text cleaning in processing**:
-```typescript
-import { ContentProcessorWithCleaning } from './src/processors/ContentProcessorWithCleaning';
-import { ProcessingOptionsWithCleaning } from './src/processors/ContentProcessorWithCleaning';
-
-const options: ProcessingOptionsWithCleaning = {
-  textCleaning: {
-    enabled: true,
-    autoSelect: true,  // Auto-select cleaners based on content type
-    cleanerNames: ['sanitize-html', 'xss', 'voca'],  // Or specify cleaners
-    preserveOriginal: true,  // Keep original text
-    storeMetadata: true,  // Store cleaning statistics
-    format: TextFormat.HTML  // Override format detection
-  }
-};
-
-const result = await processor.process(content, ContentType.HTML, options);
-```
-
-2. **Implementation pattern (Decorator Pattern)**:
-```typescript
-// The system uses decorator pattern to add cleaning to existing processors
-class ContentProcessorWithCleaning implements IContentProcessor {
-  constructor(
-    private baseProcessor: IContentProcessor,
-    private cleaningOrchestrator: TextCleaningOrchestrator
-  ) {}
-
-  async process(
-    content: Buffer | string,
-    contentType: ContentType,
-    options?: ProcessingOptionsWithCleaning
-  ): Promise<ProcessedContentWithCleaning> {
-    // First process with base processor
-    const baseResult = await this.baseProcessor.process(content, contentType, options);
-
-    // Then apply text cleaning if enabled
-    if (options?.textCleaning?.enabled) {
-      const cleaningResult = await this.cleaningOrchestrator.cleanAuto(
-        baseResult.text,
-        this.mapContentTypeToTextFormat(contentType),
-        options.textCleaning.url
-      );
-
-      return {
-        ...baseResult,
-        text: cleaningResult.finalText,
-        cleaningResult,
-        originalText: options.textCleaning.preserveOriginal ? baseResult.text : undefined
-      };
-    }
-
-    return baseResult;
-  }
-}
-```
-
-3. **Adding a new text cleaner**:
-```typescript
-import { BaseTextCleaner } from './src/cleaners/BaseTextCleaner';
-import { ITextCleaningResult, TextFormat, ITextCleanerConfig } from './src/interfaces/ITextCleaner';
-
-export class CustomCleaner extends BaseTextCleaner {
-  constructor() {
-    super(
-      'custom-cleaner',
-      'Custom text cleaning operations',
-      [TextFormat.HTML, TextFormat.PLAIN_TEXT],
-      {
-        enabled: true,
-        priority: 50,
-        options: {
-          // Custom default options
-        }
-      }
-    );
-  }
-
-  protected async performCleaning(
-    input: string,
-    config: ITextCleanerConfig
-  ): Promise<ITextCleaningResult> {
-    const startTime = Date.now();
-    let cleanedText = input;
-    const statistics: any = {};
-
-    // Your cleaning logic here
-    // Example: Remove specific patterns
-    const patternRegex = /\[AD\].*?\[\/AD\]/g;
-    const matches = cleanedText.match(patternRegex);
-    if (matches) {
-      statistics.adsRemoved = matches.length;
-      cleanedText = cleanedText.replace(patternRegex, '');
-    }
-
-    return this.createResult(input, cleanedText, config, statistics, Date.now() - startTime);
-  }
-
-  canClean(input: string, format: TextFormat): boolean {
-    // Check if this cleaner can handle the input
-    return this.supportedFormats.includes(format) && input.length > 0;
-  }
-
-  validateConfig(config: ITextCleanerConfig): IConfigValidationResult {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    // Validate custom options
-    if (config.options?.customOption && typeof config.options.customOption !== 'string') {
-      errors.push('customOption must be a string');
-    }
-
-    return { valid: errors.length === 0, errors, warnings };
-  }
-}
-```
-
-4. **Register and use the custom cleaner**:
-```typescript
-import { TextCleanerRegistry } from './src/cleaners/TextCleanerRegistry';
-
-const registry = TextCleanerRegistry.getInstance();
-registry.register(new CustomCleaner());
-
-// Use in orchestrator
-const orchestrator = new TextCleaningOrchestrator(registry, configManager);
-const result = await orchestrator.cleanWithCleaners(
-  text,
-  ['custom-cleaner', 'voca'],
-  TextFormat.HTML
-);
-```
-
-5. **Configure cleaners per URL**:
-```typescript
-const configManager = new TextCleanerConfigManager();
-
-// Set configuration for specific URL
-await configManager.setUrlConfig(
-  'https://example.com/page',
-  'sanitize-html',
-  {
-    enabled: true,
-    priority: 100,
-    options: {
-      allowedTags: ['p', 'h1', 'h2', 'a'],
-      allowedAttributes: {
-        'a': ['href']
-      }
-    }
-  }
-);
-
-// Apply template to URL patterns
-await configManager.applyConfigTemplate(
-  '*.blog.com/*',  // Pattern
-  'readability',
-  {
-    enabled: true,
-    options: {
-      extractMainContent: true,
-      removeAds: true
-    }
-  }
-);
-```
-
-6. **Key features**:
-- **Chain Processing**: Sequential text processing through multiple cleaners
-- **Format Detection**: Automatic format detection and cleaner selection
-- **Per-URL Config**: Individual cleaner configuration per URL
-- **Batch Configuration**: Configure multiple URLs at once
-- **Statistics Tracking**: Track what was removed/modified
-- **Preserve Original**: Option to keep original text alongside cleaned
-- **Error Resilience**: Continues processing even if one cleaner fails
-
-7. **Available cleaners**:
-- **SanitizeHtmlCleaner**: Remove dangerous HTML elements and attributes
-- **XssCleaner**: Prevent XSS attacks by filtering malicious content
-- **VocaCleaner**: Text normalization and manipulation
-- **StringJsCleaner**: Advanced string operations
-- **RemarkCleaner**: Markdown processing and cleaning
-- **ReadabilityCleaner**: Extract main content from web pages
-
-### Adding File Tracking to Components
-
-To add file tracking capability to any component:
-
-1. **Wrap the file storage** (following Decorator pattern):
-```typescript
-class MyStorageWithTracking implements IFileStorage {
-  constructor(
-    private baseStorage: IFileStorage,
-    private fileTracker: IOriginalFileRepository
-  ) {}
-
-  async store(content: Buffer, filename: string, options?: StorageOptions): Promise<string> {
-    const path = await this.baseStorage.store(content, filename, options);
-
-    // Track the file
-    await this.fileTracker.recordOriginalFile({
-      url: options?.metadata?.url,
-      filePath: path,
-      mimeType: this.detectMimeType(filename),
-      size: content.length,
-      checksum: this.calculateChecksum(content)
-    });
-
-    return path;
-  }
-}
-```
-
-2. **Use the factory pattern**:
-```typescript
-class MyFactoryWithTracking {
-  static async createWithTracking(config: Config): Promise<MyComponent> {
-    const repository = new SqlOriginalFileRepository(config.originalFileStore.path);
-    await repository.initialize();
-
-    const baseStorage = createBaseStorage(config);
-    const trackedStorage = new MyStorageWithTracking(baseStorage, repository);
-
-    return new MyComponent(trackedStorage);
-  }
-}
-```
-
-3. **Access tracked files**:
-```typescript
-const files = await repository.listOriginalFiles({
-  mimeType: 'application/pdf',
-  status: 'active'
-});
-```
-
-### Scraper Implementation Status
-
-#### Current Scraper Status (Verified 2025-01-28)
-
-All scrapers have been tested and verified to work with real content:
-
-1. **HttpScraper** - ✅ **FULLY WORKING**
-   - Uses native Node.js HTTP/HTTPS modules
-   - No external dependencies required
-   - Returns real HTML content
-
-2. **PlaywrightScraper** - ✅ **FULLY WORKING**
-   - Uses `playwright@1.55.0` (installed)
-   - Full browser automation with JavaScript rendering
-   - Successfully returns DOM-rendered content
-
-3. **Crawl4AIScraper** - ✅ **FULLY WORKING**
-   - Uses `Crawl4AI@0.7.4` via Python Bridge
-   - Executes Python wrapper script in virtual environment
-   - Returns extracted content in Markdown format
-
-4. **DoclingScraper** - ✅ **FULLY WORKING**
-   - Uses `docling@2.54.0` via Python Bridge
-   - Processes PDFs and documents successfully
-   - Returns structured document content
-
-5. **DeepDoctectionScraper** - ✅ **WORKING WITH FALLBACK**
-   - Core `deepdoctection@0.46` installed
-   - Has complete Python wrapper implementation
-   - Falls back gracefully when ML models unavailable
-   - For full ML capabilities, install: `python-doctr[torch]`
-
-#### Python Bridge Architecture
-
-The system uses a Python Bridge (`src/scrapers/PythonBridge.ts`) to execute Python scripts:
+Configure scrapers per URL:
 
 ```typescript
-// Example: How scrapers use Python Bridge
-class Crawl4AIScraper extends BaseScraper {
-  private pythonBridge: PythonBridge;
-  private wrapperPath: string;
-
-  constructor() {
-    this.pythonBridge = new PythonBridge();
-    this.wrapperPath = path.join(__dirname, 'python_wrappers', 'crawl4ai_wrapper.py');
-  }
-
-  async scrape(url: string, options?: ScraperOptions): Promise<ScrapedContent> {
-    const pythonResult = await this.pythonBridge.execute(
-      this.wrapperPath,
-      [pythonConfig],
-      { timeout: 60000 }
-    );
-    // Process result...
-  }
-}
-```
-
-#### Python Wrapper Pattern
-
-Each Python scraper has a wrapper script that:
-1. Suppresses verbose library output
-2. Handles missing dependencies gracefully
-3. Returns JSON-serializable results
-4. Provides fallback implementations
-
-Example structure:
-```python
-try:
-    from crawl4ai import AsyncWebCrawler
-    CRAWL4AI_AVAILABLE = True
-except ImportError:
-    CRAWL4AI_AVAILABLE = False
-
-class Crawl4AIWrapper:
-    async def crawl(self, config):
-        if not CRAWL4AI_AVAILABLE:
-            return self._get_fallback_result(config)
-        # Real implementation...
-```
-
-### Adding a New Scraping Library
-
-1. Create the scraper in `src/scrapers/`:
-```typescript
-import { BaseScraper } from './BaseScraper';
-import { ScraperOptions, ScrapedContent, ScraperType } from '../interfaces/IScraper';
-import { MyScraperParameters } from '../interfaces/IScraperParameters';
-
-export class MyCustomScraper extends BaseScraper {
-  constructor() {
-    super('my-scraper', {
-      javascript: true,  // Supports JS rendering
-      cookies: true,     // Supports cookies
-      proxy: false,      // Proxy support
-      screenshot: false, // Can take screenshots
-      pdfGeneration: false,
-      multiPage: false
-    });
-  }
-
-  async scrape(url: string, options?: ScraperOptions): Promise<ScrapedContent> {
-    // Check URL validity
-    if (!this.canHandle(url)) {
-      throw new Error(`Invalid URL: ${url}`);
-    }
-
-    this.validateOptions(options);
-    const mergedOptions = this.mergeOptions(options);
-    const params = this.extractParameters(mergedOptions);
-
-    // Your scraping logic here
-    // Use dynamic imports for optional dependencies:
-    try {
-      const library = require('your-scraping-library');
-      // Scraping implementation
-    } catch {
-      // Return mock or throw error
-      return this.getMockResponse(url);
-    }
-
-    return {
-      url,
-      content: Buffer.from('scraped content'),
-      mimeType: 'text/html',
-      metadata: {
-        scraperConfig: params,
-        scraperMetadata: { /* custom metadata */ }
-      },
-      scraperName: this.name,
-      timestamp: new Date()
-    };
-  }
-
-  canHandle(url: string): boolean {
-    try {
-      const urlObj = new URL(url);
-      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
-    } catch {
-      return false;
-    }
-  }
-```
-
-2. Register the scraper:
-```typescript
-const registry = ScraperRegistry.getInstance();
-registry.register('my-scraper', new MyCustomScraper());
-```
-
-3. Configure URL rules:
-```typescript
-const config = createDefaultConfiguration({
-  scraping: {
-    enabledScrapers: ['http', 'my-scraper'],
-    scraperRules: [
-      {
-        pattern: 'special-site.com',
-        scraperName: 'my-scraper',
-        priority: 10
-      }
-    ]
-  }
-});
-```
-
-### Configuring Scrapers for URLs
-
-#### Method 1: Configuration with Parameters
-Set up scraper rules with detailed parameters:
-
-```typescript
-import { ScraperAwareContentFetcher } from './src/fetchers/ScraperAwareContentFetcher';
-import { BatchConfigurationManager } from './src/scrapers/BatchConfigurationManager';
-
-const config = createDefaultConfiguration({
-  scraping: {
-    enabledScrapers: ['http', 'playwright', 'docling', 'crawl4ai'],
-    defaultScraper: 'http',
-    scraperRules: [
-      { pattern: '*.linkedin.com/*', scraperName: 'playwright', priority: 20 },
-      { pattern: /\.pdf$/, scraperName: 'docling', priority: 25 },
-      { pattern: 'medium.com', scraperName: 'crawl4ai', priority: 15 }
-    ]
-  }
-});
-
-// Configure URL-specific parameters
-const kb = KnowledgeBaseFactory.createKnowledgeBase(config);
-const fetcher = (kb as any).contentFetcher as ScraperAwareContentFetcher;
-
-// Set Playwright parameters for a specific URL
 fetcher.setUrlParameters('https://app.example.com', {
   scraperType: 'playwright',
   parameters: {
     headless: true,
     viewport: { width: 1920, height: 1080 },
-    waitUntil: 'networkidle',
-    screenshot: true,
-    cookies: [{ name: 'session', value: 'abc123', domain: '.example.com' }]
-  }
-});
-
-// Set Crawl4AI parameters
-fetcher.setUrlParameters('https://blog.example.com', {
-  scraperType: 'crawl4ai',
-  parameters: {
-    maxDepth: 2,
-    jsExecution: true,
-    extractionStrategy: 'llm',
-    magic: true,
-    onlyMainContent: true
-  }
-});
-
-// Set Docling parameters
-fetcher.setUrlParameters('https://docs.example.com/report.pdf', {
-  scraperType: 'docling',
-  parameters: {
-    format: 'markdown',
-    ocr: true,
-    tableStructure: true,
-    exportTables: true
+    waitUntil: 'networkidle'
   }
 });
 ```
 
-#### Method 2: Batch URL Configuration
-Configure multiple URLs at once programmatically:
-
-```typescript
-const kb = KnowledgeBaseFactory.createKnowledgeBase(config);
-
-// Access the scraper selector (if needed for dynamic configuration)
-const fetcher = kb as any;
-if (fetcher.contentFetcher?.getScraperSelector) {
-  const selector = fetcher.contentFetcher.getScraperSelector();
-
-  // Set scraper for a batch of URLs
-  selector.setScraperForUrls(
-    ['https://site1.com', 'https://site2.com', 'https://site3.com'],
-    'crawl4ai',  // scraper name
-    10           // priority
-  );
-
-  // Add individual rules
-  selector.addRule({
-    pattern: '*.example.com/api/*',
-    scraperName: 'firecrawl',
-    priority: 20
-  });
-}
-```
-
-#### Method 3: Domain-Based Strategy
-Use a domain-based fallback strategy:
-
-```typescript
-const strategy = new DomainBasedSelectionStrategy();
-strategy.setDomainScraper('example.com', 'playwright');
-strategy.setDomainScraper('api.service.com', 'firecrawl');
-
-selector.setFallbackStrategy(strategy);
-```
-
-#### Priority System
-Rules with higher priority values are evaluated first:
-- 25+: Critical patterns (e.g., file extensions)
-- 20: Specific URL matches
+Priority system:
+- 25+: File extensions
+- 20: Specific URLs
 - 15: Domain patterns
 - 10: General patterns
-- 0-5: Low-priority fallbacks
+- 0-5: Fallbacks
 
-### Extending Storage
+### Metadata Tracking
 
-1. Implement `IKnowledgeStore` or `IFileStorage`
-2. Ensure atomicity and consistency
-3. Add to factory configuration options
-4. Test with concurrent operations
+The system tracks comprehensive metadata:
 
-### Adding Rate Limiting to a Component
+1. **Scraper Metadata**: Which tool fetched content, parameters used
+2. **Cleaning Metadata**: Which cleaners processed content, statistics
+3. **Processing Metadata**: All transformation details
+4. **Storage Metadata**: File locations, checksums, timestamps
 
-1. Inject `IRateLimiter` interface:
-```typescript
-class MyFetcher {
-  constructor(
-    private rateLimiter: IRateLimiter
-  ) {}
+Access metadata via:
+- Processing results
+- URL repository
+- Original file tracking
+- Knowledge store
 
-  async fetch(url: string): Promise<Content> {
-    const domain = DomainRateLimiter.extractDomain(url);
-    await this.rateLimiter.waitForDomain(domain);
-    this.rateLimiter.recordRequest(domain);
-
-    // Perform fetch
-    return content;
-  }
-}
-```
-
-2. Configure rate limits:
-```typescript
-rateLimiter.setDomainInterval('api.example.com', 2000);
-```
-
-3. Test rate limiting behavior
-
-### Adding Error Collection to a Component
-
-1. Inject `IErrorCollector` interface:
-```typescript
-class MyProcessor {
-  constructor(
-    private errorCollector: IErrorCollector
-  ) {}
-
-  async process(content: Buffer): Promise<Result> {
-    try {
-      // Process content
-    } catch (error) {
-      this.errorCollector.recordError(
-        'processing-context',
-        error,
-        { contentType, size }
-      );
-      throw error;
-    }
-  }
-}
-```
-
-2. Monitor errors:
-```typescript
-const issues = errorCollector.getIssues('context');
-if (issues.summary.criticalErrors > 0) {
-  // Handle critical errors
-}
-```
-
-### Implementing Batch Processing with Per-URL Settings
-
-1. Define URL configurations:
-```typescript
-interface UrlConfig {
-  url: string;
-  rateLimitMs?: number;
-  scraperOptions?: ScraperOptions;
-  processingOptions?: ProcessingOptions;
-}
-```
-
-2. Process with individual settings:
-```typescript
-async processUrlsWithConfigs(
-  configs: UrlConfig[],
-  globalOptions: ProcessingOptions
-): Promise<Result[]> {
-  // Apply per-URL rate limits
-  for (const config of configs) {
-    if (config.rateLimitMs) {
-      const domain = extractDomain(config.url);
-      rateLimiter.setDomainInterval(domain, config.rateLimitMs);
-    }
-  }
-
-  // Process with merged options
-  const results = [];
-  for (const config of configs) {
-    const options = { ...globalOptions, ...config.processingOptions };
-    results.push(await processUrl(config.url, options));
-  }
-
-  return results;
-}
-```
-
-## Testing Commands
+## Testing
 
 ```bash
-# Run all tests
-npm test
-
-# Run SOLID compliance tests only
-npm run test:solid
-
-# Run integration tests
-npm run test:integration
-
-# Run with coverage
-npm run test:coverage
-
-# Run specific test file
-npm test -- SingleResponsibility.test.ts
+npm test                    # Run all tests
+npm run test:solid          # SOLID compliance tests
+npm run test:integration    # Integration tests
+npm run test:coverage       # Coverage report
 ```
 
-## Performance Considerations
+## Performance Guidelines
 
-1. **Use streaming for large files**: Don't load entire files into memory
-2. **Implement connection pooling**: Reuse HTTP connections
-3. **Add caching strategically**: Cache expensive operations
-4. **Limit concurrency**: Use the configuration to control parallel operations
-5. **Lazy load processors**: Only instantiate when needed
-6. **Implement rate limiting**: Respect server limits and prevent overwhelming targets
-7. **Batch requests by domain**: Group URLs to optimize rate limiting
+1. Use streaming for large files
+2. Implement connection pooling
+3. Add caching strategically
+4. Limit concurrency via configuration
+5. Lazy load processors
+6. Implement rate limiting
+7. Batch requests by domain
 
 ## Security Guidelines
 
-1. **Validate all URLs**: Use `ValidationUtils.validateUrl()`
-2. **Sanitize file paths**: Prevent directory traversal
-3. **Limit file sizes**: Configure maximum sizes
-4. **Use timeouts**: Prevent hanging operations
-5. **Validate content types**: Don't trust file extensions alone
-
-## Debugging
-
-Enable debug logging:
-```typescript
-const config = createDevelopmentConfiguration({
-  logging: { level: 'debug' }
-});
-```
-
-Use the error categorization for troubleshooting:
-```typescript
-const error = ErrorHandler.categorizeError(e);
-console.log('Error category:', error.category);
-console.log('Recoverable:', error.recoverable);
-```
-
-### Tracking Scraper Usage and Parameters
-
-The system automatically tracks which scraper and parameters were used for each URL:
-
-1. **Processing Result**: Available immediately after processing
-```typescript
-const result = await kb.processUrl('https://example.com');
-console.log('Scraper used:', result.metadata.scraperUsed);
-console.log('Parameters:', result.metadata.scraperConfig);
-console.log('Custom metadata:', result.metadata.scraperMetadata);
-```
-
-2. **Database Storage**: Persisted for future reference
-- **URLs table** (`urls.metadata`): Stores complete scraper configuration as JSON
-- **Knowledge entries table** (`knowledge_entries.metadata`): Includes searchable scraper metadata
-- **File storage** (`.meta.json` files): Records scraper config and results
-
-3. **Query Scraper Usage**: (If you extend the system)
-```typescript
-// Example query to find all URLs processed by a specific scraper
-const sql = `
-  SELECT url, json_extract(metadata, '$.scraperUsed') as scraper
-  FROM urls
-  WHERE json_extract(metadata, '$.scraperUsed') = 'playwright'
-`;
-```
-
-## Continuous Improvement
-
-When enhancing the system:
-
-1. **Maintain backwards compatibility**: Never break existing interfaces
-2. **Add deprecation notices**: Give time before removing features
-3. **Document breaking changes**: If absolutely necessary
-4. **Increase test coverage**: Aim for >90%
-5. **Refactor regularly**: Keep code clean and maintainable
-
-## Example Usage
-
-### Basic Usage
-```typescript
-import { createKnowledgeBase } from 'kb3';
-
-const kb = createKnowledgeBase();
-const result = await kb.processUrl('https://example.com/document.pdf');
-console.log('Processed:', result.metadata);
-```
-
-### Advanced Configuration
-```typescript
-import { KnowledgeBaseFactory, createDefaultConfiguration } from 'kb3';
-
-const config = createDefaultConfiguration({
-  processing: {
-    concurrency: 10,
-    timeout: 60000
-  },
-  storage: {
-    knowledgeStore: {
-      type: 'file',
-      path: './data/knowledge'
-    }
-  }
-});
-
-const kb = KnowledgeBaseFactory.createKnowledgeBase(config);
-
-// Process multiple URLs
-const results = await kb.processUrls([
-  'https://example.com/doc1.pdf',
-  'https://example.com/doc2.html'
-]);
-```
-
-### Custom Extension
-```typescript
-import { BaseProcessor, ProcessorRegistry } from 'kb3';
-
-class CustomProcessor extends BaseProcessor {
-  async process(content: Buffer): Promise<ProcessingResult> {
-    // Custom processing logic
-  }
-}
-
-// Register the processor
-const registry = ProcessorRegistry.getInstance();
-registry.register('custom', new CustomProcessor());
-```
+1. Validate all URLs: `ValidationUtils.validateUrl()`
+2. Sanitize file paths to prevent traversal
+3. Configure maximum file sizes
+4. Use timeouts on all operations
+5. Validate content types, don't trust extensions
 
 ## Important Notes
 
@@ -1421,12 +340,5 @@ registry.register('custom', new CustomProcessor());
 3. **Keep interfaces stable** - Changes affect many components
 4. **Document edge cases** - Help future developers
 5. **Review the examples** - They show best practices
-
-## Questions or Issues?
-
-- Check existing tests for examples
-- Review the interfaces for contracts
-- Look at factory patterns for dependency injection
-- Ensure SOLID compliance in all changes
 
 Remember: **Clean architecture > Quick fixes**

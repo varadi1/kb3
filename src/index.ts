@@ -15,6 +15,7 @@ export {
   createProductionConfiguration,
   createDevelopmentConfiguration,
   createSqlConfiguration,
+  createUnifiedConfiguration,
   validateConfiguration
 } from './config';
 

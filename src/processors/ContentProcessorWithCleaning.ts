@@ -7,7 +7,8 @@
 import {
   IContentProcessor,
   ProcessingOptions,
-  ProcessedContent
+  ProcessedContent,
+  CleaningMetadata
 } from '../interfaces/IContentProcessor';
 import { ContentType } from '../interfaces/IUrlDetector';
 import { TextFormat, IChainResult } from '../interfaces/ITextCleaner';
@@ -147,6 +148,28 @@ export class ContentProcessorWithCleaning implements IContentProcessor {
         };
       }
 
+      // Always populate cleaningMetadata for standardized access
+      const cleaningMetadata: CleaningMetadata = {
+        cleanersUsed: cleaningResult.cleanerResults.map(r => r.metadata.cleanerName),
+        cleaningConfig: {
+          format: textFormat,
+          autoSelected: options.textCleaning.autoSelect,
+          preservedOriginal: options.textCleaning.preserveOriginal,
+          url: options.textCleaning.url
+        },
+        statistics: {
+          originalLength: baseResult.text.length,
+          cleanedLength: cleaningResult.finalText.length,
+          compressionRatio: (1 - cleaningResult.finalText.length / baseResult.text.length).toFixed(2),
+          processingTimeMs: cleaningResult.totalProcessingTime
+        },
+        warnings: cleaningResult.cleanerResults
+          .flatMap(r => r.warnings || [])
+          .filter((w, i, arr) => arr.indexOf(w) === i)
+      };
+
+      result.cleaningMetadata = cleaningMetadata;
+
       // Save cleaned file if requested and storage is available
       if (options.textCleaning.saveCleanedFile && this.processedFileStorage) {
         try {
@@ -181,6 +204,12 @@ export class ContentProcessorWithCleaning implements IContentProcessor {
           const metadata = await this.processedFileStorage.getMetadata(storagePath);
           if (metadata?.metadata?.processedFileId) {
             result.processedFileId = metadata.metadata.processedFileId;
+          }
+
+          // Add file paths to cleaningMetadata
+          if (result.cleaningMetadata) {
+            result.cleaningMetadata.cleanedFilePath = storagePath;
+            result.cleaningMetadata.processedFileId = result.processedFileId;
           }
 
           console.log(`Cleaned content saved to: ${storagePath}`);

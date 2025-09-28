@@ -229,7 +229,7 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
       this.updateOperationStage(operationId, ProcessingStage.STORING);
       const storagePath = await this.storeFile(fetchedContent, url, operationId);
 
-      // Update URL repository with final scraper metadata, rate limit info, and scraping issues
+      // Update URL repository with final scraper metadata, rate limit info, scraping issues, and cleaning metadata
       if (urlRecordId && this.urlRepository) {
         const completeMetadata = {
           scraperUsed: fetchedContent.metadata?.scraperUsed,
@@ -238,7 +238,13 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
           // Add rate limiting information
           rateLimitInfo: fetchedContent.metadata?.rateLimitInfo,
           // Add scraping issues (errors and warnings)
-          scrapingIssues: fetchedContent.metadata?.scrapingIssues
+          scrapingIssues: fetchedContent.metadata?.scrapingIssues,
+          // Add cleaning metadata
+          cleaningMetadata: processedContent.cleaningMetadata ? {
+            cleanersUsed: processedContent.cleaningMetadata.cleanersUsed,
+            cleaningConfig: processedContent.cleaningMetadata.cleaningConfig,
+            statistics: processedContent.cleaningMetadata.statistics
+          } : undefined
         };
         // Store complete metadata in the database
         const existingInfo = await this.urlRepository.getUrlInfo(url);
@@ -272,9 +278,23 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
       this.completeOperation(operationId);
       this.processingStats.successful++;
 
-      // Update URL repository status
+      // Update URL repository status and metadata
       if (this.urlRepository && urlRecordId) {
+        // Update status
         await this.urlRepository.updateStatus(urlRecordId, UrlStatus.COMPLETED);
+
+        // Update metadata with cleaning information if available
+        if (processedContent.cleaningMetadata) {
+          await this.urlRepository.register(url, {
+            cleaningMetadata: {
+              cleanersUsed: processedContent.cleaningMetadata.cleanersUsed,
+              cleaningConfig: processedContent.cleaningMetadata.cleaningConfig,
+              statistics: processedContent.cleaningMetadata.statistics,
+              processedFileId: processedContent.cleaningMetadata.processedFileId,
+              cleanedFilePath: processedContent.cleaningMetadata.cleanedFilePath
+            }
+          });
+        }
       }
 
       const result: ProcessingResult = {
@@ -291,7 +311,8 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
           scraperUsed: fetchedContent.metadata?.scraperUsed,
           scraperConfig: fetchedContent.metadata?.scraperConfig,
           rateLimitInfo: fetchedContent.metadata?.rateLimitInfo,
-          scrapingIssues: fetchedContent.metadata?.scrapingIssues
+          scrapingIssues: fetchedContent.metadata?.scrapingIssues,
+          cleaningMetadata: processedContent.cleaningMetadata
         },
         processingTime: Date.now() - startTime,
         storagePath
@@ -307,6 +328,12 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
             size: fetchedContent.size || 0,
             checksum: contentHash,
             scraperUsed: fetchedContent.metadata?.scraperUsed,
+            cleaningMetadata: processedContent.cleaningMetadata ? {
+              cleanersUsed: processedContent.cleaningMetadata.cleanersUsed,
+              cleaningConfig: processedContent.cleaningMetadata.cleaningConfig,
+              statistics: processedContent.cleaningMetadata.statistics,
+              processedFileId: processedContent.cleaningMetadata.processedFileId
+            } : undefined,
             metadata: {
               headers: fetchedContent.headers,
               scraperConfig: result.metadata?.scraperConfig,
@@ -1145,6 +1172,13 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
       throw new Error('Tag manager not available');
     }
     return await tagManager.listTags();
+  }
+
+  /**
+   * Alias for listTags for compatibility
+   */
+  async getTags(): Promise<ITag[]> {
+    return this.listTags();
   }
 
   /**

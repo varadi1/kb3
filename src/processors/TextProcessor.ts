@@ -17,7 +17,8 @@ export class TextProcessor extends BaseProcessor {
       ContentType.TXT,
       ContentType.CSV,
       ContentType.JSON,
-      ContentType.XML
+      ContentType.XML,
+      ContentType.MARKDOWN
     ], maxTextLength);
   }
 
@@ -65,6 +66,9 @@ export class TextProcessor extends BaseProcessor {
         return this.processXmlContent(text);
       case ContentType.CSV:
         return this.processCsvContent(text);
+      case ContentType.MARKDOWN:
+        // Markdown is returned as-is since it's already readable text
+        return text;
       default:
         return text;
     }

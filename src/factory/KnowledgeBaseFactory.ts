@@ -24,21 +24,11 @@ import { ScraperAwareContentFetcher } from '../fetchers/ScraperAwareContentFetch
 import { ProcessorRegistry, createDefaultProcessorRegistry } from '../processors';
 
 // Storage
-import {
-  BaseKnowledgeStore,
-  MemoryKnowledgeStore,
-  FileKnowledgeStore,
-  LocalFileStorage
-} from '../storage';
-import { SqlKnowledgeStore } from '../storage/SqlKnowledgeStore';
-import { SqlUrlRepository } from '../storage/SqlUrlRepository';
-import { SqlOriginalFileRepository } from '../storage/SqlOriginalFileRepository';
+import { LocalFileStorage } from '../storage';
 import { SqlProcessedFileRepository } from '../storage/SqlProcessedFileRepository';
 import { FileStorageWithTracking } from '../storage/FileStorageWithTracking';
 import { ProcessedFileStorageWithTracking } from '../storage/ProcessedFileStorageWithTracking';
 import { ContentProcessorWithCleaning } from '../processors/ContentProcessorWithCleaning';
-import { IUrlRepository } from '../interfaces/IUrlRepository';
-import { IContentChangeDetector } from '../interfaces/IContentChangeDetector';
 import { ContentChangeDetector } from '../detectors/ContentChangeDetector';
 import { UnifiedSqlStorage } from '../storage/UnifiedSqlStorage';
 import { DatabaseMigration } from '../storage/DatabaseMigration';
@@ -98,6 +88,20 @@ export class KnowledgeBaseFactory {
   private static async createUnifiedKnowledgeBase(
     config: KnowledgeBaseConfigExtended
   ): Promise<KnowledgeBaseWithFullFeatures> {
+    // Ensure unified configuration exists with defaults if not provided
+    // This maintains backward compatibility with legacy configurations
+    if (!config.storage.unified || !config.storage.unified.enabled) {
+      // Set up unified configuration based on legacy settings
+      config.storage.unified = {
+        enabled: true,
+        dbPath: config.storage.knowledgeStore?.dbPath || './data/unified.db',
+        enableWAL: true,
+        enableForeignKeys: true,
+        backupEnabled: config.storage.knowledgeStore?.backupEnabled ?? false,
+        autoMigrate: false // Don't auto-migrate for legacy configs
+      };
+    }
+
     // Perform auto-migration if configured
     if (config.storage.unified?.autoMigrate) {
       await this.performAutoMigration(config);
@@ -125,7 +129,10 @@ export class KnowledgeBaseFactory {
         const processedFileRepository = new SqlProcessedFileRepository(processedFilePath);
         await processedFileRepository.initialize();
 
-        const baseProcessedStorage = new LocalFileStorage('./data/processed', false, false);
+        // Use configured file storage path or a path relative to the database
+        const processedStoragePath = config.storage.fileStorage?.basePath ||
+          path.join(path.dirname(config.storage.unified!.dbPath), 'processed');
+        const baseProcessedStorage = new LocalFileStorage(processedStoragePath, false, false);
         processedFileStorage = new ProcessedFileStorageWithTracking(
           baseProcessedStorage,
           processedFileRepository
@@ -174,6 +181,34 @@ export class KnowledgeBaseFactory {
    * Perform automatic migration from multiple databases to unified
    */
   private static async performAutoMigration(config: KnowledgeBaseConfigExtended): Promise<void> {
+    const fs = require('fs');
+
+    // Check if any legacy databases exist
+    const knowledgeDbPath = config.storage.knowledgeStore.dbPath;
+    const urlsDbPath = config.storage.urlRepositoryPath || config.storage.knowledgeStore.urlDbPath;
+    const originalFilesDbPath = config.storage.originalFileStore?.path;
+
+    const hasLegacyDbs =
+      (knowledgeDbPath && fs.existsSync(knowledgeDbPath)) ||
+      (urlsDbPath && fs.existsSync(urlsDbPath)) ||
+      (originalFilesDbPath && fs.existsSync(originalFilesDbPath));
+
+    // Skip migration if no legacy databases exist
+    if (!hasLegacyDbs) {
+      if (config.logging.level === 'debug') {
+        console.log('No legacy databases found, skipping migration');
+      }
+      return;
+    }
+
+    // Check if unified already exists
+    if (fs.existsSync(config.storage.unified!.dbPath)) {
+      if (config.logging.level === 'debug') {
+        console.log('Unified database already exists, skipping migration');
+      }
+      return;
+    }
+
     const migration = new DatabaseMigration({
       knowledgeDbPath: config.storage.knowledgeStore.dbPath,
       urlsDbPath: config.storage.urlRepositoryPath || config.storage.knowledgeStore.urlDbPath,
@@ -249,36 +284,6 @@ export class KnowledgeBaseFactory {
   }
 
   /**
-   * Creates knowledge store based on configuration
-   * @param config System configuration
-   * @returns Knowledge store implementation
-   */
-  private static createKnowledgeStore(config: KnowledgeBaseConfig): BaseKnowledgeStore {
-    const storeConfig = config.storage.knowledgeStore;
-
-    switch (storeConfig.type) {
-      case 'file':
-        if (!storeConfig.path) {
-          throw new Error('File knowledge store requires path configuration');
-        }
-        return new FileKnowledgeStore(
-          storeConfig.path,
-          storeConfig.indexedFields,
-          storeConfig.backupEnabled
-        );
-
-      case 'sql':
-        return new SqlKnowledgeStore(
-          storeConfig.dbPath || './data/knowledge.db'
-        );
-
-      case 'memory':
-      default:
-        return new MemoryKnowledgeStore(storeConfig.indexedFields);
-    }
-  }
-
-  /**
    * Creates file storage based on configuration
    * @param config System configuration
    * @returns File storage implementation
@@ -293,49 +298,7 @@ export class KnowledgeBaseFactory {
     );
   }
 
-  /**
-   * Creates URL repository with tag support (always enabled now)
-   * @param config System configuration
-   * @returns URL repository with tags
-   */
-  private static async createUrlRepositoryWithTags(
-    config: KnowledgeBaseConfigExtended
-  ): Promise<SqlUrlRepository | undefined> {
-    // Always create URL repository with tags when using SQL storage or URL tracking is enabled
-    if (config.storage.knowledgeStore.type === 'sql' ||
-        config.storage.enableDuplicateDetection ||
-        config.storage.enableUrlTracking) {
 
-      const dbPath = config.tagDbPath ||
-                    config.storage.urlRepositoryPath ||
-                    config.storage.knowledgeStore.urlDbPath ||
-                    './data/urls.db';
-
-      const repository = new SqlUrlRepository(dbPath, true); // Enable tags
-      await repository.initializeWithTags(); // Legacy compatibility method
-      return repository;
-    }
-
-    return undefined;
-  }
-
-
-  /**
-   * Creates content change detector if enabled
-   * @param config System configuration
-   * @param urlRepository URL repository instance
-   * @returns Content change detector or undefined
-   */
-  private static createContentChangeDetector(
-    config: KnowledgeBaseConfig,
-    urlRepository?: IUrlRepository
-  ): IContentChangeDetector | undefined {
-    // Only create if we have a URL repository and change detection is enabled
-    if (urlRepository && config.storage.enableDuplicateDetection !== false) {
-      return new ContentChangeDetector(urlRepository);
-    }
-    return undefined;
-  }
 
   /**
    * Creates a knowledge base with default configuration (with all features)
