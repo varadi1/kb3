@@ -42,6 +42,7 @@ kb3/
 │   ├── fetchers/            # Content retrieval from various sources
 │   ├── scrapers/            # Scraping library implementations
 │   ├── processors/          # Content processing for different types
+│   ├── cleaners/            # Text cleaning and sanitization
 │   ├── storage/             # Knowledge store and file storage
 │   ├── orchestrator/        # Main coordination logic
 │   ├── factory/             # Dependency injection and object creation
@@ -69,6 +70,7 @@ kb3/
 - **Modular Content Fetching**: Support for various content sources (web, local files, APIs)
 - **Flexible Content Processing**: Pluggable processors for different file types
 - **Dynamic Content Detection**: Content type detection beyond file extensions
+- **Advanced Text Cleaning**: Multi-stage text cleaning pipeline with configurable cleaners
 
 ### Rate Limiting & Traffic Management
 - **Domain-Based Rate Limiting**: Configurable intervals between requests per domain
@@ -110,6 +112,16 @@ kb3/
 - **Domain Grouping**: Automatically group URLs by domain for optimal processing
 - **Continue on Error**: Option to continue batch processing despite individual failures
 - **Tag-based Batch Processing**: Process all URLs sharing specific tags
+
+### Text Cleaning & Sanitization
+- **Multiple Cleaning Libraries**: SanitizeHtml, XSS, Voca, StringJs, Remark, Readability
+- **Chain Processing**: Sequential text processing through multiple cleaners
+- **Format-Aware Cleaning**: Different cleaning strategies for HTML, Markdown, Plain text
+- **Per-URL Configuration**: Configure cleaners individually for each URL
+- **Batch Configuration**: Apply cleaning templates to URL patterns
+- **Statistics & Metadata**: Track what was removed (tags, scripts, special chars)
+- **Auto-Selection**: Automatically select appropriate cleaners based on content type
+- **Preserve Original**: Option to keep original text alongside cleaned version
 
 ### Data Persistence
 - **Complete Metadata Storage**: All settings, errors, and rate limit info saved to database
@@ -760,6 +772,310 @@ console.log('Scraper metadata:', result.metadata.scraperMetadata);
 // 2. URL repository (urls table) - persisted as JSON in metadata column
 // 3. Knowledge store (knowledge_entries table)
 // 4. File storage metadata (.meta.json files)
+```
+
+### Text Cleaning
+
+The text cleaning system provides powerful content sanitization and normalization capabilities:
+
+#### Basic Text Cleaning
+
+```typescript
+import { ContentProcessorWithCleaning } from './src/processors/ContentProcessorWithCleaning';
+import { createDefaultConfiguration } from './src/config/Configuration';
+
+const config = createDefaultConfiguration();
+const kb = KnowledgeBaseFactory.createKnowledgeBase(config);
+
+// Enable text cleaning for a URL
+const result = await kb.processUrl('https://example.com/article', {
+  textCleaning: {
+    enabled: true,
+    autoSelect: true,  // Automatically select appropriate cleaners
+    preserveOriginal: true,  // Keep original text in metadata
+    storeMetadata: true  // Store cleaning statistics
+  }
+});
+
+// Check cleaning results
+if (result.cleaningResult) {
+  console.log('Original length:', result.originalText.length);
+  console.log('Cleaned length:', result.text.length);
+  console.log('Cleaners used:', result.cleaningResult.cleanerResults.map(r => r.metadata.cleanerName));
+  console.log('Total processing time:', result.cleaningResult.totalProcessingTime, 'ms');
+}
+```
+
+#### Available Cleaners
+
+1. **SanitizeHtmlCleaner** - Removes dangerous HTML and scripts
+   - Removes script tags, style tags, comments
+   - Sanitizes attributes, removes event handlers
+   - Configurable allowed tags and attributes
+
+2. **XssCleaner** - Prevents XSS attacks
+   - Removes JavaScript URIs
+   - Filters dangerous attributes
+   - Escapes special characters
+
+3. **VocaCleaner** - Text manipulation and normalization
+   - Trims whitespace, normalizes line breaks
+   - Removes extra spaces, control characters
+   - Case conversion options
+
+4. **StringJsCleaner** - Advanced string operations
+   - Strip HTML tags
+   - Decode HTML entities
+   - Remove diacritics and special characters
+
+5. **RemarkCleaner** - Markdown processing
+   - Parse and clean Markdown content
+   - Remove or modify specific Markdown elements
+   - Convert between formats
+
+6. **ReadabilityCleaner** - Content extraction
+   - Extract main content from web pages
+   - Remove ads, navigation, sidebars
+   - Preserve article structure
+
+#### Using Specific Cleaners
+
+```typescript
+// Use specific cleaners for a URL
+const result = await kb.processUrl('https://example.com/page', {
+  textCleaning: {
+    enabled: true,
+    cleanerNames: ['sanitize-html', 'xss', 'voca'],  // Specific cleaners to use
+    autoSelect: false,  // Don't auto-select additional cleaners
+    format: TextFormat.HTML  // Override format detection
+  }
+});
+```
+
+#### Configuring Cleaners Per URL
+
+```typescript
+import { ContentProcessorWithCleaning } from './src/processors/ContentProcessorWithCleaning';
+
+// Get the processor with cleaning capabilities
+const processor = new ContentProcessorWithCleaning(baseProcessor);
+
+// Configure cleaners for specific URL
+await processor.configureCleanersForUrl('https://example.com/article', new Map([
+  ['sanitize-html', {
+    enabled: true,
+    priority: 100,
+    options: {
+      allowedTags: ['p', 'h1', 'h2', 'h3', 'ul', 'li', 'a'],
+      allowedAttributes: {
+        'a': ['href', 'title']
+      },
+      disallowedTagsMode: 'discard'
+    }
+  }],
+  ['xss', {
+    enabled: true,
+    priority: 90,
+    options: {
+      whiteList: {
+        a: ['href', 'title'],
+        p: [],
+        div: ['class']
+      }
+    }
+  }],
+  ['voca', {
+    enabled: true,
+    priority: 80,
+    options: {
+      trimWhitespace: true,
+      normalizeWhitespace: true,
+      removeControlCharacters: true
+    }
+  }]
+]));
+```
+
+#### Batch Configuration for Text Cleaning
+
+```typescript
+// Configure cleaners for multiple URLs at once
+await processor.batchConfigureCleaners(
+  [
+    'https://site1.com/page1',
+    'https://site1.com/page2',
+    'https://site2.com/article'
+  ],
+  'sanitize-html',
+  {
+    enabled: true,
+    priority: 100,
+    options: {
+      allowedTags: ['p', 'h1', 'h2', 'h3', 'a', 'img'],
+      allowedAttributes: {
+        'a': ['href'],
+        'img': ['src', 'alt']
+      }
+    }
+  }
+);
+```
+
+#### Applying Cleaning Templates
+
+```typescript
+// Apply configuration template to URLs matching pattern
+const affectedCount = await processor.applyCleaningTemplate(
+  '*.blog.com/*',  // URL pattern (glob)
+  'readability',
+  {
+    enabled: true,
+    priority: 100,
+    options: {
+      extractMainContent: true,
+      removeAds: true,
+      preserveImages: true
+    }
+  }
+);
+
+console.log(`Applied template to ${affectedCount} URLs`);
+
+// Using regex pattern
+await processor.applyCleaningTemplate(
+  /^https:\/\/news\..*\.com/,  // Regex pattern
+  'sanitize-html',
+  {
+    enabled: true,
+    options: {
+      stripScripts: true,
+      stripStyles: true
+    }
+  }
+);
+```
+
+#### Text Cleaning Chain
+
+```typescript
+import { TextCleanerChain } from './src/cleaners/TextCleanerChain';
+import { TextCleanerRegistry } from './src/cleaners/TextCleanerRegistry';
+
+// Create a cleaning chain
+const registry = TextCleanerRegistry.getInstance();
+registry.initializeDefaultCleaners();
+
+const chain = new TextCleanerChain();
+
+// Add cleaners in order of execution
+chain.addCleaner(registry.getCleaner('sanitize-html'), {
+  enabled: true,
+  priority: 100
+});
+
+chain.addCleaner(registry.getCleaner('xss'), {
+  enabled: true,
+  priority: 90
+});
+
+chain.addCleaner(registry.getCleaner('voca'), {
+  enabled: true,
+  priority: 80
+});
+
+// Process text through the chain
+const result = await chain.process(htmlContent, TextFormat.HTML);
+console.log('Final cleaned text:', result.finalText);
+console.log('Processing stages:', result.cleanerResults.length);
+```
+
+#### Cleaning Statistics and Metadata
+
+```typescript
+// Get cleaning statistics
+const stats = processor.getCleaningStats();
+console.log('Total cleanings:', stats.totalCleanings);
+console.log('Average reduction:', stats.averageReduction);
+console.log('Most used cleaners:', stats.mostUsedCleaners);
+
+// Export cleaning configurations
+const configs = processor.exportCleaningConfigurations();
+fs.writeFileSync('cleaning-configs.json', JSON.stringify(configs, null, 2));
+```
+
+#### Format-Specific Cleaning
+
+```typescript
+// HTML cleaning
+const htmlResult = await kb.processUrl('https://example.com/page.html', {
+  textCleaning: {
+    enabled: true,
+    format: TextFormat.HTML,
+    cleanerNames: ['sanitize-html', 'xss', 'readability']
+  }
+});
+
+// Markdown cleaning
+const markdownResult = await kb.processUrl('https://example.com/readme.md', {
+  textCleaning: {
+    enabled: true,
+    format: TextFormat.MARKDOWN,
+    cleanerNames: ['remark', 'voca']
+  }
+});
+
+// Plain text cleaning
+const textResult = await kb.processUrl('https://example.com/document.txt', {
+  textCleaning: {
+    enabled: true,
+    format: TextFormat.PLAIN_TEXT,
+    cleanerNames: ['voca', 'string-js']
+  }
+});
+```
+
+#### Advanced Cleaning Options
+
+```typescript
+// Custom cleaner configuration per format
+const formatConfigs = {
+  [TextFormat.HTML]: {
+    cleaners: ['sanitize-html', 'xss', 'readability'],
+    options: {
+      'sanitize-html': {
+        allowedTags: ['p', 'h1', 'h2', 'h3', 'ul', 'li'],
+        stripScripts: true
+      }
+    }
+  },
+  [TextFormat.MARKDOWN]: {
+    cleaners: ['remark'],
+    options: {
+      'remark': {
+        removeImages: false,
+        simplifyLinks: true
+      }
+    }
+  },
+  [TextFormat.PLAIN_TEXT]: {
+    cleaners: ['voca'],
+    options: {
+      'voca': {
+        normalizeWhitespace: true,
+        trimWhitespace: true
+      }
+    }
+  }
+};
+
+// Process with format-specific configuration
+const result = await kb.processUrl(url, {
+  textCleaning: {
+    enabled: true,
+    autoSelect: false,
+    ...formatConfigs[detectedFormat]
+  }
+});
 ```
 
 ### Import/Export Configurations

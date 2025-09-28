@@ -44,6 +44,7 @@ kb3/
 │   ├── detectors/        # URL type detection (SRP)
 │   ├── fetchers/         # Content retrieval (SRP)
 │   ├── processors/       # Content processing (SRP)
+│   ├── cleaners/         # Text cleaning and sanitization (SRP)
 │   ├── storage/          # Persistence layer (SRP)
 │   ├── orchestrator/     # Main coordinator (DIP)
 │   ├── factory/          # Dependency injection (DIP)
@@ -507,6 +508,194 @@ registry.register('my-detector', new MyDetector());
 2. Implement `IContentProcessor` interface
 3. Register in `ProcessorRegistry`
 4. Add tests including SOLID compliance
+
+### Working with Text Cleaning
+
+The text cleaning system provides multi-stage text sanitization and normalization:
+
+1. **Enable text cleaning in processing**:
+```typescript
+import { ContentProcessorWithCleaning } from './src/processors/ContentProcessorWithCleaning';
+import { ProcessingOptionsWithCleaning } from './src/processors/ContentProcessorWithCleaning';
+
+const options: ProcessingOptionsWithCleaning = {
+  textCleaning: {
+    enabled: true,
+    autoSelect: true,  // Auto-select cleaners based on content type
+    cleanerNames: ['sanitize-html', 'xss', 'voca'],  // Or specify cleaners
+    preserveOriginal: true,  // Keep original text
+    storeMetadata: true,  // Store cleaning statistics
+    format: TextFormat.HTML  // Override format detection
+  }
+};
+
+const result = await processor.process(content, ContentType.HTML, options);
+```
+
+2. **Implementation pattern (Decorator Pattern)**:
+```typescript
+// The system uses decorator pattern to add cleaning to existing processors
+class ContentProcessorWithCleaning implements IContentProcessor {
+  constructor(
+    private baseProcessor: IContentProcessor,
+    private cleaningOrchestrator: TextCleaningOrchestrator
+  ) {}
+
+  async process(
+    content: Buffer | string,
+    contentType: ContentType,
+    options?: ProcessingOptionsWithCleaning
+  ): Promise<ProcessedContentWithCleaning> {
+    // First process with base processor
+    const baseResult = await this.baseProcessor.process(content, contentType, options);
+
+    // Then apply text cleaning if enabled
+    if (options?.textCleaning?.enabled) {
+      const cleaningResult = await this.cleaningOrchestrator.cleanAuto(
+        baseResult.text,
+        this.mapContentTypeToTextFormat(contentType),
+        options.textCleaning.url
+      );
+
+      return {
+        ...baseResult,
+        text: cleaningResult.finalText,
+        cleaningResult,
+        originalText: options.textCleaning.preserveOriginal ? baseResult.text : undefined
+      };
+    }
+
+    return baseResult;
+  }
+}
+```
+
+3. **Adding a new text cleaner**:
+```typescript
+import { BaseTextCleaner } from './src/cleaners/BaseTextCleaner';
+import { ITextCleaningResult, TextFormat, ITextCleanerConfig } from './src/interfaces/ITextCleaner';
+
+export class CustomCleaner extends BaseTextCleaner {
+  constructor() {
+    super(
+      'custom-cleaner',
+      'Custom text cleaning operations',
+      [TextFormat.HTML, TextFormat.PLAIN_TEXT],
+      {
+        enabled: true,
+        priority: 50,
+        options: {
+          // Custom default options
+        }
+      }
+    );
+  }
+
+  protected async performCleaning(
+    input: string,
+    config: ITextCleanerConfig
+  ): Promise<ITextCleaningResult> {
+    const startTime = Date.now();
+    let cleanedText = input;
+    const statistics: any = {};
+
+    // Your cleaning logic here
+    // Example: Remove specific patterns
+    const patternRegex = /\[AD\].*?\[\/AD\]/g;
+    const matches = cleanedText.match(patternRegex);
+    if (matches) {
+      statistics.adsRemoved = matches.length;
+      cleanedText = cleanedText.replace(patternRegex, '');
+    }
+
+    return this.createResult(input, cleanedText, config, statistics, Date.now() - startTime);
+  }
+
+  canClean(input: string, format: TextFormat): boolean {
+    // Check if this cleaner can handle the input
+    return this.supportedFormats.includes(format) && input.length > 0;
+  }
+
+  validateConfig(config: ITextCleanerConfig): IConfigValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Validate custom options
+    if (config.options?.customOption && typeof config.options.customOption !== 'string') {
+      errors.push('customOption must be a string');
+    }
+
+    return { valid: errors.length === 0, errors, warnings };
+  }
+}
+```
+
+4. **Register and use the custom cleaner**:
+```typescript
+import { TextCleanerRegistry } from './src/cleaners/TextCleanerRegistry';
+
+const registry = TextCleanerRegistry.getInstance();
+registry.register(new CustomCleaner());
+
+// Use in orchestrator
+const orchestrator = new TextCleaningOrchestrator(registry, configManager);
+const result = await orchestrator.cleanWithCleaners(
+  text,
+  ['custom-cleaner', 'voca'],
+  TextFormat.HTML
+);
+```
+
+5. **Configure cleaners per URL**:
+```typescript
+const configManager = new TextCleanerConfigManager();
+
+// Set configuration for specific URL
+await configManager.setUrlConfig(
+  'https://example.com/page',
+  'sanitize-html',
+  {
+    enabled: true,
+    priority: 100,
+    options: {
+      allowedTags: ['p', 'h1', 'h2', 'a'],
+      allowedAttributes: {
+        'a': ['href']
+      }
+    }
+  }
+);
+
+// Apply template to URL patterns
+await configManager.applyConfigTemplate(
+  '*.blog.com/*',  // Pattern
+  'readability',
+  {
+    enabled: true,
+    options: {
+      extractMainContent: true,
+      removeAds: true
+    }
+  }
+);
+```
+
+6. **Key features**:
+- **Chain Processing**: Sequential text processing through multiple cleaners
+- **Format Detection**: Automatic format detection and cleaner selection
+- **Per-URL Config**: Individual cleaner configuration per URL
+- **Batch Configuration**: Configure multiple URLs at once
+- **Statistics Tracking**: Track what was removed/modified
+- **Preserve Original**: Option to keep original text alongside cleaned
+- **Error Resilience**: Continues processing even if one cleaner fails
+
+7. **Available cleaners**:
+- **SanitizeHtmlCleaner**: Remove dangerous HTML elements and attributes
+- **XssCleaner**: Prevent XSS attacks by filtering malicious content
+- **VocaCleaner**: Text normalization and manipulation
+- **StringJsCleaner**: Advanced string operations
+- **RemarkCleaner**: Markdown processing and cleaning
+- **ReadabilityCleaner**: Extract main content from web pages
 
 ### Adding File Tracking to Components
 

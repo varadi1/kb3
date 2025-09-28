@@ -45,6 +45,7 @@
 | interfaces | `src/interfaces/IFileStorage.ts` | — | — | File storage interfaces and types | — | — |
 | interfaces | `src/interfaces/IKnowledgeStore.ts` | — | — | Knowledge store interfaces and types | — | — |
 | interfaces | `src/interfaces/IContentProcessor.ts` | — | — | Processor interfaces and types | — | — |
+| interfaces | `src/interfaces/ITextCleaner.ts` | — | — | Text cleaner interfaces and types | — | — |
 | interfaces | `src/interfaces/IUrlRepository.ts` | — | — | URL repository interfaces and types | — | — |
 | interfaces | `src/interfaces/ITag.ts` | — | — | Tag interfaces and types for URL organization | — | — |
 | interfaces | `src/interfaces/ITagManager.ts` | — | — | Tag management interfaces | — | — |
@@ -61,7 +62,19 @@
 | processors | `src/processors/DocumentProcessor.ts` | `DocumentProcessor` | — | Processes modern Office docs | — | — |
 | processors | `src/processors/SpreadsheetProcessor.ts` | `SpreadsheetProcessor` | — | Processes spreadsheets | — | — |
 | processors | `src/processors/ProcessorRegistry.ts` | `ProcessorRegistry` | — | Manages processors and fallback | — | — |
+| processors | `src/processors/ContentProcessorWithCleaning.ts` | `ContentProcessorWithCleaning` | — | Decorator that adds text cleaning to content processors | content: Buffer \| string, contentType: ContentType, options?: ProcessingOptionsWithCleaning | ProcessedContentWithCleaning |
 | processors | `src/processors/index.ts` | — | - `createDefaultProcessorRegistry` | Create registry with standard processors and fallback | none | ProcessorRegistry |
+| cleaners | `src/cleaners/BaseTextCleaner.ts` | `BaseTextCleaner` (abstract) | — | Abstract base for text cleaners with common functionality | — | — |
+| cleaners | `src/cleaners/SanitizeHtmlCleaner.ts` | `SanitizeHtmlCleaner` | — | Removes dangerous HTML elements and attributes | input: string, config?: ITextCleanerConfig | ITextCleaningResult |
+| cleaners | `src/cleaners/XssCleaner.ts` | `XssCleaner` | — | Prevents XSS attacks by filtering malicious content | input: string, config?: ITextCleanerConfig | ITextCleaningResult |
+| cleaners | `src/cleaners/VocaCleaner.ts` | `VocaCleaner` | — | Text normalization and manipulation (whitespace, case) | input: string, config?: ITextCleanerConfig | ITextCleaningResult |
+| cleaners | `src/cleaners/StringJsCleaner.ts` | `StringJsCleaner` | — | Advanced string operations (HTML stripping, entity decoding) | input: string, config?: ITextCleanerConfig | ITextCleaningResult |
+| cleaners | `src/cleaners/RemarkCleaner.ts` | `RemarkCleaner` | — | Markdown processing and cleaning | input: string, config?: ITextCleanerConfig | ITextCleaningResult |
+| cleaners | `src/cleaners/ReadabilityCleaner.ts` | `ReadabilityCleaner` | — | Extract main content from web pages | input: string, config?: ITextCleanerConfig | ITextCleaningResult |
+| cleaners | `src/cleaners/TextCleanerRegistry.ts` | `TextCleanerRegistry` | — | Singleton registry for managing text cleaners | — | — |
+| cleaners | `src/cleaners/TextCleanerChain.ts` | `TextCleanerChain` | — | Sequential text processing through multiple cleaners | input: string, format: TextFormat | IChainResult |
+| cleaners | `src/cleaners/TextCleanerConfigManager.ts` | `TextCleanerConfigManager` | — | Manages per-URL cleaner configurations | url: string, cleanerName: string, config: ITextCleanerConfig | Promise<void> |
+| cleaners | `src/cleaners/TextCleaningOrchestrator.ts` | `TextCleaningOrchestrator` | — | Coordinates text cleaning operations and cleaner selection | text: string, format: TextFormat, url?: string | IChainResult |
 | storage | `src/storage/BaseKnowledgeStore.ts` | `BaseKnowledgeStore` (abstract) | — | Abstract base for knowledge stores | — | — |
 | storage | `src/storage/MemoryKnowledgeStore.ts` | `MemoryKnowledgeStore` | — | In-memory store for entries (dev/test) | — | — |
 | storage | `src/storage/FileKnowledgeStore.ts` | `FileKnowledgeStore` | — | File-based persistent knowledge store | — | — |
@@ -265,4 +278,251 @@ await kb.processUrlsWithTags([
 // Batch process by tag
 await kb.processUrlsByTags(['technical'], { includeChildTags: true });
 ```
+
+## Text Cleaning System Architecture
+
+The text cleaning system provides comprehensive content sanitization and normalization through a flexible, extensible architecture:
+
+### Core Components
+
+1. **BaseTextCleaner** (`src/cleaners/BaseTextCleaner.ts`)
+   - Abstract base class providing common functionality for all cleaners
+   - Handles configuration management, validation, and result creation
+   - Ensures consistent interface implementation across all cleaners
+
+2. **TextCleanerRegistry** (`src/cleaners/TextCleanerRegistry.ts`)
+   - Singleton registry for managing all available text cleaners
+   - Provides discovery of cleaners by name or format support
+   - Initializes default cleaners automatically
+   - Methods:
+     - `register(cleaner)`: Register a new cleaner
+     - `getCleaner(name)`: Get cleaner by name
+     - `getCleanersForFormat(format)`: Get cleaners supporting a format
+     - `initializeDefaultCleaners()`: Set up built-in cleaners
+
+3. **TextCleanerChain** (`src/cleaners/TextCleanerChain.ts`)
+   - Implements Chain of Responsibility pattern for sequential processing
+   - Processes text through multiple cleaners in priority order
+   - Collects results from each stage for analysis
+   - Methods:
+     - `addCleaner(cleaner, config)`: Add cleaner to chain
+     - `process(text, format)`: Process through entire chain
+     - `clear()`: Remove all cleaners from chain
+
+4. **TextCleanerConfigManager** (`src/cleaners/TextCleanerConfigManager.ts`)
+   - Manages per-URL cleaner configurations
+   - Stores configurations in memory (can be extended for persistence)
+   - Supports batch configuration and pattern-based templates
+   - Methods:
+     - `setUrlConfig(url, cleanerName, config)`: Set URL-specific config
+     - `batchSetConfig(urls, cleanerName, config)`: Configure multiple URLs
+     - `applyConfigTemplate(pattern, cleanerName, config)`: Apply to pattern
+
+5. **TextCleaningOrchestrator** (`src/cleaners/TextCleaningOrchestrator.ts`)
+   - High-level coordinator for cleaning operations
+   - Manages cleaner selection based on format and configuration
+   - Integrates registry, chain, and config manager
+   - Methods:
+     - `cleanAuto(text, format, url?)`: Auto-select cleaners
+     - `cleanWithCleaners(text, cleanerNames, format, url?)`: Use specific cleaners
+     - `configureForUrl(url, configs)`: Configure cleaners for URL
+
+6. **ContentProcessorWithCleaning** (`src/processors/ContentProcessorWithCleaning.ts`)
+   - Decorator pattern implementation
+   - Wraps existing content processors with cleaning capabilities
+   - Preserves SOLID principles through composition
+   - Features:
+     - Optional cleaning based on configuration
+     - Format detection and mapping
+     - Original text preservation
+     - Metadata tracking
+
+### Available Cleaners
+
+#### SanitizeHtmlCleaner
+- **Purpose**: Remove dangerous HTML elements and sanitize markup
+- **Features**:
+  - Removes script tags, style tags, comments
+  - Sanitizes attributes, removes event handlers
+  - Configurable allowed tags and attributes
+  - Multiple disallowed tags modes (discard, escape)
+- **Configuration Options**:
+  ```typescript
+  {
+    allowedTags: ['p', 'h1', 'h2', 'h3', 'ul', 'li', 'a'],
+    allowedAttributes: {
+      'a': ['href', 'title']
+    },
+    disallowedTagsMode: 'discard' | 'escape',
+    allowedSchemes: ['http', 'https', 'mailto'],
+    allowedClasses: {},
+    transformTags: {}
+  }
+  ```
+
+#### XssCleaner
+- **Purpose**: Prevent XSS attacks through content filtering
+- **Features**:
+  - Removes JavaScript URIs and protocols
+  - Filters dangerous attributes (onclick, onerror, etc.)
+  - Escapes special characters
+  - Whitelist-based attribute filtering
+- **Configuration Options**:
+  ```typescript
+  {
+    whiteList: {
+      a: ['href', 'title'],
+      p: [],
+      div: ['class']
+    },
+    stripIgnoreTag: true,
+    stripIgnoreTagBody: false,
+    escapeHtml: function(html) { return escaped; }
+  }
+  ```
+
+#### VocaCleaner
+- **Purpose**: Text normalization and manipulation
+- **Features**:
+  - Whitespace trimming and normalization
+  - Control character removal
+  - Case conversion (lower, upper, camel, etc.)
+  - Character limit enforcement
+- **Configuration Options**:
+  ```typescript
+  {
+    trimWhitespace: true,
+    normalizeWhitespace: true,
+    removeControlCharacters: true,
+    convertCase: 'lower' | 'upper' | 'camel' | 'kebab' | 'snake',
+    maxLength: 10000
+  }
+  ```
+
+#### StringJsCleaner
+- **Purpose**: Advanced string operations
+- **Features**:
+  - HTML tag stripping
+  - HTML entity decoding
+  - Diacritic removal
+  - Special character cleaning
+- **Configuration Options**:
+  ```typescript
+  {
+    stripHtml: true,
+    decodeHtmlEntities: true,
+    removeDiacritics: true,
+    removeSpecialCharacters: true,
+    preserveLinks: false
+  }
+  ```
+
+#### RemarkCleaner
+- **Purpose**: Markdown processing and cleaning
+- **Features**:
+  - Parse and clean Markdown syntax
+  - Remove or modify specific elements
+  - Format conversion
+  - Link simplification
+- **Configuration Options**:
+  ```typescript
+  {
+    removeImages: false,
+    simplifyLinks: true,
+    removeCodeBlocks: false,
+    removeBlockquotes: false,
+    stripFormatting: false
+  }
+  ```
+
+#### ReadabilityCleaner
+- **Purpose**: Extract main content from web pages
+- **Features**:
+  - Remove ads, navigation, sidebars
+  - Preserve article structure
+  - Extract metadata (title, author, date)
+  - Content scoring algorithm
+- **Configuration Options**:
+  ```typescript
+  {
+    extractMainContent: true,
+    removeAds: true,
+    preserveImages: true,
+    minTextLength: 100,
+    minScore: 20
+  }
+  ```
+
+### Text Cleaning Flow
+
+```
+Input Text → Format Detection → Cleaner Selection → Chain Processing → Result
+                                        ↓
+                                Per-URL Config
+```
+
+1. **Input Processing**: Text from content processor
+2. **Format Detection**: Determine text format (HTML, Markdown, Plain)
+3. **Cleaner Selection**:
+   - Auto-select based on format
+   - Or use specified cleaners
+   - Apply per-URL configuration
+4. **Chain Processing**: Sequential processing through cleaners
+5. **Result Generation**: Cleaned text with metadata
+
+### Configuration Hierarchy
+
+1. **Default Configuration**: Built into each cleaner
+2. **Registry Configuration**: Set when registering cleaner
+3. **URL-Specific Configuration**: Per-URL overrides
+4. **Runtime Configuration**: Passed during processing
+
+Priority: Runtime > URL-Specific > Registry > Default
+
+### Integration Points
+
+#### With Content Processing
+```typescript
+const processor = new ContentProcessorWithCleaning(baseProcessor);
+const result = await processor.process(content, contentType, {
+  textCleaning: {
+    enabled: true,
+    autoSelect: true,
+    preserveOriginal: true
+  }
+});
+```
+
+#### With Knowledge Base
+```typescript
+const kb = KnowledgeBaseFactory.createKnowledgeBase(config);
+const result = await kb.processUrl(url, {
+  textCleaning: {
+    enabled: true,
+    cleanerNames: ['sanitize-html', 'xss']
+  }
+});
+```
+
+#### Standalone Usage
+```typescript
+const orchestrator = new TextCleaningOrchestrator(registry, configManager);
+const result = await orchestrator.cleanAuto(htmlText, TextFormat.HTML);
+```
+
+### SOLID Compliance
+
+- **Single Responsibility**: Each cleaner has one specific cleaning task
+- **Open/Closed**: New cleaners can be added without modifying existing code
+- **Liskov Substitution**: All cleaners implement ITextCleaner consistently
+- **Interface Segregation**: Focused interfaces for different concerns
+- **Dependency Inversion**: Depends on abstractions (ITextCleaner interface)
+
+### Testing Coverage
+
+- **Unit Tests**: Each cleaner tested individually
+- **Integration Tests**: Chain processing and orchestration tests
+- **Format Tests**: Format-specific cleaning scenarios
+- **Configuration Tests**: Per-URL and batch configuration
+- **Error Handling Tests**: Graceful failure scenarios
 
