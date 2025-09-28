@@ -329,7 +329,7 @@ describe('SQL Storage SOLID Compliance', () => {
       expect(store.search(criteria)).toBeDefined();
     });
 
-    test('Factory creates instances through dependency injection', () => {
+    test('Factory creates instances through dependency injection', async () => {
       // Factory should inject dependencies rather than having components create them
       const { KnowledgeBaseFactory } = require('../../src/factory/KnowledgeBaseFactory');
       const { createSqlConfiguration } = require('../../src/config');
@@ -344,7 +344,7 @@ describe('SQL Storage SOLID Compliance', () => {
         }
       });
 
-      const orchestrator = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const orchestrator = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       // Orchestrator should receive injected dependencies
       expect(orchestrator).toBeDefined();

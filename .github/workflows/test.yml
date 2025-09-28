@@ -1,0 +1,199 @@
+name: Test Suite
+
+# Database Configuration:
+# This workflow now uses unified storage by default (KB3_UNIFIED_DB=true)
+# which consolidates all data into a single SQLite database for:
+# - Simpler CI/CD setup (no multiple DB initialization)
+# - Better test isolation and cleanup
+# - Consistent foreign key relationships
+# - Easier backup/restore in test environments
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Main test job - always runs
+  test-main:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run linter
+      run: npm run lint
+
+    - name: Run main test suite
+      run: npm test
+      env:
+        KB3_UNIFIED_DB: true
+
+    - name: Run contract tests
+      run: npm run test:contracts
+      env:
+        KB3_UNIFIED_DB: true
+
+    - name: Run unified storage tests
+      run: npm test -- UnifiedSqlStorage.test.ts
+      env:
+        KB3_UNIFIED_DB: true
+
+    - name: Generate coverage report
+      run: npm run test:coverage
+      env:
+        KB3_UNIFIED_DB: true
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      if: matrix.node-version == '20.x'
+      with:
+        file: ./coverage/lcov.info
+        fail_ci_if_error: false
+
+  # Python E2E tests - optional, runs only if Python files changed
+  test-python:
+    runs-on: ubuntu-latest
+
+    # Only run if Python files or test files changed
+    if: |
+      contains(github.event.head_commit.message, '[python]') ||
+      github.event_name == 'pull_request'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Check for Python file changes
+      id: python-changes
+      uses: dorny/paths-filter@v2
+      with:
+        filters: |
+          python:
+            - 'src/scrapers/python_wrappers/**'
+            - 'tests/e2e/**'
+            - 'requirements.txt'
+
+    - name: Use Node.js 20.x
+      if: steps.python-changes.outputs.python == 'true'
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Set up Python 3.11
+      if: steps.python-changes.outputs.python == 'true'
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install Node dependencies
+      if: steps.python-changes.outputs.python == 'true'
+      run: npm ci
+
+    - name: Create virtual environment
+      if: steps.python-changes.outputs.python == 'true'
+      run: |
+        python -m venv .venv
+        echo "VIRTUAL_ENV=$PWD/.venv" >> $GITHUB_ENV
+        echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+    - name: Install Python dependencies
+      if: steps.python-changes.outputs.python == 'true'
+      run: |
+        source .venv/bin/activate
+        pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Install Playwright browsers
+      if: steps.python-changes.outputs.python == 'true'
+      run: |
+        source .venv/bin/activate
+        python -m playwright install chromium
+
+    - name: Verify Python environment
+      if: steps.python-changes.outputs.python == 'true'
+      run: npm run verify:python
+
+    - name: Run Python E2E tests
+      if: steps.python-changes.outputs.python == 'true'
+      run: npm run test:e2e:python
+      env:
+        PYTHONPATH: ${{ github.workspace }}
+
+    - name: Run scraper verification
+      if: steps.python-changes.outputs.python == 'true'
+      run: npm run verify:scrapers
+      continue-on-error: true
+
+  # Quick contract validation - always runs, fast
+  validate-contracts:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Validate mock contracts
+      run: npm run test:contracts -- --testNamePattern="Mock Response Contract Validation"
+
+  # Optional: Full E2E test on schedule
+  scheduled-e2e:
+    runs-on: ubuntu-latest
+
+    # Run daily at 2 AM UTC
+    if: github.event_name == 'schedule'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install all dependencies
+      run: |
+        npm ci
+        python -m venv .venv
+        source .venv/bin/activate
+        pip install -r requirements.txt
+        python -m playwright install
+
+    - name: Run full E2E test suite
+      run: |
+        source .venv/bin/activate
+        npm run test:all:python
+
+# Schedule for daily E2E tests
+schedule:
+  - cron: '0 2 * * *'

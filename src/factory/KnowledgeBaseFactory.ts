@@ -37,6 +37,8 @@ import { FileStorageWithTracking } from '../storage/FileStorageWithTracking';
 import { IUrlRepository } from '../interfaces/IUrlRepository';
 import { IContentChangeDetector } from '../interfaces/IContentChangeDetector';
 import { ContentChangeDetector } from '../detectors/ContentChangeDetector';
+import { UnifiedSqlStorage } from '../storage/UnifiedSqlStorage';
+import { DatabaseMigration } from '../storage/DatabaseMigration';
 import * as path from 'path';
 
 /**
@@ -75,10 +77,108 @@ export class KnowledgeBaseFactory {
   /**
    * Creates a fully configured knowledge base orchestrator with all features
    * Now includes tag support and file tracking by default
+   * Supports unified storage for simpler database management
    * @param config System configuration
    * @returns Configured orchestrator with all features
    */
   static async createKnowledgeBase(
+    config: KnowledgeBaseConfigExtended
+  ): Promise<KnowledgeBaseWithFullFeatures> {
+    // Check if unified storage is enabled
+    if (config.storage.unified?.enabled) {
+      return this.createUnifiedKnowledgeBase(config);
+    }
+
+    // Legacy path - create with separate databases
+    return this.createLegacyKnowledgeBase(config);
+  }
+
+  /**
+   * Creates knowledge base with unified storage (single database)
+   */
+  private static async createUnifiedKnowledgeBase(
+    config: KnowledgeBaseConfigExtended
+  ): Promise<KnowledgeBaseWithFullFeatures> {
+    // Perform auto-migration if configured
+    if (config.storage.unified?.autoMigrate) {
+      await this.performAutoMigration(config);
+    }
+
+    // Initialize unified storage
+    const unifiedStorage = new UnifiedSqlStorage({
+      dbPath: config.storage.unified!.dbPath,
+      enableWAL: config.storage.unified!.enableWAL ?? true,
+      enableForeignKeys: config.storage.unified!.enableForeignKeys ?? true,
+      backupEnabled: config.storage.unified!.backupEnabled ?? false
+    });
+    await unifiedStorage.initialize();
+
+    // Get repositories from unified storage
+    const repositories = unifiedStorage.getRepositories();
+
+    // Create base components
+    const urlDetector = this.createUrlDetector(config);
+    const contentFetcher = this.createContentFetcher(config);
+    const contentProcessor = this.createContentProcessor(config);
+
+    // Create file storage with tracking
+    const baseFileStorage = this.createFileStorage(config);
+    const fileStorage = new FileStorageWithTracking(
+      baseFileStorage,
+      repositories.originalFileRepository
+    );
+
+    // Create content change detector
+    const contentChangeDetector = new ContentChangeDetector(repositories.urlRepository);
+
+    // Create orchestrator with unified repositories
+    const orchestrator = new KnowledgeBaseOrchestrator(
+      urlDetector,
+      contentFetcher,
+      contentProcessor,
+      repositories.knowledgeStore,
+      fileStorage,
+      repositories.urlRepository as any,  // Cast to match expected type
+      contentChangeDetector,
+      repositories.originalFileRepository
+    );
+
+    return orchestrator as KnowledgeBaseWithFullFeatures;
+  }
+
+  /**
+   * Perform automatic migration from multiple databases to unified
+   */
+  private static async performAutoMigration(config: KnowledgeBaseConfigExtended): Promise<void> {
+    const migration = new DatabaseMigration({
+      knowledgeDbPath: config.storage.knowledgeStore.dbPath,
+      urlsDbPath: config.storage.urlRepositoryPath || config.storage.knowledgeStore.urlDbPath,
+      originalFilesDbPath: config.storage.originalFileStore?.path,
+      targetDbPath: config.storage.unified!.dbPath,
+      backupOriginal: config.storage.unified!.migrationOptions?.backupOriginal ?? true,
+      deleteOriginalAfterSuccess: config.storage.unified!.migrationOptions?.deleteOriginalAfterSuccess ?? false,
+      verbose: config.logging.level === 'debug'
+    });
+
+    const result = await migration.migrate();
+    if (!result.success) {
+      throw new Error(`Migration failed: ${result.errors.join(', ')}`);
+    }
+
+    if (config.logging.level === 'info' || config.logging.level === 'debug') {
+      console.log(`Migration completed successfully. Migrated:
+        - URLs: ${result.migratedTables.urls}
+        - Tags: ${result.migratedTables.tags}
+        - URL-Tags: ${result.migratedTables.urlTags}
+        - Knowledge Entries: ${result.migratedTables.knowledgeEntries}
+        - Original Files: ${result.migratedTables.originalFiles}`);
+    }
+  }
+
+  /**
+   * Creates knowledge base with legacy storage (multiple databases)
+   */
+  private static async createLegacyKnowledgeBase(
     config: KnowledgeBaseConfigExtended
   ): Promise<KnowledgeBaseWithFullFeatures> {
     // Initialize original file repository (always enabled now)
