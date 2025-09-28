@@ -15,7 +15,9 @@ export { LocalFileStorage } from './LocalFileStorage';
 
 // URL Repository
 export { SqlUrlRepository } from './SqlUrlRepository';
-export { SqlUrlRepositoryWithTags } from './SqlUrlRepositoryWithTags';
+// SqlUrlRepositoryWithTags is now integrated into SqlUrlRepository
+export { SqlUrlRepository as SqlUrlRepositoryWithTags } from './SqlUrlRepository'; // Backward compatibility
+export { UrlMetadataWithTags, UrlRecordWithTags } from './SqlUrlRepository';
 
 // Tag Management
 export { SqlTagManager } from './SqlTagManager';

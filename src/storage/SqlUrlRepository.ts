@@ -16,14 +16,33 @@ import {
   UrlFilter
 } from '../interfaces/IUrlRepository';
 import { ErrorHandler } from '../utils/ErrorHandler';
+import { SqlTagManager } from './SqlTagManager';
+import { SqlUrlTagRepository } from './SqlUrlTagRepository';
+import { IUrlTagRepository } from '../interfaces/IUrlTagRepository';
+import { ITagManager } from '../interfaces/ITagManager';
+import { ITag } from '../interfaces/ITag';
+
+export interface UrlMetadataWithTags extends UrlMetadata {
+  tags?: string[];
+}
+
+export interface UrlRecordWithTags extends UrlRecord {
+  tags?: ITag[];
+}
 
 export class SqlUrlRepository implements IUrlRepository {
   private db: sqlite3.Database | null = null;
   private readonly dbPath: string;
   private initPromise: Promise<void> | null = null;
 
-  constructor(dbPath: string = './data/urls.db') {
+  // Tag support (optional)
+  private tagManager: SqlTagManager | null = null;
+  private urlTagRepository: SqlUrlTagRepository | null = null;
+  private readonly tagsEnabled: boolean;
+
+  constructor(dbPath: string = './data/urls.db', enableTags: boolean = false) {
     this.dbPath = dbPath;
+    this.tagsEnabled = enableTags;
   }
 
   /**
@@ -84,6 +103,11 @@ export class SqlUrlRepository implements IUrlRepository {
       await this.run('CREATE INDEX IF NOT EXISTS idx_status ON urls(status)');
       await this.run('CREATE INDEX IF NOT EXISTS idx_first_seen ON urls(first_seen)');
 
+      // Initialize tag support if enabled
+      if (this.tagsEnabled) {
+        await this.initializeTags();
+      }
+
     } catch (error) {
       throw ErrorHandler.createError(
         'DATABASE_ERROR',
@@ -91,6 +115,37 @@ export class SqlUrlRepository implements IUrlRepository {
         { dbPath: this.dbPath, error }
       );
     }
+  }
+
+  /**
+   * Initialize tag support
+   */
+  private async initializeTags(): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+
+    try {
+      // Initialize tag manager and URL-tag repository
+      this.tagManager = new SqlTagManager(this.db);
+      await this.tagManager.initialize();
+
+      this.urlTagRepository = new SqlUrlTagRepository(this.db, this.tagManager);
+      await this.urlTagRepository.initialize();
+    } catch (error) {
+      throw ErrorHandler.createError(
+        'TAG_INIT_ERROR',
+        'Failed to initialize tag support',
+        { error }
+      );
+    }
+  }
+
+  /**
+   * Initialize repository with tag support (legacy compatibility)
+   */
+  async initializeWithTags(): Promise<void> {
+    await this.initialize();
   }
 
   /**
@@ -460,6 +515,283 @@ export class SqlUrlRepository implements IUrlRepository {
       // If URL parsing fails, just return lowercase version
       return url.toLowerCase();
     }
+  }
+
+  /**
+   * Register a URL with optional tags
+   */
+  async registerWithTags(url: string, metadata?: UrlMetadataWithTags): Promise<string> {
+    try {
+      // Extract tags from metadata
+      const tags = metadata?.tags || [];
+      const metadataWithoutTags = { ...metadata };
+      delete metadataWithoutTags.tags;
+
+      // Register the URL using base method
+      const urlId = await this.register(url, metadataWithoutTags);
+
+      // Add tags if provided and tags are enabled
+      if (tags.length > 0 && this.tagsEnabled && this.tagManager && this.urlTagRepository) {
+        const tagIds = await this.tagManager.ensureTagsExist(tags);
+        await this.urlTagRepository.addTagsToUrl(urlId, tagIds);
+      }
+
+      return urlId;
+    } catch (error) {
+      throw ErrorHandler.createError(
+        'URL_REGISTER_WITH_TAGS_ERROR',
+        'Failed to register URL with tags',
+        { url, metadata, error }
+      );
+    }
+  }
+
+  /**
+   * Get URL info with tags
+   */
+  async getUrlInfoWithTags(url: string): Promise<UrlRecordWithTags | null> {
+    try {
+      const urlInfo = await this.getUrlInfo(url);
+      if (!urlInfo) return null;
+
+      if (this.tagsEnabled && this.urlTagRepository) {
+        const tags = await this.urlTagRepository.getTagsForUrl(urlInfo.id);
+        return {
+          ...urlInfo,
+          tags
+        };
+      }
+
+      return urlInfo;
+    } catch (error) {
+      throw ErrorHandler.createError(
+        'URL_INFO_WITH_TAGS_ERROR',
+        'Failed to get URL info with tags',
+        { url, error }
+      );
+    }
+  }
+
+  /**
+   * Get URLs by tag names
+   */
+  async getUrlsByTags(tagNames: string[], requireAll: boolean = false): Promise<UrlRecordWithTags[]> {
+    if (!this.tagsEnabled || !this.urlTagRepository) {
+      return [];
+    }
+
+    try {
+      const urlIds = await this.urlTagRepository.getUrlsWithTagNames(tagNames, requireAll);
+      const urls: UrlRecordWithTags[] = [];
+
+      for (const urlId of urlIds) {
+        const urlRecord = await this.getUrlById(urlId);
+        if (urlRecord) {
+          const tags = await this.urlTagRepository.getTagsForUrl(urlId);
+          urls.push({
+            ...urlRecord,
+            tags
+          });
+        }
+      }
+
+      return urls;
+    } catch (error) {
+      throw ErrorHandler.createError(
+        'GET_URLS_BY_TAGS_ERROR',
+        'Failed to get URLs by tags',
+        { tagNames, requireAll, error }
+      );
+    }
+  }
+
+  /**
+   * Add tags to an existing URL
+   */
+  async addTagsToUrl(url: string, tagNames: string[]): Promise<boolean> {
+    if (!this.tagsEnabled || !this.tagManager || !this.urlTagRepository) {
+      return false;
+    }
+
+    try {
+      const urlInfo = await this.getUrlInfo(url);
+      if (!urlInfo) {
+        throw ErrorHandler.createError(
+          'URL_NOT_FOUND',
+          'URL not found in repository',
+          { url }
+        );
+      }
+
+      const tagIds = await this.tagManager.ensureTagsExist(tagNames);
+      return await this.urlTagRepository.addTagsToUrl(urlInfo.id, tagIds);
+    } catch (error) {
+      throw ErrorHandler.createError(
+        'ADD_TAGS_TO_URL_ERROR',
+        'Failed to add tags to URL',
+        { url, tagNames, error }
+      );
+    }
+  }
+
+  /**
+   * Remove tags from an existing URL
+   */
+  async removeTagsFromUrl(url: string, tagNames: string[]): Promise<boolean> {
+    if (!this.tagsEnabled || !this.tagManager || !this.urlTagRepository) {
+      return false;
+    }
+
+    try {
+      const urlInfo = await this.getUrlInfo(url);
+      if (!urlInfo) {
+        throw ErrorHandler.createError(
+          'URL_NOT_FOUND',
+          'URL not found in repository',
+          { url }
+        );
+      }
+
+      const tagIds: string[] = [];
+      for (const name of tagNames) {
+        const tag = await this.tagManager.getTagByName(name);
+        if (tag) {
+          tagIds.push(tag.id);
+        }
+      }
+
+      return await this.urlTagRepository.removeTagsFromUrl(urlInfo.id, tagIds);
+    } catch (error) {
+      throw ErrorHandler.createError(
+        'REMOVE_TAGS_FROM_URL_ERROR',
+        'Failed to remove tags from URL',
+        { url, tagNames, error }
+      );
+    }
+  }
+
+  /**
+   * Set tags for a URL (replaces existing tags)
+   */
+  async setUrlTags(url: string, tagNames: string[]): Promise<boolean> {
+    if (!this.tagsEnabled || !this.tagManager || !this.urlTagRepository) {
+      return false;
+    }
+
+    try {
+      const urlInfo = await this.getUrlInfo(url);
+      if (!urlInfo) {
+        throw ErrorHandler.createError(
+          'URL_NOT_FOUND',
+          'URL not found in repository',
+          { url }
+        );
+      }
+
+      const tagIds = await this.tagManager.ensureTagsExist(tagNames);
+      return await this.urlTagRepository.setTagsForUrl(urlInfo.id, tagIds);
+    } catch (error) {
+      throw ErrorHandler.createError(
+        'SET_URL_TAGS_ERROR',
+        'Failed to set URL tags',
+        { url, tagNames, error }
+      );
+    }
+  }
+
+  /**
+   * Get tags for a URL
+   */
+  async getUrlTags(url: string): Promise<ITag[]> {
+    if (!this.tagsEnabled || !this.urlTagRepository) {
+      return [];
+    }
+
+    try {
+      const urlInfo = await this.getUrlInfo(url);
+      if (!urlInfo) {
+        return [];
+      }
+
+      return await this.urlTagRepository.getTagsForUrl(urlInfo.id);
+    } catch (error) {
+      throw ErrorHandler.createError(
+        'GET_URL_TAGS_ERROR',
+        'Failed to get URL tags',
+        { url, error }
+      );
+    }
+  }
+
+  /**
+   * Batch register URLs with tags
+   */
+  async batchRegisterWithTags(
+    urlsWithTags: Array<{ url: string; tags?: string[]; metadata?: UrlMetadata }>
+  ): Promise<string[]> {
+    try {
+      const urlIds: string[] = [];
+
+      for (const item of urlsWithTags) {
+        const metadata: UrlMetadataWithTags = {
+          ...item.metadata,
+          tags: item.tags
+        };
+        const urlId = await this.registerWithTags(item.url, metadata);
+        urlIds.push(urlId);
+      }
+
+      return urlIds;
+    } catch (error) {
+      throw ErrorHandler.createError(
+        'BATCH_REGISTER_WITH_TAGS_ERROR',
+        'Failed to batch register URLs with tags',
+        { urlsWithTags, error }
+      );
+    }
+  }
+
+  /**
+   * Get URL record by ID (helper method)
+   */
+  private async getUrlById(id: string): Promise<UrlRecord | null> {
+    try {
+      const row = await this.get<any>(
+        'SELECT * FROM urls WHERE id = ?',
+        [id]
+      );
+
+      if (!row) return null;
+
+      return this.rowToRecord(row);
+    } catch (error) {
+      throw ErrorHandler.createError(
+        'GET_URL_BY_ID_ERROR',
+        'Failed to get URL by ID',
+        { id, error }
+      );
+    }
+  }
+
+  /**
+   * Get tag manager for external use
+   */
+  getTagManager(): ITagManager | null {
+    return this.tagManager;
+  }
+
+  /**
+   * Get URL-tag repository for external use
+   */
+  getUrlTagRepository(): IUrlTagRepository | null {
+    return this.urlTagRepository;
+  }
+
+  /**
+   * Check if tags are enabled
+   */
+  areTagsEnabled(): boolean {
+    return this.tagsEnabled;
   }
 
   /**

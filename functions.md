@@ -211,7 +211,7 @@ constructor(
   contentProcessor: IContentProcessor,
   knowledgeStore: IKnowledgeStore,
   fileStorage: IFileStorage,
-  urlRepository?: SqlUrlRepositoryWithTags,
+  urlRepository?: SqlUrlRepository,
   contentChangeDetector?: IContentChangeDetector
 )
 ```
@@ -554,9 +554,9 @@ async urlHasTag(urlId: string, tagId: string): Promise<boolean>
 async getUrlsWithTagNames(tagNames: string[], requireAll?: boolean): Promise<string[]>
 ```
 
-### SqlUrlRepositoryWithTags
+### SqlUrlRepository
 
-Enhanced URL repository with tag support.
+URL repository with integrated tag support (enabled via constructor parameter).
 
 #### Methods
 

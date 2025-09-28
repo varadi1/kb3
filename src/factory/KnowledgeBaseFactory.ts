@@ -31,7 +31,7 @@ import {
   LocalFileStorage
 } from '../storage';
 import { SqlKnowledgeStore } from '../storage/SqlKnowledgeStore';
-import { SqlUrlRepositoryWithTags } from '../storage/SqlUrlRepositoryWithTags';
+import { SqlUrlRepository } from '../storage/SqlUrlRepository';
 import { SqlOriginalFileRepository } from '../storage/SqlOriginalFileRepository';
 import { FileStorageWithTracking } from '../storage/FileStorageWithTracking';
 import { IUrlRepository } from '../interfaces/IUrlRepository';
@@ -342,7 +342,7 @@ export class KnowledgeBaseFactory {
    */
   private static async createUrlRepositoryWithTags(
     config: KnowledgeBaseConfigExtended
-  ): Promise<SqlUrlRepositoryWithTags | undefined> {
+  ): Promise<SqlUrlRepository | undefined> {
     // Always create URL repository with tags when using SQL storage or URL tracking is enabled
     if (config.storage.knowledgeStore.type === 'sql' ||
         config.storage.enableDuplicateDetection ||
@@ -353,8 +353,8 @@ export class KnowledgeBaseFactory {
                     config.storage.knowledgeStore.urlDbPath ||
                     './data/urls.db';
 
-      const repository = new SqlUrlRepositoryWithTags(dbPath);
-      await repository.initializeWithTags();
+      const repository = new SqlUrlRepository(dbPath, true); // Enable tags
+      await repository.initializeWithTags(); // Legacy compatibility method
       return repository;
     }
 

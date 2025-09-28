@@ -22,7 +22,7 @@ import { IFileStorage } from '../interfaces/IFileStorage';
 import { IUrlRepository, UrlStatus } from '../interfaces/IUrlRepository';
 import { IContentChangeDetector } from '../interfaces/IContentChangeDetector';
 import { IOriginalFileRepository, OriginalFileInfo } from '../interfaces/IOriginalFileRepository';
-import { SqlUrlRepositoryWithTags, UrlMetadataWithTags } from '../storage/SqlUrlRepositoryWithTags';
+import { SqlUrlRepository, UrlMetadataWithTags } from '../storage/SqlUrlRepository';
 import { ITag } from '../interfaces/ITag';
 import { ErrorHandler } from '../utils/ErrorHandler';
 import * as crypto from 'crypto';
@@ -54,7 +54,7 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
 
   // Optional features
   private readonly originalFileRepository?: IOriginalFileRepository;
-  private urlRepositoryWithTags?: SqlUrlRepositoryWithTags;
+  private urlRepositoryWithTags?: SqlUrlRepository;
 
   // Processing state tracking
   private readonly currentOperations: Map<string, CurrentOperation> = new Map();
@@ -85,7 +85,7 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
 
     // Check if URL repository has tag support
     if (urlRepository && 'getTagManager' in urlRepository) {
-      this.urlRepositoryWithTags = urlRepository as SqlUrlRepositoryWithTags;
+      this.urlRepositoryWithTags = urlRepository as SqlUrlRepository;
     }
   }
 
@@ -999,6 +999,9 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
       // If including child tags, get URLs with child tags too
       if (options.includeChildTags) {
         const tagManager = this.urlRepositoryWithTags.getTagManager();
+        if (!tagManager) {
+          throw new Error('Tag manager not available');
+        }
         const allTagNames = new Set(tagNames);
 
         // Get child tags for each specified tag
@@ -1105,6 +1108,9 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
     }
 
     const tagManager = this.urlRepositoryWithTags.getTagManager();
+    if (!tagManager) {
+      throw new Error('Tag manager not available');
+    }
 
     let parentId: string | undefined;
     if (parentName) {
@@ -1135,6 +1141,9 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
     }
 
     const tagManager = this.urlRepositoryWithTags.getTagManager();
+    if (!tagManager) {
+      throw new Error('Tag manager not available');
+    }
     return await tagManager.listTags();
   }
 
@@ -1151,6 +1160,9 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
     }
 
     const tagManager = this.urlRepositoryWithTags.getTagManager();
+    if (!tagManager) {
+      throw new Error('Tag manager not available');
+    }
     const tag = await tagManager.getTagByName(tagName);
 
     if (!tag) {
@@ -1173,6 +1185,9 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
     }
 
     const tagManager = this.urlRepositoryWithTags.getTagManager();
+    if (!tagManager) {
+      throw new Error('Tag manager not available');
+    }
     const tag = await tagManager.getTagByName(tagName);
 
     if (!tag) {

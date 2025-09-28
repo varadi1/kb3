@@ -5,7 +5,7 @@
 
 import { KnowledgeBaseOrchestrator } from '../../src/orchestrator/KnowledgeBaseOrchestrator';
 import { KnowledgeBaseFactoryWithTags } from '../../src/factory/KnowledgeBaseFactory';
-import { SqlUrlRepositoryWithTags } from '../../src/storage/SqlUrlRepositoryWithTags';
+import { SqlUrlRepository } from '../../src/storage/SqlUrlRepository';
 import { createDefaultConfiguration } from '../../src/config/Configuration';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -14,7 +14,7 @@ import * as os from 'os';
 describe('Tag Support - Integration Tests', () => {
   let kb: KnowledgeBaseOrchestrator;
   let testDataPath: string;
-  let urlRepository: SqlUrlRepositoryWithTags;
+  let urlRepository: SqlUrlRepository;
 
   beforeEach(async () => {
     // Create a unique test directory for each test
@@ -48,7 +48,7 @@ describe('Tag Support - Integration Tests', () => {
     });
 
     // Get URL repository for direct testing
-    urlRepository = (kb as any).urlRepository as SqlUrlRepositoryWithTags;
+    urlRepository = (kb as any).urlRepository as SqlUrlRepository;
 
     // Initialize the repository with tags
     if (urlRepository) {
@@ -403,14 +403,16 @@ describe('Tag Support - Integration Tests', () => {
       await urlRepository.close();
 
       // Create new repository instance
-      const newRepository = new SqlUrlRepositoryWithTags(
-        path.join(testDataPath, 'test-urls.db')
+      const newRepository = new SqlUrlRepository(
+        path.join(testDataPath, 'test-urls.db'),
+        true // Enable tags
       );
       await newRepository.initializeWithTags();
 
       // Verify tag persisted
       const tagManager = newRepository.getTagManager();
-      const retrievedTag = await tagManager.getTagByName('persistent-tag');
+      expect(tagManager).toBeDefined();
+      const retrievedTag = await tagManager!.getTagByName('persistent-tag');
       expect(retrievedTag).toBeDefined();
       expect(retrievedTag?.id).toBe(tag.id);
 

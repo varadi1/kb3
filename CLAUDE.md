@@ -4,6 +4,12 @@
 
 KB3 is a scalable knowledge base system built with TypeScript that processes URLs and documents while strictly adhering to SOLID principles. The system can detect content types, fetch content from various sources, process different file formats, and store knowledge with metadata.
 
+## Recent Architecture Updates (2025-01-28)
+
+- **SqlUrlRepository Consolidation**: Merged SqlUrlRepositoryWithTags into SqlUrlRepository with optional tag support via constructor parameter
+- **Improved Composition**: Tags are now an optional feature, not inheritance-based
+- **Backward Compatibility**: Legacy imports work via export aliases
+
 ## Architecture Principles
 
 ### SOLID Compliance
@@ -410,6 +416,90 @@ npx tsx verify-scrapers.ts
 
 ## Common Tasks
 
+### Database Storage Options
+
+The system supports two database architectures:
+
+#### 1. Unified Storage (Recommended)
+Single SQLite database with all tables and foreign key relationships:
+
+```typescript
+import { createUnifiedConfiguration } from './src/config/Configuration';
+
+const config = createUnifiedConfiguration({
+  dbPath: './data/unified.db',
+  enableWAL: true,           // Write-Ahead Logging for better concurrency
+  enableForeignKeys: true,    // Enforce referential integrity
+  autoMigrate: true          // Auto-migrate from legacy databases
+});
+
+const kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
+```
+
+**Tables in unified database:**
+- `urls` - URL tracking and metadata
+- `tags` - Hierarchical tag definitions
+- `url_tags` - Many-to-many URL-tag relationships
+- `knowledge_entries` - Processed content (FK → urls)
+- `original_files` - File tracking (FK → urls)
+
+**Benefits:**
+- Single file backup/restore
+- ACID transactions across all data
+- Foreign key integrity
+- Simplified CI/CD
+
+#### 2. Legacy Storage (Backward Compatible)
+Multiple databases for different concerns:
+- `knowledge.db` - Knowledge entries
+- `urls.db` - URLs and tags
+- `original_files.db` - File tracking
+
+```typescript
+const config = createSqlConfiguration({
+  storage: {
+    knowledgeStore: { type: 'sql', dbPath: './data/knowledge.db' },
+    urlRepositoryPath: './data/urls.db',
+    originalFileStore: { path: './data/original_files.db' }
+  }
+});
+```
+
+#### Migration from Legacy to Unified
+
+Automatic migration preserves all data:
+
+```typescript
+const config = createUnifiedConfiguration({
+  dbPath: './data/unified.db',
+  autoMigrate: true,
+  migrationOptions: {
+    backupOriginal: true,           // Create .backup files
+    deleteOriginalAfterSuccess: false,  // Keep originals
+    verbose: true                    // Show migration progress
+  }
+});
+
+// Migration happens automatically on initialization
+const kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
+```
+
+Manual migration for more control:
+
+```typescript
+import { DatabaseMigration } from './src/storage/DatabaseMigration';
+
+const migration = new DatabaseMigration({
+  knowledgeDbPath: './data/knowledge.db',
+  urlsDbPath: './data/urls.db',
+  originalFilesDbPath: './data/original_files.db',
+  targetDbPath: './data/unified.db'
+});
+
+const result = await migration.migrate();
+console.log(`Migrated ${result.migratedTables.urls} URLs`);
+```
+
 ### Working with Original File Tracking
 
 The original file tracking system maintains a separate database of all scraped and downloaded files, enabling file lineage tracking and separate processing pipelines:
@@ -515,7 +605,8 @@ Tags allow organizing URLs into logical groups for batch processing:
 
 1. **Create tags with hierarchy**:
 ```typescript
-const kb = KnowledgeBaseFactoryWithTags.createKnowledgeBaseWithTags(config);
+// Tags are now integrated in the main factory
+const kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
 await kb.createTag('documentation');
 await kb.createTag('api-docs', 'documentation'); // Child of documentation
 ```

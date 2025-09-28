@@ -73,7 +73,7 @@ describe('SQL Storage SOLID Compliance', () => {
       ];
 
       methods.forEach(method => {
-        // All methods should be related to URL operations
+        // All methods should be related to URL or tag operations (tags are optional URL metadata)
         const isUrlRelated = expectedMethods.some(expected =>
           method.includes(expected) ||
           method.includes('Url') ||
@@ -85,7 +85,12 @@ describe('SQL Storage SOLID Compliance', () => {
           method.includes('create') ||
           method.includes('Database') ||
           method.includes('Table') ||
-          method.includes('Index')
+          method.includes('Index') ||
+          method.includes('Tag') ||  // Tags are part of URL metadata
+          method.includes('WithTags') ||  // Tag-related URL operations
+          method === 'areTagsEnabled' ||  // Tag feature flag check
+          method === 'getTagManager' ||  // Tag manager accessor
+          method === 'getUrlTagRepository'  // URL-tag relationship accessor
         );
         expect(isUrlRelated).toBe(true);
       });

@@ -47,7 +47,7 @@ pip install python-doctr[torch]  # OCR for DeepDoctection
 
 | Component | File | Classes | Exported functions | Description | Inputs | Outputs |
 |---|---|---|---|---|---|---|
-| config | `src/config/Configuration.ts` | — | - `createDefaultConfiguration`<br>- `createProductionConfiguration`<br>- `createDevelopmentConfiguration`<br>- `createSqlConfiguration`<br>- `validateConfiguration` | - Build default config with optional overrides<br>- Build production-ready config<br>- Build development config<br>- Build SQL-backed config with optional overrides<br>- Validate a configuration object | - overrides?: Partial<KnowledgeBaseConfig><br>- none<br>- none<br>- overrides?: Partial<KnowledgeBaseConfig><br>- config: KnowledgeBaseConfig | - KnowledgeBaseConfig<br>- KnowledgeBaseConfig<br>- KnowledgeBaseConfig<br>- KnowledgeBaseConfig<br>- void (throws on invalid) |
+| config | `src/config/Configuration.ts` | — | - `createDefaultConfiguration`<br>- `createProductionConfiguration`<br>- `createDevelopmentConfiguration`<br>- `createSqlConfiguration`<br>- `createUnifiedConfiguration`<br>- `validateConfiguration` | - Build default config with optional overrides<br>- Build production-ready config<br>- Build development config<br>- Build SQL-backed config with optional overrides<br>- **NEW**: Build unified single-database config<br>- Validate a configuration object | - overrides?: Partial<KnowledgeBaseConfig><br>- none<br>- none<br>- overrides?: Partial<KnowledgeBaseConfig><br>- options?: UnifiedConfigOptions<br>- config: KnowledgeBaseConfig | - KnowledgeBaseConfig<br>- KnowledgeBaseConfig<br>- KnowledgeBaseConfig<br>- KnowledgeBaseConfig<br>- KnowledgeBaseConfig<br>- void (throws on invalid) |
 | config | `src/config/index.ts` | — | — | Re-exports configuration APIs | — | — |
 | detectors | `src/detectors/BaseUrlDetector.ts` | `BaseUrlDetector` (abstract) | — | Abstract base for URL detectors | — | — |
 | detectors | `src/detectors/ContentBasedDetector.ts` | `ContentBasedDetector` | — | Detects content type from content sample | — | — |
@@ -126,13 +126,15 @@ pip install python-doctr[torch]  # OCR for DeepDoctection
 | storage | `src/storage/BaseKnowledgeStore.ts` | `BaseKnowledgeStore` (abstract) | — | Abstract base for knowledge stores | — | — |
 | storage | `src/storage/MemoryKnowledgeStore.ts` | `MemoryKnowledgeStore` | — | In-memory store for entries (dev/test) | — | — |
 | storage | `src/storage/FileKnowledgeStore.ts` | `FileKnowledgeStore` | — | File-based persistent knowledge store | — | — |
-| storage | `src/storage/SqlKnowledgeStore.ts` | `SqlKnowledgeStore` | — | SQL-backed persistent knowledge store | — | — |
+| storage | `src/storage/SqlKnowledgeStore.ts` | `SqlKnowledgeStore` | — | SQL-backed persistent knowledge store (legacy mode) | — | — |
+| storage | `src/storage/UnifiedSqlStorage.ts` | `UnifiedSqlStorage` | — | **NEW**: Single database with all tables, foreign keys, ACID transactions | config: UnifiedStorageConfig | getRepositories() returns all repositories |
+| storage | `src/storage/DatabaseMigration.ts` | `DatabaseMigration` | — | **NEW**: Migrates from 3 databases to unified structure | config: MigrationConfig | MigrationResult with statistics |
 | storage | `src/storage/BaseFileStorage.ts` | `BaseFileStorage` (abstract) | — | Abstract base for file storage | — | — |
 | storage | `src/storage/LocalFileStorage.ts` | `LocalFileStorage` | — | Stores raw bytes+metadata on local FS | — | — |
-| storage | `src/storage/SqlUrlRepository.ts` | `SqlUrlRepository` | — | Tracks URLs/hashes for duplicate detection | — | — |
-| storage | `src/storage/SqlUrlRepositoryWithTags.ts` | `SqlUrlRepositoryWithTags` | — | Enhanced URL repository with tag support | registerWithTags, getUrlsByTags, addTagsToUrl | string (URL ID) |
+| storage | `src/storage/FileStorageWithTracking.ts` | `FileStorageWithTracking` | — | Decorator that adds original file tracking to storage | content: Buffer, filename: string, options?: StorageOptions | storagePath: string |
+| storage | `src/storage/SqlUrlRepository.ts` | `SqlUrlRepository` | — | URL tracking with integrated tag support (tags enabled via constructor) | url: string, enableTags?: boolean | — |
+| storage | `src/storage/SqlOriginalFileRepository.ts` | `SqlOriginalFileRepository` | — | Tracks all scraped/downloaded files with SHA256 checksums | recordOriginalFile, getOriginalFile, listOriginalFiles | OriginalFileInfo |
 | storage | `src/storage/SqlTagManager.ts` | `SqlTagManager` | — | SQL-based tag management with hierarchical support | createTag, getTag, deleteTag, listTags | ITag |
-| storage | `src/storage/SqlUrlTagRepository.ts` | `SqlUrlTagRepository` | — | Manages many-to-many URL-tag relationships | addTagsToUrl, getTagsForUrl, getUrlsWithTag | boolean/ITag[]/string[] |
 | storage | `src/storage/index.ts` | — | - `createDefaultKnowledgeStore`<br>- `createDefaultFileStorage` | - Create memory/file knowledge store (based on path)<br>- Create local file storage rooted at basePath | - storePath?: string<br>- basePath: string | - BaseKnowledgeStore (Memory or File)<br>- LocalFileStorage |
 | utils | `src/utils/ErrorHandler.ts` | `ErrorHandler` | — | Centralized error handling utilities | — | — |
 | utils | `src/utils/ValidationUtils.ts` | `ValidationUtils` | — | Validation helpers for URLs, config, etc. | — | — |
@@ -271,7 +273,7 @@ The tagging system provides a hierarchical organization structure for URLs with 
 
 1. **SqlTagManager** - Manages tag lifecycle (CRUD operations, hierarchy)
 2. **SqlUrlTagRepository** - Handles many-to-many URL-tag relationships
-3. **SqlUrlRepositoryWithTags** - Enhanced URL repository with tag integration
+3. **SqlUrlRepository** - URL repository with integrated tag support (tags enabled via constructor parameter)
 4. **KnowledgeBaseOrchestrator** - Integrated orchestrator with file tracking and tag-based operations
 
 ### Database Schema
