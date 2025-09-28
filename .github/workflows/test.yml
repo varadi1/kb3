@@ -13,6 +13,8 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
 
 jobs:
   # Main test job - always runs
@@ -193,7 +195,3 @@ jobs:
       run: |
         source .venv/bin/activate
         npm run test:all:python
-
-# Schedule for daily E2E tests
-schedule:
-  - cron: '0 2 * * *'
