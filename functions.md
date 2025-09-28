@@ -1,8 +1,202 @@
 # KB3 Functions Reference
 
+## Original File Tracking Functions
+
+This document provides a comprehensive reference for all file tracking and tag-related functions in the KB3 system.
+
+### IOriginalFileRepository
+
+The main interface for managing tracked original files.
+
+#### recordOriginalFile
+
+Records a new original file in the tracking system.
+
+```typescript
+async recordOriginalFile(fileInfo: OriginalFileInfo): Promise<string>
+```
+
+**Parameters:**
+- `fileInfo`: Object containing file information
+  - `url`: Source URL of the file
+  - `filePath`: Storage path of the file
+  - `mimeType`: MIME type of the file
+  - `size`: File size in bytes
+  - `checksum`: SHA256 hash of the file content
+  - `scraperUsed`: Optional scraper that downloaded the file
+  - `metadata`: Optional additional metadata
+
+**Returns:** Unique file ID
+
+**Example:**
+```typescript
+const fileId = await repository.recordOriginalFile({
+  url: 'https://example.com/document.pdf',
+  filePath: '/data/files/document.pdf',
+  mimeType: 'application/pdf',
+  size: 1024000,
+  checksum: 'sha256hash...',
+  scraperUsed: 'playwright'
+});
+```
+
+#### getOriginalFile
+
+Retrieves a specific file by its ID.
+
+```typescript
+async getOriginalFile(fileId: string): Promise<OriginalFileRecord | null>
+```
+
+**Parameters:**
+- `fileId`: Unique file identifier
+
+**Returns:** File record or null if not found
+
+**Note:** This method automatically updates the `accessed_at` timestamp.
+
+#### getOriginalFilesByUrl
+
+Gets all tracked files for a specific URL.
+
+```typescript
+async getOriginalFilesByUrl(url: string): Promise<OriginalFileRecord[]>
+```
+
+**Parameters:**
+- `url`: The source URL
+
+**Returns:** Array of file records (newest first)
+
+#### listOriginalFiles
+
+Lists files with optional filtering.
+
+```typescript
+async listOriginalFiles(options?: ListOriginalFilesOptions): Promise<OriginalFileRecord[]>
+```
+
+**Parameters:**
+- `options`: Optional filter object
+  - `url`: Filter by source URL
+  - `status`: Filter by file status
+  - `mimeType`: Filter by MIME type
+  - `scraperUsed`: Filter by scraper
+  - `fromDate`: Files created after this date
+  - `toDate`: Files created before this date
+  - `sortBy`: Sort field ('createdAt', 'size', 'url')
+  - `sortOrder`: Sort direction ('asc', 'desc')
+  - `limit`: Maximum results
+  - `offset`: Pagination offset
+
+**Returns:** Array of file records
+
+**Example:**
+```typescript
+// Get all PDFs from the last week
+const recentPdfs = await repository.listOriginalFiles({
+  mimeType: 'application/pdf',
+  fromDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+  sortBy: 'createdAt',
+  sortOrder: 'desc'
+});
+```
+
+#### updateFileStatus
+
+Updates the status of a file.
+
+```typescript
+async updateFileStatus(fileId: string, status: FileStatus): Promise<boolean>
+```
+
+**Parameters:**
+- `fileId`: File identifier
+- `status`: New status ('active', 'archived', 'deleted', 'processing', 'error')
+
+**Returns:** True if update was successful
+
+#### getStatistics
+
+Gets aggregate statistics for all tracked files.
+
+```typescript
+async getStatistics(): Promise<OriginalFileStatistics>
+```
+
+**Returns:** Statistics object containing:
+- `totalFiles`: Total number of files
+- `totalSize`: Total size in bytes
+- `averageFileSize`: Average file size
+- `filesByStatus`: Count by status
+- `filesByMimeType`: Count by MIME type
+- `filesByScraperUsed`: Count by scraper
+- `oldestFile`: Date of oldest file
+- `newestFile`: Date of newest file
+
+### KnowledgeBaseFactoryWithFileTracking
+
+Factory for creating knowledge base with file tracking.
+
+#### createKnowledgeBaseWithFileTracking
+
+Creates a knowledge base instance with original file tracking capability.
+
+```typescript
+static async createKnowledgeBaseWithFileTracking(
+  config: KnowledgeBaseConfigWithFileTracking
+): Promise<KnowledgeBaseWithFileTracking>
+```
+
+**Parameters:**
+- `config`: Configuration object with `originalFileStore` settings
+
+**Returns:** Knowledge base instance with file tracking
+
+**Example:**
+```typescript
+const kb = await KnowledgeBaseFactoryWithFileTracking.createKnowledgeBaseWithFileTracking({
+  storage: {
+    knowledgeStore: { type: 'sql', dbPath: './data/knowledge.db' },
+    originalFileStore: { type: 'sql', path: './data/original_files.db' }
+  }
+});
+```
+
+### FileStorageWithTracking
+
+Decorator that adds file tracking to any file storage implementation.
+
+#### Constructor
+
+```typescript
+constructor(
+  baseStorage: IFileStorage,
+  originalFileRepository: IOriginalFileRepository
+)
+```
+
+#### store
+
+Stores a file and tracks it in the repository.
+
+```typescript
+async store(
+  content: Buffer,
+  filename: string,
+  options?: StorageOptions
+): Promise<string>
+```
+
+**Behavior:**
+1. Stores file using base storage
+2. Calculates SHA256 checksum
+3. Records file in original file repository
+4. Returns storage path
+
 ## Tag Management Functions
 
-This document provides a comprehensive reference for all tag-related functions in the KB3 system.
+This section provides a comprehensive reference for all tag-related functions in the KB3 system.
 
 ### KnowledgeBaseOrchestratorWithTags
 
@@ -428,6 +622,96 @@ async batchRegisterWithTags(
 
 ## Data Types
 
+### Original File Tracking Types
+
+#### OriginalFileInfo
+
+Input type for recording a new file:
+
+```typescript
+interface OriginalFileInfo {
+  url: string;                  // Source URL
+  filePath: string;             // Storage path
+  mimeType: string;             // MIME type
+  size: number;                 // Size in bytes
+  checksum: string;             // SHA256 hash
+  scraperUsed?: string;         // Optional scraper name
+  metadata?: any;               // Optional metadata
+}
+```
+
+#### OriginalFileRecord
+
+Complete file record with all fields:
+
+```typescript
+interface OriginalFileRecord {
+  id: string;                  // Unique identifier
+  url: string;                  // Source URL
+  filePath: string;             // Storage path
+  mimeType: string;             // MIME type
+  size: number;                 // Size in bytes
+  checksum: string;             // SHA256 hash
+  scraperUsed?: string;         // Scraper name
+  status: FileStatus;           // Current status
+  metadata?: any;               // Additional metadata
+  createdAt: Date;              // Creation time
+  updatedAt: Date;              // Last update
+  accessedAt?: Date;            // Last access
+  downloadUrl: string;          // Download URL
+}
+```
+
+#### FileStatus
+
+File lifecycle status enum:
+
+```typescript
+enum FileStatus {
+  ACTIVE = 'active',           // Available for use
+  ARCHIVED = 'archived',       // Archived
+  DELETED = 'deleted',         // Soft deleted
+  PROCESSING = 'processing',   // Being processed
+  ERROR = 'error'              // Error state
+}
+```
+
+#### ListOriginalFilesOptions
+
+Filtering options for listing files:
+
+```typescript
+interface ListOriginalFilesOptions {
+  url?: string;                // Filter by URL
+  status?: FileStatus;         // Filter by status
+  mimeType?: string;           // Filter by MIME type
+  scraperUsed?: string;        // Filter by scraper
+  fromDate?: Date;             // Start date
+  toDate?: Date;               // End date
+  sortBy?: 'createdAt' | 'size' | 'url';
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;              // Max results
+  offset?: number;             // Pagination
+}
+```
+
+#### OriginalFileStatistics
+
+Aggregate statistics:
+
+```typescript
+interface OriginalFileStatistics {
+  totalFiles: number;
+  totalSize: number;
+  averageFileSize: number;
+  filesByStatus: Record<FileStatus, number>;
+  filesByMimeType: Record<string, number>;
+  filesByScraperUsed: Record<string, number>;
+  oldestFile?: Date;
+  newestFile?: Date;
+}
+```
+
 ### ITag Interface
 
 ```typescript
@@ -505,6 +789,33 @@ interface BatchProcessingByTagOptions extends ProcessingOptions {
 
 ## Database Schema
 
+### Original Files Table
+
+```sql
+CREATE TABLE original_files (
+  id TEXT PRIMARY KEY,
+  url TEXT NOT NULL,
+  file_path TEXT NOT NULL UNIQUE,
+  mime_type TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  checksum TEXT NOT NULL,
+  scraper_used TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  metadata TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  accessed_at INTEGER,
+  download_url TEXT
+);
+
+-- Indices for performance
+CREATE INDEX idx_original_files_url ON original_files(url);
+CREATE INDEX idx_original_files_status ON original_files(status);
+CREATE INDEX idx_original_files_mime_type ON original_files(mime_type);
+CREATE INDEX idx_original_files_created_at ON original_files(created_at);
+CREATE INDEX idx_original_files_checksum ON original_files(checksum);
+```
+
 ### Tags Table
 
 ```sql
@@ -539,6 +850,88 @@ CREATE INDEX idx_url_tags_tag ON url_tags(tag_id);
 ```
 
 ## Usage Examples
+
+### Original File Tracking Workflow
+
+```typescript
+import { KnowledgeBaseFactoryWithFileTracking } from './src/factory/KnowledgeBaseFactoryWithFileTracking';
+import { createSqlConfiguration } from './src/config/Configuration';
+import { FileStatus } from './src/interfaces/IOriginalFileRepository';
+
+async function trackAndManageFiles() {
+  // Initialize with file tracking
+  const config = createSqlConfiguration({
+    storage: {
+      knowledgeStore: {
+        type: 'sql',
+        dbPath: './data/knowledge.db'
+      },
+      originalFileStore: {
+        type: 'sql',
+        path: './data/original_files.db'
+      }
+    }
+  });
+
+  const kb = await KnowledgeBaseFactoryWithFileTracking.createKnowledgeBaseWithFileTracking(config);
+  const repository = kb.getOriginalFileRepository();
+
+  // Process URLs - files are automatically tracked
+  const urls = [
+    'https://example.com/report.pdf',
+    'https://example.com/data.csv',
+    'https://example.com/article.html'
+  ];
+
+  for (const url of urls) {
+    await kb.processUrl(url);
+  }
+
+  // Query tracked files
+  const allFiles = await repository.listOriginalFiles();
+  console.log(`Tracked ${allFiles.length} files`);
+
+  // Find PDFs
+  const pdfs = await repository.listOriginalFiles({
+    mimeType: 'application/pdf',
+    status: FileStatus.ACTIVE
+  });
+
+  // Get files for specific URL
+  const urlFiles = await repository.getOriginalFilesByUrl('https://example.com/report.pdf');
+  if (urlFiles.length > 0) {
+    console.log('File ID:', urlFiles[0].id);
+    console.log('Download URL:', urlFiles[0].downloadUrl);
+    console.log('Checksum:', urlFiles[0].checksum);
+    console.log('Size:', urlFiles[0].size, 'bytes');
+  }
+
+  // Archive old files
+  const oldFiles = await repository.listOriginalFiles({
+    toDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 days ago
+  });
+
+  for (const file of oldFiles) {
+    await repository.updateFileStatus(file.id, FileStatus.ARCHIVED);
+  }
+
+  // Get statistics
+  const stats = await repository.getStatistics();
+  console.log('Statistics:', {
+    totalFiles: stats.totalFiles,
+    totalSize: `${(stats.totalSize / 1024 / 1024).toFixed(2)} MB`,
+    averageSize: `${(stats.averageFileSize / 1024).toFixed(2)} KB`,
+    byType: stats.filesByMimeType,
+    byStatus: stats.filesByStatus
+  });
+
+  return {
+    totalTracked: allFiles.length,
+    pdfsFound: pdfs.length,
+    archived: oldFiles.length
+  };
+}
+```
 
 ### Complete Workflow Example
 

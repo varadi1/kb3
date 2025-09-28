@@ -354,6 +354,104 @@ async process(content: Buffer, options?: ProcessingOptions): Promise<ProcessingR
 
 ## Common Tasks
 
+### Working with Original File Tracking
+
+The original file tracking system maintains a separate database of all scraped and downloaded files, enabling file lineage tracking and separate processing pipelines:
+
+1. **Enable file tracking**:
+```typescript
+import { KnowledgeBaseFactoryWithFileTracking } from './src/factory/KnowledgeBaseFactoryWithFileTracking';
+import { createSqlConfiguration } from './src/config/Configuration';
+
+const config = createSqlConfiguration({
+  storage: {
+    knowledgeStore: {
+      type: 'sql',
+      dbPath: './data/knowledge.db'
+    },
+    originalFileStore: {
+      type: 'sql',
+      path: './data/original_files.db'
+    }
+  }
+});
+
+const kb = await KnowledgeBaseFactoryWithFileTracking.createKnowledgeBaseWithFileTracking(config);
+```
+
+2. **Access tracked files**:
+```typescript
+const repository = kb.getOriginalFileRepository();
+
+// Get files for a specific URL
+const files = await repository.getOriginalFilesByUrl(url);
+
+// Get a specific file by ID
+const file = await repository.getOriginalFile(fileId);
+
+// List all files with filters
+const pdfFiles = await repository.listOriginalFiles({
+  mimeType: 'application/pdf',
+  status: 'active'
+});
+```
+
+3. **Implementation pattern (Decorator/Wrapper)**:
+```typescript
+// The system uses a storage-level wrapper to intercept file operations
+class FileStorageWithTracking implements IFileStorage {
+  constructor(
+    private baseStorage: IFileStorage,
+    private originalFileRepository: IOriginalFileRepository
+  ) {}
+
+  async store(content: Buffer, filename: string, options?: StorageOptions): Promise<string> {
+    // Store file using base storage
+    const storagePath = await this.baseStorage.store(content, filename, options);
+
+    // Track the original file
+    const fileInfo: OriginalFileInfo = {
+      url: options?.metadata?.url || 'unknown',
+      filePath: storagePath,
+      mimeType: options?.metadata?.mimeType || this.guessMimeType(filename),
+      size: content.length,
+      checksum: crypto.createHash('sha256').update(content).digest('hex'),
+      scraperUsed: options?.metadata?.scraperUsed
+    };
+
+    await this.originalFileRepository.recordOriginalFile(fileInfo);
+    return storagePath;
+  }
+}
+```
+
+4. **Key features**:
+- **Unique IDs**: Each file gets a unique identifier (e.g., `file_1759017759658_b3e29cd4695b7927`)
+- **SHA256 Checksums**: Integrity verification for all files
+- **Download URLs**: Frontend-ready links (`/api/files/original/{id}/download`)
+- **Status Management**: Track lifecycle (active, archived, deleted, processing, error)
+- **Access Tracking**: Automatic `accessed_at` timestamp updates
+- **Statistics**: Aggregate data by type, status, and scraper
+
+5. **Database schema**:
+```sql
+CREATE TABLE original_files (
+  id TEXT PRIMARY KEY,
+  url TEXT NOT NULL,
+  file_path TEXT NOT NULL UNIQUE,
+  mime_type TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  checksum TEXT NOT NULL,
+  scraper_used TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  metadata TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  accessed_at INTEGER,
+  download_url TEXT
+);
+```
+
 ### Working with Tags
 
 Tags allow organizing URLs into logical groups for batch processing:
@@ -409,6 +507,58 @@ registry.register('my-detector', new MyDetector());
 2. Implement `IContentProcessor` interface
 3. Register in `ProcessorRegistry`
 4. Add tests including SOLID compliance
+
+### Adding File Tracking to Components
+
+To add file tracking capability to any component:
+
+1. **Wrap the file storage** (following Decorator pattern):
+```typescript
+class MyStorageWithTracking implements IFileStorage {
+  constructor(
+    private baseStorage: IFileStorage,
+    private fileTracker: IOriginalFileRepository
+  ) {}
+
+  async store(content: Buffer, filename: string, options?: StorageOptions): Promise<string> {
+    const path = await this.baseStorage.store(content, filename, options);
+
+    // Track the file
+    await this.fileTracker.recordOriginalFile({
+      url: options?.metadata?.url,
+      filePath: path,
+      mimeType: this.detectMimeType(filename),
+      size: content.length,
+      checksum: this.calculateChecksum(content)
+    });
+
+    return path;
+  }
+}
+```
+
+2. **Use the factory pattern**:
+```typescript
+class MyFactoryWithTracking {
+  static async createWithTracking(config: Config): Promise<MyComponent> {
+    const repository = new SqlOriginalFileRepository(config.originalFileStore.path);
+    await repository.initialize();
+
+    const baseStorage = createBaseStorage(config);
+    const trackedStorage = new MyStorageWithTracking(baseStorage, repository);
+
+    return new MyComponent(trackedStorage);
+  }
+}
+```
+
+3. **Access tracked files**:
+```typescript
+const files = await repository.listOriginalFiles({
+  mimeType: 'application/pdf',
+  status: 'active'
+});
+```
 
 ### Adding a New Scraping Library
 

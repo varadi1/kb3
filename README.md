@@ -93,6 +93,16 @@ kb3/
 - **Tag Persistence**: Tags are stored in the database for persistent organization
 - **Dynamic Tag Creation**: Tags are automatically created when assigned to URLs
 
+### Original File Tracking
+- **Automatic File Tracking**: All scraped and downloaded files are automatically tracked
+- **Unique File IDs**: Each file gets a unique identifier (e.g., `file_1759017759658_b3e29cd4695b7927`)
+- **Download URLs**: Frontend-ready download links (`/api/files/original/{id}/download`)
+- **SHA256 Checksums**: Integrity verification for all tracked files
+- **Complete Metadata**: URL source, MIME type, size, scraper used, timestamps
+- **File Status Management**: Track file lifecycle (active, archived, deleted, processing, error)
+- **Access Tracking**: Automatic `accessed_at` timestamp updates
+- **Statistics & Reporting**: Aggregate statistics by file type, status, and scraper
+
 ### Batch Processing
 - **Per-URL Configuration**: Individual settings for each URL in batch
 - **Mixed Configuration**: Combine global and per-URL options
@@ -105,8 +115,10 @@ kb3/
 - **Complete Metadata Storage**: All settings, errors, and rate limit info saved to database
 - **Scraper Configuration Tracking**: Track which scraper and parameters were used
 - **SQL and File Storage**: Dual storage with SQL for queries and files for content
+- **Original File Repository**: Dedicated database for tracking all original scraped files
 - **Batch Configuration Management**: Configure multiple URLs at once with presets
 - **Historical Data**: Maintain history of all processing attempts and results
+- **File Lineage**: Track original files separately from processed/transformed versions
 
 ### Testing & Quality
 - **95%+ Test Coverage**: Comprehensive unit, integration, and edge case tests
@@ -309,6 +321,65 @@ batchManager.createConfigurationBuilder()
 // Apply preset configurations
 batchManager.applyPreset('aggressive-crawl', ['https://news.site.com']);
 batchManager.applyPreset('spa-rendering', ['https://app.example.com']);
+```
+
+### Original File Tracking
+
+The original file tracking system automatically tracks all scraped and downloaded files:
+
+#### Basic Usage
+
+```typescript
+import { KnowledgeBaseFactoryWithFileTracking } from './src/factory/KnowledgeBaseFactoryWithFileTracking';
+import { createSqlConfiguration } from './src/config/Configuration';
+
+// Create knowledge base with file tracking enabled
+const config = createSqlConfiguration({
+  storage: {
+    knowledgeStore: {
+      type: 'sql',
+      dbPath: './data/knowledge.db'
+    },
+    originalFileStore: {
+      type: 'sql',
+      path: './data/original_files.db'
+    }
+  }
+});
+
+const kb = await KnowledgeBaseFactoryWithFileTracking.createKnowledgeBaseWithFileTracking(config);
+
+// Process URLs - files are automatically tracked
+const result = await kb.processUrl('https://example.com/document.pdf');
+
+// Access the original file repository
+const repository = kb.getOriginalFileRepository();
+
+// Get tracked files for a URL
+const trackedFiles = await repository.getOriginalFilesByUrl('https://example.com/document.pdf');
+console.log('File ID:', trackedFiles[0].id);
+console.log('Download URL:', trackedFiles[0].downloadUrl);
+console.log('Checksum:', trackedFiles[0].checksum);
+```
+
+#### Querying Tracked Files
+
+```typescript
+// List all tracked files
+const allFiles = await repository.listOriginalFiles();
+
+// Filter by MIME type
+const pdfFiles = await repository.listOriginalFiles({
+  mimeType: 'application/pdf'
+});
+
+// Filter by status
+const activeFiles = await repository.listOriginalFiles({
+  status: 'active'
+});
+
+// Get a specific file by ID
+const file = await repository.getOriginalFile('file_1759017759658_b3e29cd4695b7927');
 ```
 
 ### Working with Tags
@@ -1071,6 +1142,75 @@ npm run test:coverage:detailed
 - **Edge Case Tests**: Boundary and error condition testing
 
 ## API Reference
+
+### IOriginalFileRepository
+
+Interface for managing tracked original files:
+
+```typescript
+interface IOriginalFileRepository {
+  // Record a new original file
+  recordOriginalFile(fileInfo: OriginalFileInfo): Promise<string>;
+
+  // Get a specific file by ID
+  getOriginalFile(fileId: string): Promise<OriginalFileRecord | null>;
+
+  // Get all files for a URL
+  getOriginalFilesByUrl(url: string): Promise<OriginalFileRecord[]>;
+
+  // List files with optional filters
+  listOriginalFiles(options?: ListOriginalFilesOptions): Promise<OriginalFileRecord[]>;
+
+  // Update file status
+  updateFileStatus(fileId: string, status: FileStatus): Promise<boolean>;
+
+  // Get aggregate statistics
+  getStatistics(): Promise<OriginalFileStatistics>;
+}
+```
+
+#### OriginalFileRecord
+
+```typescript
+interface OriginalFileRecord {
+  id: string;                  // Unique file identifier
+  url: string;                  // Source URL
+  filePath: string;             // Storage path
+  mimeType: string;             // MIME type
+  size: number;                 // File size in bytes
+  checksum: string;             // SHA256 hash
+  scraperUsed?: string;         // Scraper that downloaded the file
+  status: FileStatus;           // Current status
+  metadata?: any;               // Additional metadata
+  createdAt: Date;              // Creation timestamp
+  updatedAt: Date;              // Last update timestamp
+  accessedAt?: Date;            // Last access timestamp
+  downloadUrl: string;          // Frontend download URL
+}
+```
+
+#### FileStatus Enum
+
+```typescript
+enum FileStatus {
+  ACTIVE = 'active',           // File is available
+  ARCHIVED = 'archived',       // File is archived
+  DELETED = 'deleted',         // Soft deleted
+  PROCESSING = 'processing',   // Being processed
+  ERROR = 'error'              // Error state
+}
+```
+
+### KnowledgeBaseWithFileTracking
+
+Extended orchestrator with file tracking:
+
+```typescript
+interface KnowledgeBaseWithFileTracking extends KnowledgeBaseOrchestrator {
+  // Get the original file repository
+  getOriginalFileRepository(): IOriginalFileRepository;
+}
+```
 
 ### KnowledgeBaseOrchestrator
 

@@ -22,6 +22,10 @@ export interface KnowledgeBaseConfig {
     fileStore: {
       path: string;
     };
+    originalFileStore?: {
+      type?: 'sql';
+      path?: string;
+    };
     enableDuplicateDetection?: boolean;
     enableUrlTracking?: boolean;
     urlRepositoryPath?: string;

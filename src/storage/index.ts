@@ -15,6 +15,14 @@ export { LocalFileStorage } from './LocalFileStorage';
 
 // URL Repository
 export { SqlUrlRepository } from './SqlUrlRepository';
+export { SqlUrlRepositoryWithTags } from './SqlUrlRepositoryWithTags';
+
+// Tag Management
+export { SqlTagManager } from './SqlTagManager';
+export { SqlUrlTagRepository } from './SqlUrlTagRepository';
+
+// Original File Repository
+export { SqlOriginalFileRepository } from './SqlOriginalFileRepository';
 
 // Import required classes for the factory functions
 import { BaseKnowledgeStore } from './BaseKnowledgeStore';
