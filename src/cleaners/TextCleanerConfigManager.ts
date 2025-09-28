@@ -52,7 +52,7 @@ export class TextCleanerConfigManager implements ITextCleanerConfigManager {
         CREATE INDEX IF NOT EXISTS idx_updated ON cleaner_configs(updated_at);
       `);
 
-      console.log(`Initialized cleaner config database at: ${this.dbPath}`);
+      // Initialized cleaner config database
     } catch (error) {
       console.error('Failed to initialize cleaner config database:', error);
       // Fall back to in-memory only
@@ -88,7 +88,7 @@ export class TextCleanerConfigManager implements ITextCleanerConfigManager {
         `);
 
         stmt.run(url, cleanerName, configJson, now, now);
-        console.log(`Saved config for ${cleanerName} on ${url}`);
+        // Saved config successfully
       } catch (error) {
         console.error('Failed to save cleaner config to database:', error);
       }
@@ -153,7 +153,7 @@ export class TextCleanerConfigManager implements ITextCleanerConfigManager {
 
       try {
         transaction();
-        console.log(`Batch set config for ${urls.length} URLs`);
+        // Batch config saved
       } catch (error) {
         console.error('Batch config update failed:', error);
         throw error;
@@ -233,7 +233,7 @@ export class TextCleanerConfigManager implements ITextCleanerConfigManager {
           stmt.run(url);
         }
 
-        console.log(`Removed config for ${url}${cleanerName ? ` (${cleanerName})` : ''}`);
+        // Config removed successfully
       } catch (error) {
         console.error('Failed to remove config from database:', error);
       }
@@ -394,7 +394,7 @@ export class TextCleanerConfigManager implements ITextCleanerConfigManager {
       `);
 
       const result = stmt.run(cutoffTime);
-      console.log(`Cleaned up ${result.changes} old configurations`);
+      // Cleaned up old configurations
       return result.changes;
     } catch (error) {
       console.error('Failed to cleanup old configs:', error);

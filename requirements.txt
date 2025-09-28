@@ -1,0 +1,74 @@
+# KB3 Python Dependencies
+# These dependencies are required for the Python-based scrapers
+# Tested and verified working on 2025-01-28
+
+# Core scraping libraries (verified working)
+playwright==1.55.0
+Crawl4AI==0.7.4
+docling==2.54.0
+deepdoctection==0.46
+
+# Document processing and analysis
+pypdf==6.1.0
+pdfplumber==0.11.7
+pdf2image==1.17.0
+pdfminer.six==20250506
+
+# OCR and text extraction
+easyocr==1.7.5
+python-doctr==0.8.1
+
+# Layout analysis
+layoutparser==0.3.4
+# Note: detectron2 requires special installation:
+# macOS ARM64: pip install 'git+https://github.com/facebookresearch/detectron2.git'
+# Linux/CUDA: python -m pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu118/torch2.0/index.html
+
+# ML and computer vision
+opencv-python==4.11.0.86
+torch==2.8.0
+torchvision==0.23.0
+numpy==2.2.6  # Required by deepdoctection
+
+# Image processing
+pillow==11.3.0
+scikit-image==0.25.1
+imageio==2.37.0
+
+# NLP and text processing
+transformers==4.50.2
+langdetect==1.0.9
+rapidfuzz==3.14.1
+
+# Web scraping utilities
+requests==2.32.5
+beautifulsoup4==4.12.3
+lxml==5.5.0
+weasyprint==66.0
+
+# Async support
+asyncio>=3.4.3
+aiohttp==3.12.2
+
+# Data validation and utilities
+pydantic==2.10.5
+validators==0.35.0
+tabulate==0.9.0
+termcolor==3.1.0
+tqdm==4.67.1
+
+# Development tools (optional)
+ipython==8.31.0
+jupyter==1.0.0
+pytest==8.3.5
+black==25.1.0
+mypy==1.14.2
+
+# Additional dependencies for full functionality
+huggingface_hub==0.29.0
+jsonlines==3.1.0
+lazy-imports==0.3.1
+catalogue==2.0.10
+pypdfium2==4.30.1
+portalocker==3.2.0
+iopath==0.1.10

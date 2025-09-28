@@ -36,9 +36,17 @@ export class SqlOriginalFileRepository implements IOriginalFileRepository {
       // Create database connection
       this.db = await this.createDatabase();
 
-      // Enable foreign keys and WAL mode for better concurrency
+      // Enable foreign keys
       await this.run('PRAGMA foreign_keys = ON');
-      await this.run('PRAGMA journal_mode = WAL');
+
+      // Try to enable WAL mode, but fall back gracefully if it fails
+      // This prevents SQLITE_IOERR in test environments or systems that don't support WAL
+      try {
+        await this.run('PRAGMA journal_mode = WAL');
+      } catch (walError) {
+        // Fall back to default journal mode if WAL fails
+        console.warn('Could not enable WAL mode, using default journal mode:', walError);
+      }
 
       // Create original_files table
       await this.run(`

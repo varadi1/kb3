@@ -227,18 +227,55 @@ export interface DoclingPipeline {
 }
 
 /**
+ * DeepDoctection scraper parameters
+ */
+export interface DeepDoctectionParameters {
+  // Analysis configuration
+  analyzerType?: 'auto' | 'layout' | 'table' | 'full';
+  ocr?: boolean;
+  ocrEngine?: 'tesseract' | 'easyocr' | 'paddleocr';
+  tableDetection?: boolean;
+  layoutDetection?: boolean;
+  figureDetection?: boolean;
+  formulaDetection?: boolean;
+
+  // Processing options
+  language?: string | string[];
+  dpi?: number;
+  maxPages?: number;
+  pageRange?: string;  // e.g., "1-5" or "1,3,5"
+  confidenceThreshold?: number;
+
+  // Output configuration
+  outputFormat?: 'json' | 'markdown' | 'text' | 'html';
+  extractImages?: boolean;
+  extractMetadata?: boolean;
+  mergeCells?: boolean;
+
+  // Performance
+  timeout?: number;
+  batchSize?: number;
+  useGPU?: boolean;
+
+  // Network options (for downloading documents)
+  userAgent?: string;
+  headers?: Record<string, string>;
+}
+
+/**
  * Union type for all scraper parameters
  */
 export type ScraperSpecificParameters =
   | PlaywrightParameters
   | Crawl4AIParameters
-  | DoclingParameters;
+  | DoclingParameters
+  | DeepDoctectionParameters;
 
 /**
  * Complete scraper configuration including base and specific parameters
  */
 export interface ScraperConfiguration {
-  scraperType: 'playwright' | 'crawl4ai' | 'docling' | 'http' | 'firecrawl';
+  scraperType: 'playwright' | 'crawl4ai' | 'docling' | 'http' | 'deepdoctection';
   parameters: ScraperSpecificParameters;
   urlPattern?: string | RegExp;
   priority?: number;

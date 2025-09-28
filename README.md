@@ -61,11 +61,85 @@ kb3/
 └── docs/                    # Additional documentation
 ```
 
+## Installation
+
+### Prerequisites
+
+- Node.js 18+ and npm
+- Python 3.9+ (for Python-based scrapers)
+- Git
+
+### Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/kb3.git
+cd kb3
+
+# Install Node.js dependencies
+npm install
+
+# Create Python virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Install Playwright browsers (for browser automation)
+px playwright install chromium
+
+# Build the TypeScript project
+npm run build
+
+# Run tests to verify installation
+npm test
+```
+
+### Advanced Installation (Full ML Capabilities)
+
+For full DeepDoctection capabilities with advanced document analysis:
+
+```bash
+# Activate virtual environment
+source .venv/bin/activate
+
+# Install additional ML dependencies
+pip install python-doctr[torch]  # OCR capabilities
+pip install transformers          # NLP models
+
+# For detectron2 (advanced layout detection) - platform specific:
+# macOS ARM64 (M1/M2):
+pip install 'git+https://github.com/facebookresearch/detectron2.git'
+
+# Linux/Windows with CUDA:
+python -m pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu118/torch2.0/index.html
+```
+
+### Verify Scraper Installation
+
+```bash
+# Run the scraper verification script
+npx tsx verify-scrapers.ts
+
+# Expected output:
+# ✅ HttpScraper: Working (native Node.js)
+# ✅ PlaywrightScraper: Working (playwright installed)
+# ✅ Crawl4AIScraper: Working (Crawl4AI installed)
+# ✅ DoclingScraper: Working (docling installed)
+# ✅ DeepDoctectionScraper: Working (with fallback for missing ML backends)
+```
+
 ## Key Features
 
 ### Core Capabilities
 - **Scalable URL Classification**: Extensible system for detecting and classifying different URL types
-- **Multiple Scraping Libraries**: Support for various scraping tools (HTTP, Playwright, Crawl4AI, Firecrawl, Docling, DeepDoctection)
+- **Multiple Scraping Libraries**: Support for various scraping tools with real implementations:
+  - **HttpScraper**: Native Node.js HTTP/HTTPS fetching
+  - **PlaywrightScraper**: Browser automation with Playwright
+  - **Crawl4AIScraper**: AI-powered web crawling with content extraction
+  - **DoclingScraper**: Advanced document processing (PDFs, DOCs, etc.)
+  - **DeepDoctectionScraper**: ML-based document layout analysis and OCR
 - **Advanced Parameter Configuration**: Set detailed parameters for each scraper per URL or in batch
 - **Modular Content Fetching**: Support for various content sources (web, local files, APIs)
 - **Flexible Content Processing**: Pluggable processors for different file types
@@ -123,6 +197,30 @@ kb3/
 - **Auto-Selection**: Automatically select appropriate cleaners based on content type
 - **Preserve Original**: Option to keep original text alongside cleaned version
 
+### Scraper Capabilities
+
+#### Verified Working Scrapers
+
+All scrapers have been tested and verified to work with real content (not mock data):
+
+| Scraper | Status | Dependencies | Capabilities |
+|---------|--------|-------------|-------------|
+| **HttpScraper** | ✅ Fully Working | None (native Node.js) | Basic HTTP/HTTPS fetching, cookies, headers |
+| **PlaywrightScraper** | ✅ Fully Working | playwright (Node) | Full browser automation, JS rendering, screenshots, PDFs |
+| **Crawl4AIScraper** | ✅ Fully Working | Crawl4AI (Python) | AI content extraction, markdown conversion, sessions |
+| **DoclingScraper** | ✅ Fully Working | docling (Python) | PDF/DOCX/PPTX processing, OCR, table extraction |
+| **DeepDoctectionScraper** | ✅ Working* | deepdoctection (Python) | Document layout analysis, OCR, figure detection |
+
+*DeepDoctectionScraper works with graceful fallback when ML models aren't fully installed.
+
+#### Python Bridge Architecture
+
+Python-based scrapers (Crawl4AI, Docling, DeepDoctection) use a Python Bridge system:
+- Executes Python wrapper scripts in virtual environment
+- Handles JSON serialization between Node.js and Python
+- Provides graceful fallbacks when dependencies are missing
+- Suppresses verbose ML library output
+
 ### Data Persistence
 - **Complete Metadata Storage**: All settings, errors, and rate limit info saved to database
 - **Scraper Configuration Tracking**: Track which scraper and parameters were used
@@ -138,12 +236,25 @@ kb3/
 - **Performance Testing**: Tests for memory efficiency and scalability
 - **Coverage Reporting**: Detailed coverage reports and verification
 
-## Installation
+## Quick Installation
 
 ```bash
+# Install Node dependencies
 npm install
+
+# Set up Python environment
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Build project
 npm run build
+
+# Verify scrapers
+npx tsx verify-scrapers.ts
 ```
+
+For detailed installation instructions, see the [Installation](#installation) section above.
 
 ## Usage
 
@@ -342,7 +453,7 @@ The original file tracking system automatically tracks all scraped and downloade
 #### Basic Usage
 
 ```typescript
-import { KnowledgeBaseFactoryWithFileTracking } from './src/factory/KnowledgeBaseFactoryWithFileTracking';
+import { KnowledgeBaseFactory } from './src/factory/KnowledgeBaseFactory';
 import { createSqlConfiguration } from './src/config/Configuration';
 
 // Create knowledge base with file tracking enabled
@@ -359,7 +470,8 @@ const config = createSqlConfiguration({
   }
 });
 
-const kb = await KnowledgeBaseFactoryWithFileTracking.createKnowledgeBaseWithFileTracking(config);
+// File tracking and tags are now integrated by default
+const kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
 // Process URLs - files are automatically tracked
 const result = await kb.processUrl('https://example.com/document.pdf');
@@ -1517,14 +1629,14 @@ enum FileStatus {
 }
 ```
 
-### KnowledgeBaseWithFileTracking
+### Integrated KnowledgeBase Features
 
-Extended orchestrator with file tracking:
+The KnowledgeBaseOrchestrator now includes both file tracking and tag support integrated:
 
 ```typescript
-interface KnowledgeBaseWithFileTracking extends KnowledgeBaseOrchestrator {
-  // Get the original file repository
-  getOriginalFileRepository(): IOriginalFileRepository;
+interface KnowledgeBaseOrchestrator {
+  // Get the original file repository (when available)
+  getOriginalFileRepository(): IOriginalFileRepository | undefined;
 }
 ```
 

@@ -9,14 +9,73 @@ import {
 } from '../../../src/interfaces/IScraperParameters';
 
 describe('DoclingScraper', () => {
-  jest.setTimeout(60000); // Set default timeout for all tests in this suite
+  // Reduced timeout since we're mocking Python execution
+  jest.setTimeout(10000); // 10 seconds should be plenty for unit tests with mocks
   let scraper: DoclingScraper;
+  let mockPythonBridgeExecute: jest.SpyInstance;
 
   beforeEach(() => {
     scraper = new DoclingScraper();
+
+    // Mock the PythonBridge execute method to prevent actual Python subprocess execution
+    // This follows SOLID's Dependency Inversion Principle - unit tests should use mocks
+    const pythonBridge = (scraper as any).pythonBridge;
+    mockPythonBridgeExecute = jest.spyOn(pythonBridge, 'execute').mockImplementation(
+      async (...mockArgs: unknown[]) => {
+        const args = mockArgs[1] as any[] || [];
+        // Extract options from args if provided
+        const config = args[0] || {};
+        const options = config.options || {};
+
+        // Create mock response based on requested format
+        const format = options.format || 'markdown';
+        const mockContent = format === 'json'
+          ? { title: 'Test Document', content: 'Test content' }
+          : 'Test document content';
+
+        return {
+          success: true,
+          data: {
+            success: true,
+            content: mockContent,
+            format: format,
+            document: {
+              text: 'Test document content',
+              markdown: '# Test Document\n\nTest content',
+              html: '<h1>Test Document</h1><p>Test content</p>',
+              json: { title: 'Test Document', content: 'Test content' }
+            },
+            metadata: {
+              title: 'Test Document',
+              author: 'Test Author',
+              page_count: 10,
+              word_count: 500,
+              document_type: options.document_type || 'pdf',
+              language: 'en',
+              created_date: '2024-01-01',
+              modified_date: '2024-01-02'
+            },
+            tables: options.export_tables ? [{ rows: [['Header'], ['Data']] }] : [],
+            figures: options.export_figures ? [{ caption: 'Figure 1', page: 1 }] : [],
+            annotations: options.extract_annotations ? [{ type: 'note', content: 'Test note' }] : [],
+            bookmarks: options.extract_bookmarks ? [{ title: 'Chapter 1', page: 1 }] : [],
+            form_fields: options.extract_form_fields ? [{ name: 'field1', value: 'value1' }] : [],
+            embedded_files: options.extract_embedded_files ? [{ name: 'file.txt', size: 100, type: 'text/plain' }] : []
+          },
+          stderr: '',
+          exitCode: 0,
+          executionTime: 100
+        };
+      }
+    );
   });
 
   afterEach(async () => {
+    // Restore mocks
+    if (mockPythonBridgeExecute) {
+      mockPythonBridgeExecute.mockRestore();
+    }
+
     // Clean up any resources
     await scraper.cleanup();
   });
@@ -98,7 +157,7 @@ describe('DoclingScraper', () => {
 
       expect(result.mimeType).toBe('text/markdown');
       expect(result.metadata?.scraperMetadata?.format).toBe('markdown');
-    }, 60000);
+    });
 
     test('should handle JSON format', async () => {
       const params: DoclingParameters = {
@@ -110,7 +169,7 @@ describe('DoclingScraper', () => {
 
       expect(result.mimeType).toBe('application/json');
       expect(result.metadata?.scraperMetadata?.format).toBe('json');
-    }, 60000);
+    });
 
     test('should handle HTML format', async () => {
       const params: DoclingParameters = {
@@ -122,7 +181,7 @@ describe('DoclingScraper', () => {
 
       expect(result.mimeType).toBe('text/html');
       expect(result.metadata?.scraperMetadata?.format).toBe('html');
-    }, 60000);
+    });
 
     test('should handle text format', async () => {
       const params: DoclingParameters = {
@@ -134,7 +193,7 @@ describe('DoclingScraper', () => {
 
       expect(result.mimeType).toBe('text/plain');
       expect(result.metadata?.scraperMetadata?.format).toBe('text');
-    }, 60000);
+    });
   });
 
   describe('OCR Configuration', () => {
@@ -149,7 +208,7 @@ describe('DoclingScraper', () => {
 
       expect(result.metadata?.scraperMetadata?.ocr).toBe(true);
       expect(result.metadata?.scraperMetadata?.ocrEngine).toBe('tesseract');
-    }, 60000);
+    });
 
     test('should handle OCR with easyocr', async () => {
       const params: DoclingParameters = {
@@ -162,7 +221,7 @@ describe('DoclingScraper', () => {
 
       expect(result.metadata?.scraperMetadata?.ocr).toBe(true);
       expect(result.metadata?.scraperMetadata?.ocrEngine).toBe('easyocr');
-    }, 60000);
+    });
 
     test('should handle OCR with paddleocr', async () => {
       const params: DoclingParameters = {
@@ -175,7 +234,7 @@ describe('DoclingScraper', () => {
 
       expect(result.metadata?.scraperMetadata?.ocr).toBe(true);
       expect(result.metadata?.scraperMetadata?.ocrEngine).toBe('paddleocr');
-    }, 60000);
+    });
   });
 
   describe('Table and Figure Extraction', () => {
@@ -472,7 +531,7 @@ describe('DoclingScraper', () => {
       expect(results[0].url).toBe(urls[0]);
       expect(results[1].url).toBe(urls[1]);
       expect(results[2].url).toBe(urls[2]);
-    }, 60000);
+    });
 
     test('should adjust batch size based on OCR', () => {
       const ocrParams: DoclingParameters = {
@@ -485,16 +544,16 @@ describe('DoclingScraper', () => {
       });
       expect(batchSize).toBe(2); // Lower concurrency with OCR
 
-      // Test with image extraction
-      const imageParams: DoclingParameters = {
-        exportPageImages: true
+      // Test with figure extraction
+      const figureParams: DoclingParameters = {
+        exportFigures: true
       };
-      scraper.setParameters(imageParams);
+      scraper.setParameters(figureParams);
 
-      const imageBatchSize = (scraper as any).getBatchSize({
-        scraperSpecific: imageParams
+      const figureBatchSize = (scraper as any).getBatchSize({
+        scraperSpecific: figureParams
       });
-      expect(imageBatchSize).toBe(3); // Lower concurrency with images
+      expect(figureBatchSize).toBe(3); // Lower concurrency with figure extraction
 
       // Test normal mode
       scraper.setParameters({});
@@ -507,22 +566,67 @@ describe('DoclingScraper', () => {
     test('should cache downloaded documents', async () => {
       const url = 'https://example.com/cached.pdf';
 
+      // Mock global fetch for document download
+      const originalFetch = global.fetch;
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        headers: new Map([['content-type', 'application/pdf']]),
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(100))
+      } as any);
+
+      // Mock the Python Bridge execute method
+      const pythonBridge = (scraper as any).pythonBridge;
+      const mockExecute = jest.spyOn(pythonBridge, 'execute').mockResolvedValue({
+        success: true,
+        data: {
+          success: true,
+          content: 'Mock PDF content',
+          format: 'markdown',
+          metadata: {
+            title: 'Cached Document',
+            page_count: 1
+          }
+        }
+      });
+
       // First request
-      await scraper.scrape(url);
+      const result1 = await scraper.scrape(url);
+      expect(result1.scraperName).toBe('docling');
 
       // Second request should use cache
-      const result = await scraper.scrape(url);
-      expect(result.scraperName).toBe('docling');
+      const result2 = await scraper.scrape(url);
+      expect(result2.scraperName).toBe('docling');
+
+      // Fetch should be called only once (cache hit on second request)
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+
+      // Python bridge should be called twice (once for each scrape)
+      expect(mockExecute).toHaveBeenCalledTimes(2);
+
+      // Restore mocks
+      global.fetch = originalFetch;
+      mockExecute.mockRestore();
     });
   });
 
   describe('Error Handling', () => {
     test('should handle download failures gracefully', async () => {
-      // In test environment, the scraper falls back to mock data
-      const result = await scraper.scrape('https://invalid.example.com/doc.pdf');
-      expect(result).toBeDefined();
-      expect(result.content).toBeDefined();
-      expect(result.scraperName).toBe('docling');
+      // Mock the Python Bridge to simulate failure
+      const pythonBridge = (scraper as any).pythonBridge;
+      const mockExecute = jest.spyOn(pythonBridge, 'execute').mockResolvedValue({
+        success: false,
+        error: 'Failed to download document'
+      });
+
+      try {
+        await scraper.scrape('https://invalid.example.com/doc.pdf');
+        fail('Should have thrown an error');
+      } catch (error: any) {
+        expect(error).toBeDefined();
+        expect(error.message).toContain('Failed');
+      }
+
+      mockExecute.mockRestore();
     });
 
     test('should fallback when OCR fails', async () => {
@@ -530,38 +634,63 @@ describe('DoclingScraper', () => {
         ocr: true
       };
 
+      // Mock Python Bridge with OCR failure simulation
+      const pythonBridge = (scraper as any).pythonBridge;
+      const mockExecute = jest.spyOn(pythonBridge, 'execute').mockResolvedValue({
+        success: true,
+        data: {
+          success: true,
+          content: 'Fallback content without OCR',
+          format: 'markdown',
+          metadata: {
+            ocr_failed: true,
+            fallback_used: true
+          }
+        }
+      });
+
       scraper.setParameters(params);
 
       // Should retry without OCR on failure
       const result = await scraper.scrape('https://example.com/corrupted.pdf');
       expect(result.scraperName).toBe('docling');
+
+      mockExecute.mockRestore();
     });
   });
 
-  describe('Mock Implementation', () => {
-    test('should use mock when Docling not installed', async () => {
-      const mock = (scraper as any).getMockDocling();
-      expect(mock).toBeDefined();
-      expect(mock.DocumentConverter).toBeDefined();
-
-      const converter = new mock.DocumentConverter({});
-      const result = await converter.convert(Buffer.from('test'), {});
-
-      expect(result.document.text).toBe('Mock Docling extracted content');
-      expect(result.metadata.title).toBe('Mock Document');
+  describe('Python Bridge Integration', () => {
+    test('should use Python bridge for document processing', () => {
+      // DoclingScraper uses PythonBridge to execute Python scripts
+      // The actual Docling library runs in Python, not TypeScript
+      const pythonBridge = (scraper as any).pythonBridge;
+      expect(pythonBridge).toBeDefined();
+      expect(pythonBridge.constructor.name).toBe('PythonBridge');
     });
 
-    test('should have correct mock enums', () => {
-      const mock = (scraper as any).getMockDocling();
-
-      expect(mock.TableFormatOptions.MARKDOWN).toBe('markdown');
-      expect(mock.OCREngine.TESSERACT).toBe('tesseract');
-      expect(mock.DocumentType.AUTO).toBe('auto');
+    test('should have wrapper script path configured', () => {
+      const wrapperPath = (scraper as any).wrapperPath;
+      expect(wrapperPath).toBeDefined();
+      expect(wrapperPath).toContain('docling_wrapper.py');
     });
   });
 
   describe('Cleanup', () => {
     test('should clear document cache', async () => {
+      // Mock Python Bridge for all scrape operations
+      const pythonBridge = (scraper as any).pythonBridge;
+      const mockExecute = jest.spyOn(pythonBridge, 'execute').mockResolvedValue({
+        success: true,
+        data: {
+          success: true,
+          content: 'Mock PDF content',
+          format: 'markdown',
+          metadata: {
+            title: 'Test Document'
+          }
+        }
+      });
+
       // Add documents to cache
       await scraper.scrape('https://example.com/doc1.pdf');
       await scraper.scrape('https://example.com/doc2.pdf');
@@ -572,6 +701,8 @@ describe('DoclingScraper', () => {
       // Scraper should still work after cleanup
       const result = await scraper.scrape('https://example.com/doc3.pdf');
       expect(result.scraperName).toBe('docling');
+
+      mockExecute.mockRestore();
     });
   });
 });

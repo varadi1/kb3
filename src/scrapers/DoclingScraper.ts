@@ -11,15 +11,15 @@ import {
   ScrapedMetadata
 } from '../interfaces/IScraper';
 import {
-  DoclingParameters,
-  DoclingPipeline
+  DoclingParameters
 } from '../interfaces/IScraperParameters';
-// import * as path from 'path';
-// import * as fs from 'fs';
+import { PythonBridge } from './PythonBridge';
+import * as path from 'path';
 
 export class DoclingScraper extends BaseScraper {
+  private pythonBridge: PythonBridge;
+  private wrapperPath: string;
   private documentCache: Map<string, Buffer> = new Map();
-  private converterInstance: any = null;
 
   constructor() {
     super(ScraperType.DOCLING, {
@@ -30,6 +30,9 @@ export class DoclingScraper extends BaseScraper {
       pdfGeneration: false,
       multiPage: false
     });
+
+    this.pythonBridge = new PythonBridge();
+    this.wrapperPath = path.join(__dirname, 'python_wrappers', 'docling_wrapper.py');
   }
 
   async scrape(url: string, options?: ScraperOptions): Promise<ScrapedContent> {
@@ -45,22 +48,30 @@ export class DoclingScraper extends BaseScraper {
     const startTime = Date.now();
 
     try {
-      // Import Docling dynamically
-      const docling = await this.loadDocling();
-
       // Download document from URL
       const documentBuffer = await this.downloadDocument(url, params);
 
-      // Get or create converter instance
-      const converter = await this.getConverterInstance(docling, params);
+      // Prepare configuration for Python wrapper
+      const pythonConfig = {
+        document_data: documentBuffer.toString('base64'),
+        document_url: url,
+        options: this.buildDoclingOptions(params)
+      };
 
-      // Process document with Docling
-      const result = await this.processDocument(
-        converter,
-        documentBuffer,
-        url,
-        params
-      );
+      // Execute document processing via Python bridge
+      const pythonResult = await this.pythonBridge.execute(this.wrapperPath, [pythonConfig], {
+        timeout: params.timeout || 120000
+      });
+
+      if (!pythonResult.success) {
+        throw new Error(pythonResult.error || 'Python execution failed');
+      }
+
+      const result = pythonResult.data;
+
+      if (!result.success) {
+        throw new Error(result.error || 'Docling processing failed');
+      }
 
       // Extract content in requested format
       const content = await this.extractContent(result, params);
@@ -100,81 +111,37 @@ export class DoclingScraper extends BaseScraper {
     return defaults;
   }
 
-  private async loadDocling(): Promise<any> {
-    try {
-      // Dynamic import to handle optional dependency
-      const docling = require('docling');
-      return docling;
-    } catch (error) {
-      // Return mock implementation for development/testing
-      return this.getMockDocling();
-    }
-  }
-
-  private getMockDocling(): any {
-    // Mock implementation for when Docling is not installed
+  private buildDoclingOptions(params: DoclingParameters): any {
     return {
-      DocumentConverter: class {
-        constructor(_config: any) {}
-        async convert(_input: any, _options: any): Promise<any> {
-          return {
-            document: {
-              text: 'Mock Docling extracted content',
-              markdown: '# Mock Docling Document\n\nExtracted content',
-              json: {
-                title: 'Mock Document',
-                content: 'Mock content',
-                tables: [],
-                figures: []
-              },
-              html: '<h1>Mock Document</h1><p>Mock content</p>'
-            },
-            metadata: {
-              title: 'Mock Document',
-              author: 'Mock Author',
-              created_date: new Date().toISOString(),
-              page_count: 1,
-              word_count: 10,
-              document_type: 'pdf',
-              language: 'en'
-            },
-            tables: [],
-            figures: [],
-            annotations: [],
-            bookmarks: [],
-            form_fields: [],
-            embedded_files: []
-          };
-        }
-      },
-      PipelineOptions: class {
-        constructor() {
-          (this as any).do_ocr = false;
-          (this as any).do_table_structure = true;
-        }
-      },
-      TableFormatOptions: {
-        MARKDOWN: 'markdown',
-        HTML: 'html',
-        CSV: 'csv',
-        JSON: 'json'
-      },
-      OCREngine: {
-        TESSERACT: 'tesseract',
-        EASYOCR: 'easyocr',
-        PADDLEOCR: 'paddleocr'
-      },
-      DocumentType: {
-        AUTO: 'auto',
-        PDF: 'pdf',
-        DOCX: 'docx',
-        PPTX: 'pptx',
-        XLSX: 'xlsx',
-        IMAGE: 'image',
-        HTML: 'html'
-      }
+      format: params.format,
+      ocr: params.ocr,
+      ocr_engine: params.ocrEngine,
+      table_structure: params.tableStructure,
+      table_format: params.tableFormat,
+      export_figures: params.exportFigures,
+      export_tables: params.exportTables,
+      figure_format: params.figureFormat,
+      max_pages: params.maxPages,
+      page_range: params.pageRange,
+      dpi: params.dpi,
+      quality_threshold: params.qualityThreshold,
+      binarize: params.binarize,
+      remove_watermarks: params.removeWatermarks,
+      enhance_scanned_text: params.enhanceScannedText,
+      merge_pages: params.mergePages,
+      split_by_section: params.splitBySection,
+      extract_form_fields: params.extractFormFields,
+      extract_annotations: params.extractAnnotations,
+      extract_bookmarks: params.extractBookmarks,
+      extract_embedded_files: params.extractEmbeddedFiles,
+      languages: params.languages,
+      document_type: params.documentType,
+      chunk_size: params.chunkSize,
+      overlap_size: params.overlapSize,
+      pipeline: params.pipeline
     };
   }
+
 
   private async downloadDocument(url: string, params: DoclingParameters): Promise<Buffer> {
     // Check cache first
@@ -205,172 +172,16 @@ export class DoclingScraper extends BaseScraper {
     }
   }
 
-  private async getConverterInstance(docling: any, params: DoclingParameters): Promise<any> {
-    if (this.converterInstance) {
-      return this.converterInstance;
-    }
 
-    // Create converter configuration
-    const config = this.buildConverterConfig(docling, params);
 
-    // Create converter instance
-    this.converterInstance = new docling.DocumentConverter(config);
 
-    return this.converterInstance;
-  }
 
-  private buildConverterConfig(_docling: any, params: DoclingParameters): any {
-    const config: any = {
-      // OCR configuration
-      ocr_enabled: params.ocr,
-      ocr_engine: params.ocrEngine || 'tesseract',
 
-      // Table extraction
-      table_structure_enabled: params.tableStructure,
-      table_format: params.tableFormat || 'markdown',
-
-      // Figure extraction
-      export_figures: params.exportFigures,
-      figure_format: params.figureFormat || 'png',
-
-      // Page handling
-      max_pages: params.maxPages,
-      page_range: params.pageRange,
-
-      // Quality settings
-      dpi: params.dpi || 300,
-      quality_threshold: params.qualityThreshold || 0.8,
-
-      // Processing options
-      binarize: params.binarize,
-      remove_watermarks: params.removeWatermarks,
-      enhance_scanned_text: params.enhanceScannedText,
-
-      // Output options
-      merge_pages: params.mergePages,
-      split_by_section: params.splitBySection,
-
-      // Extraction options
-      extract_form_fields: params.extractFormFields,
-      extract_annotations: params.extractAnnotations,
-      extract_bookmarks: params.extractBookmarks,
-      extract_embedded_files: params.extractEmbeddedFiles,
-
-      // Language support
-      languages: params.languages || ['en']
-    };
-
-    // Add pipeline configuration if specified
-    if (params.pipeline && params.pipeline.length > 0) {
-      config.pipeline = this.buildPipeline(params.pipeline);
-    }
-
-    return config;
-  }
-
-  private buildPipeline(pipeline: DoclingPipeline[]): any[] {
-    return pipeline.map(stage => ({
-      stage: stage.stage,
-      operation: stage.operation,
-      params: stage.params || {}
-    }));
-  }
-
-  private async processDocument(
-    converter: any,
-    documentBuffer: Buffer,
-    url: string,
-    params: DoclingParameters
-  ): Promise<any> {
-    // Determine document type
-    const documentType = this.detectDocumentType(url, documentBuffer, params);
-
-    // Prepare conversion options
-    const options = {
-      document_type: documentType,
-      source_url: url,
-      chunk_size: params.chunkSize,
-      overlap_size: params.overlapSize
-    };
-
-    // Convert document
-    try {
-      const result = await converter.convert(documentBuffer, options);
-      return result;
-    } catch (error) {
-      // Retry with different settings if OCR fails
-      if (params.ocr && error instanceof Error && error.message.includes('OCR')) {
-        console.log('OCR failed, retrying without OCR');
-        const fallbackOptions = { ...options, ocr_enabled: false };
-        return await converter.convert(documentBuffer, fallbackOptions);
-      }
-      throw error;
-    }
-  }
-
-  private detectDocumentType(
-    url: string,
-    buffer: Buffer,
-    params: DoclingParameters
-  ): string {
-    // If explicitly specified, use that
-    if (params.documentType && params.documentType !== 'auto') {
-      return params.documentType;
-    }
-
-    // Check URL extension
-    const urlLower = url.toLowerCase();
-    const extensionMap: Record<string, string> = {
-      '.pdf': 'pdf',
-      '.docx': 'docx',
-      '.doc': 'docx',
-      '.pptx': 'pptx',
-      '.ppt': 'pptx',
-      '.xlsx': 'xlsx',
-      '.xls': 'xlsx',
-      '.png': 'image',
-      '.jpg': 'image',
-      '.jpeg': 'image',
-      '.tiff': 'image',
-      '.html': 'html',
-      '.htm': 'html'
-    };
-
-    for (const [ext, type] of Object.entries(extensionMap)) {
-      if (urlLower.includes(ext)) {
-        return type;
-      }
-    }
-
-    // Check magic bytes in buffer
-    const magicBytes = buffer.slice(0, 8);
-    if (magicBytes.toString('ascii').startsWith('%PDF')) {
-      return 'pdf';
-    }
-    if (magicBytes[0] === 0x50 && magicBytes[1] === 0x4B) {
-      // ZIP-based format (DOCX, PPTX, XLSX)
-      return 'docx'; // Default to DOCX for Office formats
-    }
-    if (magicBytes[0] === 0x89 && magicBytes[1] === 0x50) {
-      return 'image'; // PNG
-    }
-    if (magicBytes[0] === 0xFF && magicBytes[1] === 0xD8) {
-      return 'image'; // JPEG
-    }
-    if (magicBytes.toString('ascii').toLowerCase().includes('<!doctype') ||
-        magicBytes.toString('ascii').toLowerCase().includes('<html')) {
-      return 'html';
-    }
-
-    // Default to PDF as it's most common for documents
-    return 'pdf';
-  }
-
-  private async extractContent(result: any, params: DoclingParameters): Promise<Buffer> {
+  private async extractContent(result: any, _params: DoclingParameters): Promise<Buffer> {
     let content: string;
 
     // Extract in requested format
-    switch (params.format) {
+    switch (_params.format) {
       case 'markdown':
         content = result.document?.markdown || this.convertToMarkdown(result);
         break;
@@ -396,16 +207,16 @@ export class DoclingScraper extends BaseScraper {
     }
 
     // Add tables if extracted
-    if (params.exportTables && result.tables && result.tables.length > 0) {
+    if (_params.exportTables && result.tables && result.tables.length > 0) {
       content += '\n\n## Tables\n\n';
       for (let i = 0; i < result.tables.length; i++) {
         content += `### Table ${i + 1}\n\n`;
-        content += this.formatTable(result.tables[i], params.tableFormat) + '\n\n';
+        content += this.formatTable(result.tables[i], _params.tableFormat) + '\n\n';
       }
     }
 
     // Add figure references if extracted
-    if (params.exportFigures && result.figures && result.figures.length > 0) {
+    if (_params.exportFigures && result.figures && result.figures.length > 0) {
       content += '\n\n## Figures\n\n';
       for (let i = 0; i < result.figures.length; i++) {
         content += `- Figure ${i + 1}: ${result.figures[i].caption || 'No caption'}\n`;
@@ -413,7 +224,7 @@ export class DoclingScraper extends BaseScraper {
     }
 
     // Add annotations if extracted
-    if (params.extractAnnotations && result.annotations && result.annotations.length > 0) {
+    if (_params.extractAnnotations && result.annotations && result.annotations.length > 0) {
       content += '\n\n## Annotations\n\n';
       for (const annotation of result.annotations) {
         content += `- ${annotation.type}: ${annotation.content}\n`;
@@ -421,7 +232,7 @@ export class DoclingScraper extends BaseScraper {
     }
 
     // Add bookmarks if extracted
-    if (params.extractBookmarks && result.bookmarks && result.bookmarks.length > 0) {
+    if (_params.extractBookmarks && result.bookmarks && result.bookmarks.length > 0) {
       content += '\n\n## Bookmarks\n\n';
       for (const bookmark of result.bookmarks) {
         content += `- ${bookmark.title} (Page ${bookmark.page})\n`;
@@ -429,7 +240,7 @@ export class DoclingScraper extends BaseScraper {
     }
 
     // Add form fields if extracted
-    if (params.extractFormFields && result.form_fields && result.form_fields.length > 0) {
+    if (_params.extractFormFields && result.form_fields && result.form_fields.length > 0) {
       content += '\n\n## Form Fields\n\n';
       for (const field of result.form_fields) {
         content += `- ${field.name}: ${field.value || 'Empty'}\n`;
@@ -561,8 +372,8 @@ export class DoclingScraper extends BaseScraper {
     return html;
   }
 
-  private getMimeType(format?: string): string {
-    switch (format) {
+  private getMimeType(_format?: string): string {
+    switch (_format) {
       case 'json':
         return 'application/json';
       case 'html':
@@ -676,11 +487,6 @@ export class DoclingScraper extends BaseScraper {
    */
   async scrapeBatch(urls: string[], options?: ScraperOptions): Promise<ScrapedContent[]> {
     const mergedOptions = this.mergeOptions(options);
-    const params = this.extractDoclingParams(mergedOptions);
-
-    // Load Docling once for batch processing
-    const docling = await this.loadDocling();
-    this.converterInstance = await this.getConverterInstance(docling, params);
 
     const results: ScrapedContent[] = [];
 
@@ -705,12 +511,12 @@ export class DoclingScraper extends BaseScraper {
   }
 
   protected getBatchSize(options: ScraperOptions): number {
-    const params = options.scraperSpecific as DoclingParameters;
+    const _params = options.scraperSpecific as DoclingParameters;
     // Docling batch size depends on document complexity
-    if (params?.ocr) {
+    if (_params?.ocr) {
       return 2; // Lower concurrency with OCR
     }
-    if (params?.exportPageImages || params?.exportFigures) {
+    if (_params?.exportFigures) {
       return 3; // Lower concurrency with image extraction
     }
     return 5; // Default concurrency for document processing
@@ -722,8 +528,5 @@ export class DoclingScraper extends BaseScraper {
   async cleanup(): Promise<void> {
     // Clear document cache
     this.documentCache.clear();
-
-    // Clean up converter instance
-    this.converterInstance = null;
   }
 }

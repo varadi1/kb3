@@ -9,7 +9,6 @@ import { ScraperSelector } from './ScraperSelector';
 import { HttpScraper } from './HttpScraper';
 import { PlaywrightScraper } from './PlaywrightScraper';
 import { Crawl4AIScraper } from './Crawl4AIScraper';
-import { FirecrawlScraper } from './FirecrawlScraper';
 import { DoclingScraper } from './DoclingScraper';
 import { DeepDoctectionScraper } from './DeepDoctectionScraper';
 import { ScraperAwareContentFetcher } from '../fetchers/ScraperAwareContentFetcher';
@@ -36,10 +35,8 @@ export class ScraperFactory {
 
     // Register enabled scrapers
     const enabledScrapers = config.scraping?.enabledScrapers || ['http'];
-    const scraperConfigs = config.scraping?.scraperConfigs || {};
 
     for (const scraperName of enabledScrapers) {
-      const scraperConfig = scraperConfigs[scraperName];
 
       switch (scraperName) {
         case 'http':
@@ -50,12 +47,6 @@ export class ScraperFactory {
           break;
         case 'crawl4ai':
           registry.register('crawl4ai', new Crawl4AIScraper());
-          break;
-        case 'firecrawl':
-          const apiKey = scraperConfig?.apiKey;
-          if (apiKey) {
-            registry.register('firecrawl', new FirecrawlScraper(apiKey));
-          }
           break;
         case 'docling':
           registry.register('docling', new DoclingScraper());

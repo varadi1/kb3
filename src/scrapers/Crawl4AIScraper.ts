@@ -15,9 +15,12 @@ import {
   ChunkingStrategy,
   ContentFilter
 } from '../interfaces/IScraperParameters';
+import { PythonBridge } from './PythonBridge';
+import * as path from 'path';
 
 export class Crawl4AIScraper extends BaseScraper {
-  private crawlerInstance: any = null;
+  private pythonBridge: PythonBridge;
+  private wrapperPath: string;
   private sessionCache: Map<string, any> = new Map();
 
   constructor() {
@@ -29,6 +32,9 @@ export class Crawl4AIScraper extends BaseScraper {
       pdfGeneration: false,
       multiPage: true
     });
+
+    this.pythonBridge = new PythonBridge();
+    this.wrapperPath = path.join(__dirname, 'python_wrappers', 'crawl4ai_wrapper.py');
   }
 
   async scrape(url: string, options?: ScraperOptions): Promise<ScrapedContent> {
@@ -44,17 +50,30 @@ export class Crawl4AIScraper extends BaseScraper {
     const startTime = Date.now();
 
     try {
-      // Import Crawl4AI dynamically
-      const crawl4ai = await this.loadCrawl4AI();
-
-      // Get or create crawler instance
-      const crawler = await this.getCrawlerInstance(crawl4ai, params);
-
-      // Prepare crawl configuration
+      // Prepare configuration for Python wrapper
+      const crawlerConfig = this.buildCrawlerConfig(params);
       const crawlConfig = this.buildCrawlConfig(params);
 
-      // Execute crawl
-      const result = await this.executeCrawl(crawler, url, crawlConfig, params);
+      const pythonConfig = {
+        url,
+        crawler_config: crawlerConfig,
+        crawl_config: crawlConfig
+      };
+
+      // Execute crawl via Python bridge
+      const pythonResult = await this.pythonBridge.execute(this.wrapperPath, [pythonConfig], {
+        timeout: params.timeout || 60000
+      });
+
+      if (!pythonResult.success) {
+        throw new Error(pythonResult.error || 'Python execution failed');
+      }
+
+      const result = pythonResult.data;
+
+      if (!result.success) {
+        throw new Error(result.error || 'Crawl4AI crawling failed');
+      }
 
       // Process and extract content
       const content = await this.processContent(result, params);
@@ -109,84 +128,8 @@ export class Crawl4AIScraper extends BaseScraper {
     return defaults;
   }
 
-  private async loadCrawl4AI(): Promise<any> {
-    try {
-      // Dynamic import to handle optional dependency
-      const crawl4ai = require('crawl4ai');
-      return crawl4ai;
-    } catch (error) {
-      // Return mock implementation for development/testing
-      return this.getMockCrawl4AI();
-    }
-  }
-
-  private getMockCrawl4AI(): any {
-    // Mock implementation for when Crawl4AI is not installed
+  private buildCrawlerConfig(params: Crawl4AIParameters): any {
     return {
-      AsyncWebCrawler: class {
-        constructor(_config: any) {}
-        async arun(_url: string, config: any): Promise<any> {
-          return {
-            success: true,
-            html: '<html><body>Mock Crawl4AI content</body></html>',
-            cleaned_html: '<body>Mock Crawl4AI content</body>',
-            markdown: 'Mock Crawl4AI content',
-            extracted_content: 'Mock Crawl4AI extracted content',
-            metadata: {
-              title: 'Mock Title',
-              description: 'Mock Description',
-              keywords: [],
-              language: 'en'
-            },
-            links: [],
-            images: [],
-            screenshot: null,
-            session_id: config?.session_id || 'mock-session',
-            crawl_depth: 0,
-            status_code: 200,
-            error_message: null,
-            word_count: 10
-          };
-        }
-        async close(): Promise<void> {}
-      },
-      CacheMode: {
-        ENABLED: 'enabled',
-        DISABLED: 'disabled',
-        BYPASS: 'bypass',
-        WRITE_ONLY: 'write_only',
-        READ_ONLY: 'read_only'
-      },
-      ExtractionStrategy: {
-        COSINE_SIMILARITY: 'cosine',
-        LLM_EXTRACTION: 'llm',
-        REGEX_EXTRACTION: 'regex',
-        XPATH_EXTRACTION: 'xpath',
-        CSS_EXTRACTION: 'css'
-      },
-      ChunkingStrategy: {
-        FIXED_SIZE: 'fixed',
-        SEMANTIC: 'semantic',
-        SLIDING_WINDOW: 'sliding_window',
-        TOPIC_BASED: 'topic_based',
-        REGEX_BASED: 'regex'
-      }
-    };
-  }
-
-  private async getCrawlerInstance(crawl4ai: any, params: Crawl4AIParameters): Promise<any> {
-    // Use session-based crawler if session ID is provided
-    if (params.sessionId && this.sessionCache.has(params.sessionId)) {
-      return this.sessionCache.get(params.sessionId);
-    }
-
-    // Reuse crawler instance for batch operations
-    if (this.crawlerInstance && !params.sessionId) {
-      return this.crawlerInstance;
-    }
-
-    // Create new crawler instance
-    const config = {
       browser_type: 'chromium',
       headless: true,
       verbose: params.verbose || false,
@@ -201,18 +144,9 @@ export class Crawl4AIScraper extends BaseScraper {
       page_timeout: params.pageTimeout || params.timeout,
       anti_bot: params.antiBot || false
     };
-
-    const crawler = new crawl4ai.AsyncWebCrawler(config);
-
-    // Cache the crawler
-    if (params.sessionId) {
-      this.sessionCache.set(params.sessionId, crawler);
-    } else {
-      this.crawlerInstance = crawler;
-    }
-
-    return crawler;
   }
+
+
 
   private buildCrawlConfig(params: Crawl4AIParameters): any {
     const config: any = {
@@ -221,6 +155,9 @@ export class Crawl4AIScraper extends BaseScraper {
       wait_for: params.waitFor,
       screenshot: params.screenshot,
       bypass_cache: params.bypassCache,
+      headers: params.headers,
+      user_agent: params.userAgent,
+      page_timeout: params.pageTimeout || params.timeout,
 
       // Content extraction
       css_selector: params.cssSelector,
@@ -243,12 +180,16 @@ export class Crawl4AIScraper extends BaseScraper {
       // Timing
       delay_before: params.delayBefore,
       delay_after: params.delayAfter,
+      delay_before_return_html: params.delayAfter,
 
       // Cache mode
       cache_mode: this.mapCacheMode(params.cacheMode),
 
       // Session
-      session_id: params.sessionId
+      session_id: params.sessionId,
+
+      // Advanced features
+      magic: params.magic
     };
 
     // Add extraction strategy if specified
@@ -266,24 +207,14 @@ export class Crawl4AIScraper extends BaseScraper {
       config.content_filter = this.buildContentFilter(params.contentFilter);
     }
 
-    // Enable magic mode if specified
-    if (params.magic) {
-      config.magic = true;
-      config.smart_extraction = true;
-      config.auto_scroll = true;
-      config.remove_popups = true;
-    }
-
     return config;
   }
 
   private buildExtractionStrategy(strategy: string): any {
     const strategies: Record<string, any> = {
-      'cosine': { type: 'cosine_similarity', threshold: 0.5 },
-      'llm': { type: 'llm_extraction', model: 'gpt-3.5-turbo' },
-      'regex': { type: 'regex_extraction' },
-      'xpath': { type: 'xpath_extraction' },
-      'css': { type: 'css_extraction' }
+      'cosine': { type: 'cosine' },
+      'llm': { type: 'llm', provider: 'openai', model: 'gpt-3.5-turbo' },
+      'regex': { type: 'regex' }
     };
     return strategies[strategy] || strategies['cosine'];
   }
@@ -345,42 +276,15 @@ export class Crawl4AIScraper extends BaseScraper {
 
   private mapCacheMode(mode?: string): string {
     const modeMap: Record<string, string> = {
-      'enabled': 'ENABLED',
-      'disabled': 'DISABLED',
-      'bypass': 'BYPASS',
-      'write_only': 'WRITE_ONLY',
-      'read_only': 'READ_ONLY'
+      'enabled': 'enabled',
+      'disabled': 'disabled',
+      'bypass': 'bypass',
+      'write_only': 'write_only',
+      'read_only': 'read_only'
     };
-    return modeMap[mode || 'enabled'] || 'ENABLED';
+    return modeMap[mode || 'enabled'] || 'enabled';
   }
 
-  private async executeCrawl(
-    crawler: any,
-    url: string,
-    config: any,
-    params: Crawl4AIParameters
-  ): Promise<any> {
-    try {
-      const result = await crawler.arun(url, config);
-
-      if (!result.success) {
-        throw new Error(result.error_message || 'Crawl failed');
-      }
-
-      return result;
-    } catch (error) {
-      // Retry logic if specified
-      if (params.retries && params.retries > 0) {
-        console.log(`Retrying crawl for ${url}, attempts remaining: ${params.retries}`);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        return this.executeCrawl(crawler, url, config, {
-          ...params,
-          retries: params.retries - 1
-        });
-      }
-      throw error;
-    }
-  }
 
   private async processContent(result: any, params: Crawl4AIParameters): Promise<Buffer> {
     let content: string;
@@ -390,8 +294,12 @@ export class Crawl4AIScraper extends BaseScraper {
       content = result.extracted_content;
     } else if (result.markdown && params.onlyMainContent) {
       content = result.markdown;
+    } else if (result.fit_markdown) {
+      content = result.fit_markdown;
     } else if (result.cleaned_html) {
       content = result.cleaned_html;
+    } else if (result.fit_html) {
+      content = result.fit_html;
     } else {
       content = result.html || '';
     }
@@ -415,20 +323,22 @@ export class Crawl4AIScraper extends BaseScraper {
     const loadTime = Date.now() - startTime;
 
     const metadata: ScrapedMetadata = {
-      title: result.metadata?.title || '',
+      title: result.metadata?.title || result.metadata?.page_title || '',
       statusCode: result.status_code || 200,
       loadTime,
       scraperConfig: params,
       scraperMetadata: {
-        crawlDepth: result.crawl_depth || 0,
-        sessionId: result.session_id,
+        sessionId: result.session_id || params.sessionId,
         extractionStrategy: params.extractionStrategy,
-        wordCount: result.word_count,
-        linkCount: result.links?.length || 0,
+        linkCount: (result.links?.internal?.length || 0) + (result.links?.external?.length || 0),
         imageCount: result.images?.length || 0,
+        videoCount: result.media?.videos?.length || 0,
+        audioCount: result.media?.audios?.length || 0,
         cacheMode: params.cacheMode,
         jsExecution: params.jsExecution,
-        magic: params.magic
+        magic: params.magic,
+        crawlDepth: params.maxDepth || 1,
+        responseHeaders: result.response_headers
       }
     };
 
@@ -443,14 +353,19 @@ export class Crawl4AIScraper extends BaseScraper {
         description: result.metadata.description,
         keywords: result.metadata.keywords,
         language: result.metadata.language,
-        author: result.metadata.author
+        author: result.metadata.author,
+        pageTitle: result.metadata.page_title
       };
     }
 
-    // Add links and images if requested
+    // Add links and media if requested
     if ((params.extractionStrategy === 'llm' || params.magic) && metadata.scraperMetadata) {
-      metadata.scraperMetadata.links = result.links || [];
+      metadata.scraperMetadata.links = {
+        internal: result.links?.internal || [],
+        external: result.links?.external || []
+      };
       metadata.scraperMetadata.images = result.images || [];
+      metadata.scraperMetadata.media = result.media || { videos: [], audios: [] };
     }
 
     return metadata;
@@ -467,10 +382,6 @@ export class Crawl4AIScraper extends BaseScraper {
   async scrapeBatch(urls: string[], options?: ScraperOptions): Promise<ScrapedContent[]> {
     const mergedOptions = this.mergeOptions(options);
     const params = this.extractCrawl4AIParams(mergedOptions);
-
-    // Use persistent crawler for batch operations
-    const crawl4ai = await this.loadCrawl4AI();
-    this.crawlerInstance = await this.getCrawlerInstance(crawl4ai, params);
 
     const results: ScrapedContent[] = [];
 
@@ -508,13 +419,7 @@ export class Crawl4AIScraper extends BaseScraper {
         }
       }
     } finally {
-      // Cleanup crawler instance
-      if (this.crawlerInstance && !params.sessionId) {
-        try {
-          await this.crawlerInstance.close();
-        } catch {}
-        this.crawlerInstance = null;
-      }
+      // Python bridge handles cleanup automatically
     }
 
     return results;
@@ -536,33 +441,14 @@ export class Crawl4AIScraper extends BaseScraper {
    * Clean up session-based crawlers
    */
   async cleanupSession(sessionId: string): Promise<void> {
-    const crawler = this.sessionCache.get(sessionId);
-    if (crawler) {
-      try {
-        await crawler.close();
-      } catch {}
-      this.sessionCache.delete(sessionId);
-    }
+    this.sessionCache.delete(sessionId);
   }
 
   /**
    * Clean up all resources
    */
   async cleanup(): Promise<void> {
-    // Clean up main crawler
-    if (this.crawlerInstance) {
-      try {
-        await this.crawlerInstance.close();
-      } catch {}
-      this.crawlerInstance = null;
-    }
-
-    // Clean up all session crawlers
-    for (const [_sessionId, crawler] of this.sessionCache) {
-      try {
-        await crawler.close();
-      } catch {}
-    }
+    // Clean up session cache
     this.sessionCache.clear();
   }
 }

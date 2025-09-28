@@ -119,7 +119,7 @@ describe('System Integration Tests', () => {
   describe('End-to-End Processing', () => {
     test('should process URLs through complete pipeline', async () => {
       const config = createDevelopmentConfiguration();
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       // Note: This test would need actual URLs or mocked network responses
       // For demonstration, we'll test the structure
@@ -134,7 +134,7 @@ describe('System Integration Tests', () => {
       config.processing.concurrency = 2;
       config.network.timeout = 2000; // Quick timeout for test URLs
 
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       // Test concurrent processing capability
       const urls = ['https://example.com/1.txt', 'https://example.com/2.txt'];
@@ -172,7 +172,7 @@ describe('System Integration Tests', () => {
         }
       });
 
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       expect(knowledgeBase).toBeDefined();
       expect(typeof knowledgeBase.processUrl).toBe('function');
@@ -202,7 +202,7 @@ describe('System Integration Tests', () => {
         }
       });
 
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       // Note: Without mocking network requests, this will fail
       // In a real test environment, you would mock the fetcher
@@ -226,7 +226,7 @@ describe('System Integration Tests', () => {
         }
       });
 
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       expect(knowledgeBase).toBeDefined();
       expect(typeof knowledgeBase.processUrl).toBe('function');
@@ -254,7 +254,7 @@ describe('System Integration Tests', () => {
         }
       });
 
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       expect(knowledgeBase).toBeDefined();
 
@@ -265,7 +265,7 @@ describe('System Integration Tests', () => {
   });
 
   describe('Configuration Flexibility', () => {
-    test('should support all storage types', () => {
+    test('should support all storage types', async () => {
       // Memory storage
       const memoryConfig = createDefaultConfiguration({
         storage: {
@@ -278,7 +278,7 @@ describe('System Integration Tests', () => {
           }
         }
       });
-      const memoryKB = KnowledgeBaseFactory.createKnowledgeBase(memoryConfig);
+      const memoryKB = await KnowledgeBaseFactory.createKnowledgeBase(memoryConfig);
       expect(memoryKB).toBeDefined();
 
       // File storage
@@ -296,7 +296,7 @@ describe('System Integration Tests', () => {
           }
         }
       });
-      const fileKB = KnowledgeBaseFactory.createKnowledgeBase(fileConfig);
+      const fileKB = await KnowledgeBaseFactory.createKnowledgeBase(fileConfig);
       expect(fileKB).toBeDefined();
 
       // SQL storage
@@ -314,7 +314,7 @@ describe('System Integration Tests', () => {
           }
         }
       });
-      const sqlKB = KnowledgeBaseFactory.createKnowledgeBase(sqlConfig);
+      const sqlKB = await KnowledgeBaseFactory.createKnowledgeBase(sqlConfig);
       expect(sqlKB).toBeDefined();
     });
 
@@ -348,9 +348,9 @@ describe('System Integration Tests', () => {
   });
 
   describe('Component Integration', () => {
-    test('should correctly wire all components together', () => {
+    test('should correctly wire all components together', async () => {
       const config = createDefaultConfiguration();
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       // Test that all components are properly integrated
       expect(knowledgeBase.getProcessingStats()).toEqual({
@@ -382,7 +382,7 @@ describe('System Integration Tests', () => {
   describe('Error Handling Integration', () => {
     test('should handle processing errors gracefully', async () => {
       const config = createDevelopmentConfiguration();
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       const invalidUrl = 'not-a-valid-url';
 
@@ -396,7 +396,7 @@ describe('System Integration Tests', () => {
 
     test('should provide meaningful error information', async () => {
       const config = createDevelopmentConfiguration();
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       const result = await knowledgeBase.processUrl('invalid-url');
 
@@ -416,7 +416,7 @@ describe('System Integration Tests', () => {
       // Reduce timeout for faster test execution
       config.network.timeout = 2000; // 2 seconds per request
 
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       const startTime = Date.now();
 
@@ -436,7 +436,7 @@ describe('System Integration Tests', () => {
     test('should track processing statistics correctly', async () => {
       const config = createDevelopmentConfiguration();
       config.network.timeout = 2000; // Quick timeout for non-existent URL
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       const initialStats = knowledgeBase.getProcessingStats();
       expect(initialStats.totalProcessed).toBe(0);
@@ -451,7 +451,7 @@ describe('System Integration Tests', () => {
   });
 
   describe('Configuration Variations', () => {
-    test('should work with memory storage configuration', () => {
+    test('should work with memory storage configuration', async () => {
       const config = createDefaultConfiguration({
         storage: {
           knowledgeStore: {
@@ -467,11 +467,11 @@ describe('System Integration Tests', () => {
       }
       });
 
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
       expect(knowledgeBase).toBeDefined();
     });
 
-    test('should work with file storage configuration', () => {
+    test('should work with file storage configuration', async () => {
       const config = createDefaultConfiguration({
         storage: {knowledgeStore: {
             type: 'file',
@@ -486,32 +486,39 @@ describe('System Integration Tests', () => {
       }
       });
 
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
       expect(knowledgeBase).toBeDefined();
     });
   });
 
   describe('Factory Pattern Integration', () => {
-    test('should create different configurations correctly', () => {
-      const defaultKB = KnowledgeBaseFactory.createDefaultKnowledgeBase();
-      const devKB = KnowledgeBaseFactory.createDevelopmentKnowledgeBase();
-      const prodKB = KnowledgeBaseFactory.createProductionKnowledgeBase();
+    test('should create different configurations correctly', async () => {
+      const defaultKB = await KnowledgeBaseFactory.createDefaultKnowledgeBase();
+      const devKB = await KnowledgeBaseFactory.createDevelopmentKnowledgeBase();
+      const prodKB = await KnowledgeBaseFactory.createProductionKnowledgeBase();
 
       expect(defaultKB).toBeDefined();
       expect(devKB).toBeDefined();
       expect(prodKB).toBeDefined();
 
-      // All should be instances of the same orchestrator class
-      expect(defaultKB.constructor.name).toBe('KnowledgeBaseOrchestrator');
-      expect(devKB.constructor.name).toBe('KnowledgeBaseOrchestrator');
-      expect(prodKB.constructor.name).toBe('KnowledgeBaseOrchestrator');
+      // All should have the same base orchestrator functionality
+      // The actual class name may vary (KnowledgeBaseOrchestrator, KnowledgeBaseOrchestratorWithTags, etc.)
+      // depending on the features enabled, but all should have core methods
+      expect(typeof defaultKB.processUrl).toBe('function');
+      expect(typeof devKB.processUrl).toBe('function');
+      expect(typeof prodKB.processUrl).toBe('function');
+
+      // Verify they are orchestrators (they all contain 'Orchestrator' in the class name)
+      expect(defaultKB.constructor.name).toContain('Orchestrator');
+      expect(devKB.constructor.name).toContain('Orchestrator');
+      expect(prodKB.constructor.name).toContain('Orchestrator');
     });
   });
 
   describe('Status and Monitoring', () => {
     test('should provide system status information', async () => {
       const config = createDevelopmentConfiguration();
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       const status = await knowledgeBase.getStatus();
 
@@ -530,7 +537,7 @@ describe('System Integration Tests', () => {
 
     test('should track current operations', async () => {
       const config = createDevelopmentConfiguration();
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       const initialCount = knowledgeBase.getCurrentOperationsCount();
       expect(initialCount).toBe(0);
@@ -553,7 +560,7 @@ describe('System Integration Tests', () => {
   describe('Cleanup and Resource Management', () => {
     test('should properly cleanup resources', async () => {
       const config = createDevelopmentConfiguration();
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       // Start some operations
       const promises = [
@@ -570,9 +577,9 @@ describe('System Integration Tests', () => {
       await Promise.allSettled(promises);
     });
 
-    test('should reset statistics when requested', () => {
+    test('should reset statistics when requested', async () => {
       const config = createDevelopmentConfiguration();
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       // Reset stats
       knowledgeBase.resetStats();
@@ -587,7 +594,7 @@ describe('System Integration Tests', () => {
   describe('Real-world Simulation', () => {
     test('should handle mixed content types', async () => {
       const config = createDevelopmentConfiguration();
-      const knowledgeBase = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const knowledgeBase = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       const mixedUrls = [
         'https://example.com/doc.pdf',

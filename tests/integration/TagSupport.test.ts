@@ -3,8 +3,8 @@
  * Tests tag management, URL-tag relationships, and batch processing by tags
  */
 
-import { KnowledgeBaseOrchestratorWithTags } from '../../src/orchestrator/KnowledgeBaseOrchestratorWithTags';
-import { KnowledgeBaseFactoryWithTags } from '../../src/factory/KnowledgeBaseFactoryWithTags';
+import { KnowledgeBaseOrchestrator } from '../../src/orchestrator/KnowledgeBaseOrchestrator';
+import { KnowledgeBaseFactoryWithTags } from '../../src/factory/KnowledgeBaseFactory';
 import { SqlUrlRepositoryWithTags } from '../../src/storage/SqlUrlRepositoryWithTags';
 import { createDefaultConfiguration } from '../../src/config/Configuration';
 import * as fs from 'fs/promises';
@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as os from 'os';
 
 describe('Tag Support - Integration Tests', () => {
-  let kb: KnowledgeBaseOrchestratorWithTags;
+  let kb: KnowledgeBaseOrchestrator;
   let testDataPath: string;
   let urlRepository: SqlUrlRepositoryWithTags;
 
@@ -42,7 +42,7 @@ describe('Tag Support - Integration Tests', () => {
       }
     });
 
-    kb = KnowledgeBaseFactoryWithTags.createKnowledgeBaseWithTags({
+    kb = await KnowledgeBaseFactoryWithTags.createKnowledgeBaseWithTags({
       ...config,
       enableTags: true
     });

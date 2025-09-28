@@ -137,7 +137,6 @@ export enum ScraperType {
   HTTP = 'http',
   PLAYWRIGHT = 'playwright',
   CRAWL4AI = 'crawl4ai',
-  FIRECRAWL = 'firecrawl',
   DOCLING = 'docling',
   DEEPDOCTECTION = 'deepdoctection',
   CUSTOM = 'custom'

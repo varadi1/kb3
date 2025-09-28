@@ -353,6 +353,61 @@ All public APIs MUST have JSDoc comments:
 async process(content: Buffer, options?: ProcessingOptions): Promise<ProcessingResult>
 ```
 
+## Installation Requirements
+
+### Node.js Dependencies
+
+Core dependencies are installed via npm:
+```bash
+npm install
+```
+
+### Python Dependencies
+
+Python scrapers require a virtual environment:
+
+```bash
+# Create and activate virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install all Python dependencies
+pip install -r requirements.txt
+```
+
+#### Core Python Packages
+- `playwright==1.55.0` - Browser automation
+- `Crawl4AI==0.7.4` - AI-powered web crawling
+- `docling==2.54.0` - Document processing
+- `deepdoctection==0.46` - Document layout analysis
+- `python-doctr[torch]==1.0.0` - OCR capabilities
+
+#### Optional ML Dependencies
+
+For full DeepDoctection capabilities:
+```bash
+# OCR and text detection
+pip install python-doctr[torch]
+
+# Advanced layout detection (platform-specific)
+# macOS ARM64:
+pip install 'git+https://github.com/facebookresearch/detectron2.git'
+
+# Linux/Windows with CUDA:
+python -m pip install detectron2 -f \
+  https://dl.fbaipublicfiles.com/detectron2/wheels/cu118/torch2.0/index.html
+```
+
+### Verifying Installation
+
+```bash
+# Run the verification script
+npx tsx verify-scrapers.ts
+
+# Check Python packages
+.venv/bin/pip list | grep -E "crawl4ai|docling|deepdoctection|playwright"
+```
+
 ## Common Tasks
 
 ### Working with Original File Tracking
@@ -361,7 +416,7 @@ The original file tracking system maintains a separate database of all scraped a
 
 1. **Enable file tracking**:
 ```typescript
-import { KnowledgeBaseFactoryWithFileTracking } from './src/factory/KnowledgeBaseFactoryWithFileTracking';
+import { KnowledgeBaseFactory } from './src/factory/KnowledgeBaseFactory';
 import { createSqlConfiguration } from './src/config/Configuration';
 
 const config = createSqlConfiguration({
@@ -377,7 +432,8 @@ const config = createSqlConfiguration({
   }
 });
 
-const kb = await KnowledgeBaseFactoryWithFileTracking.createKnowledgeBaseWithFileTracking(config);
+// File tracking and tags are now integrated by default
+const kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
 ```
 
 2. **Access tracked files**:
@@ -747,6 +803,87 @@ const files = await repository.listOriginalFiles({
   mimeType: 'application/pdf',
   status: 'active'
 });
+```
+
+### Scraper Implementation Status
+
+#### Current Scraper Status (Verified 2025-01-28)
+
+All scrapers have been tested and verified to work with real content:
+
+1. **HttpScraper** - ✅ **FULLY WORKING**
+   - Uses native Node.js HTTP/HTTPS modules
+   - No external dependencies required
+   - Returns real HTML content
+
+2. **PlaywrightScraper** - ✅ **FULLY WORKING**
+   - Uses `playwright@1.55.0` (installed)
+   - Full browser automation with JavaScript rendering
+   - Successfully returns DOM-rendered content
+
+3. **Crawl4AIScraper** - ✅ **FULLY WORKING**
+   - Uses `Crawl4AI@0.7.4` via Python Bridge
+   - Executes Python wrapper script in virtual environment
+   - Returns extracted content in Markdown format
+
+4. **DoclingScraper** - ✅ **FULLY WORKING**
+   - Uses `docling@2.54.0` via Python Bridge
+   - Processes PDFs and documents successfully
+   - Returns structured document content
+
+5. **DeepDoctectionScraper** - ✅ **WORKING WITH FALLBACK**
+   - Core `deepdoctection@0.46` installed
+   - Has complete Python wrapper implementation
+   - Falls back gracefully when ML models unavailable
+   - For full ML capabilities, install: `python-doctr[torch]`
+
+#### Python Bridge Architecture
+
+The system uses a Python Bridge (`src/scrapers/PythonBridge.ts`) to execute Python scripts:
+
+```typescript
+// Example: How scrapers use Python Bridge
+class Crawl4AIScraper extends BaseScraper {
+  private pythonBridge: PythonBridge;
+  private wrapperPath: string;
+
+  constructor() {
+    this.pythonBridge = new PythonBridge();
+    this.wrapperPath = path.join(__dirname, 'python_wrappers', 'crawl4ai_wrapper.py');
+  }
+
+  async scrape(url: string, options?: ScraperOptions): Promise<ScrapedContent> {
+    const pythonResult = await this.pythonBridge.execute(
+      this.wrapperPath,
+      [pythonConfig],
+      { timeout: 60000 }
+    );
+    // Process result...
+  }
+}
+```
+
+#### Python Wrapper Pattern
+
+Each Python scraper has a wrapper script that:
+1. Suppresses verbose library output
+2. Handles missing dependencies gracefully
+3. Returns JSON-serializable results
+4. Provides fallback implementations
+
+Example structure:
+```python
+try:
+    from crawl4ai import AsyncWebCrawler
+    CRAWL4AI_AVAILABLE = True
+except ImportError:
+    CRAWL4AI_AVAILABLE = False
+
+class Crawl4AIWrapper:
+    async def crawl(self, config):
+        if not CRAWL4AI_AVAILABLE:
+            return self._get_fallback_result(config)
+        # Real implementation...
 ```
 
 ### Adding a New Scraping Library

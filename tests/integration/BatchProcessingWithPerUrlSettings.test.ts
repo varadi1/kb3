@@ -29,7 +29,7 @@ describe('Batch Processing with Per-URL Settings - Integration', () => {
     }
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Create KB with SQL storage for metadata persistence
     const config = createSqlConfiguration({
       storage: {knowledgeStore: {
@@ -56,7 +56,7 @@ describe('Batch Processing with Per-URL Settings - Integration', () => {
       }
     });
 
-    kb = KnowledgeBaseFactory.createKnowledgeBase(config);
+    kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
   });
 
   describe('processUrlsWithConfigs method', () => {

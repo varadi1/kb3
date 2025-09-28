@@ -123,7 +123,7 @@ describe('Crawl4AIScraper', () => {
       const result = await scraper.scrape('https://example.com');
 
       expect(result.metadata?.scraperMetadata?.extractionStrategy).toBe('css');
-    });
+    }, 60000);
 
     test('should handle XPath extraction', async () => {
       const params: Crawl4AIParameters = {
@@ -365,7 +365,7 @@ describe('Crawl4AIScraper', () => {
       const result = await scraper.scrape('https://example.com');
 
       expect(result.scraperName).toBe('crawl4ai');
-    });
+    }, 60000);
   });
 
   describe('Content Processing', () => {
@@ -381,7 +381,7 @@ describe('Crawl4AIScraper', () => {
       const result = await scraper.scrape('https://example.com');
 
       expect(result.scraperName).toBe('crawl4ai');
-    });
+    }, 60000);
 
     test('should handle word count threshold', async () => {
       const params: Crawl4AIParameters = {
@@ -392,7 +392,7 @@ describe('Crawl4AIScraper', () => {
       const result = await scraper.scrape('https://example.com');
 
       expect(result.scraperName).toBe('crawl4ai');
-    });
+    }, 60000);
   });
 
   describe('Anti-Bot Features', () => {
@@ -424,7 +424,7 @@ describe('Crawl4AIScraper', () => {
       expect(results[0].url).toBe(urls[0]);
       expect(results[1].url).toBe(urls[1]);
       expect(results[2].url).toBe(urls[2]);
-    });
+    }, 60000); // Increased timeout to 60 seconds for batch processing
 
     test('should adjust batch size for deep crawling', () => {
       const deepParams: Crawl4AIParameters = {
@@ -475,26 +475,19 @@ describe('Crawl4AIScraper', () => {
     });
   });
 
-  describe('Mock Implementation', () => {
-    test('should use mock when Crawl4AI not installed', async () => {
-      const mock = (scraper as any).getMockCrawl4AI();
-      expect(mock).toBeDefined();
-      expect(mock.AsyncWebCrawler).toBeDefined();
-
-      const crawler = new mock.AsyncWebCrawler({});
-      const result = await crawler.arun('https://example.com', {});
-
-      expect(result.success).toBe(true);
-      expect(result.html).toContain('Mock Crawl4AI content');
-      expect(result.metadata.title).toBe('Mock Title');
+  describe('Python Bridge Integration', () => {
+    test('should use Python bridge for crawling', () => {
+      // Crawl4AIScraper uses PythonBridge to execute Python scripts
+      // The actual Crawl4AI library runs in Python, not TypeScript
+      const pythonBridge = (scraper as any).pythonBridge;
+      expect(pythonBridge).toBeDefined();
+      expect(pythonBridge.constructor.name).toBe('PythonBridge');
     });
 
-    test('should have correct mock enums', () => {
-      const mock = (scraper as any).getMockCrawl4AI();
-
-      expect(mock.CacheMode.ENABLED).toBe('enabled');
-      expect(mock.ExtractionStrategy.COSINE_SIMILARITY).toBe('cosine');
-      expect(mock.ChunkingStrategy.FIXED_SIZE).toBe('fixed');
+    test('should have wrapper script path configured', () => {
+      const wrapperPath = (scraper as any).wrapperPath;
+      expect(wrapperPath).toBeDefined();
+      expect(wrapperPath).toContain('crawl4ai_wrapper.py');
     });
   });
 

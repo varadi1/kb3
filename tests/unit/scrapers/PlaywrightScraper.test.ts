@@ -6,6 +6,62 @@ import { PlaywrightScraper } from '../../../src/scrapers/PlaywrightScraper';
 import { ScraperOptions } from '../../../src/interfaces/IScraper';
 import { PlaywrightParameters } from '../../../src/interfaces/IScraperParameters';
 
+// Mock playwright module
+jest.mock('playwright', () => ({
+  chromium: {
+    launch: jest.fn().mockResolvedValue({
+      newPage: jest.fn().mockResolvedValue({
+        goto: jest.fn().mockResolvedValue({
+          status: jest.fn().mockReturnValue(200),
+          headers: jest.fn().mockReturnValue({})
+        }),
+        content: jest.fn().mockResolvedValue('<html><body>Test content</body></html>'),
+        title: jest.fn().mockResolvedValue('Test Page'),
+        url: jest.fn().mockReturnValue('https://example.com'),
+        evaluate: jest.fn().mockResolvedValue('Test content'),
+        waitForSelector: jest.fn().mockResolvedValue(true),
+        waitForFunction: jest.fn().mockResolvedValue(true),
+        waitForTimeout: jest.fn().mockResolvedValue(undefined),
+        click: jest.fn().mockResolvedValue(undefined),
+        screenshot: jest.fn().mockResolvedValue(Buffer.from('mock screenshot')),
+        pdf: jest.fn().mockResolvedValue(Buffer.from('mock pdf')),
+        setViewport: jest.fn().mockResolvedValue(undefined),
+        setExtraHTTPHeaders: jest.fn().mockResolvedValue(undefined),
+        context: jest.fn().mockReturnValue({
+          addCookies: jest.fn().mockResolvedValue(undefined)
+        }),
+        close: jest.fn().mockResolvedValue(undefined)
+      }),
+      close: jest.fn().mockResolvedValue(undefined),
+      newContext: jest.fn().mockResolvedValue({
+        newPage: jest.fn().mockResolvedValue({
+          goto: jest.fn().mockResolvedValue({
+            status: jest.fn().mockReturnValue(200),
+            headers: jest.fn().mockReturnValue({})
+          }),
+          content: jest.fn().mockResolvedValue('<html><body>Test content</body></html>'),
+          title: jest.fn().mockResolvedValue('Test Page'),
+          url: jest.fn().mockReturnValue('https://example.com'),
+          evaluate: jest.fn().mockResolvedValue('Test content'),
+          waitForSelector: jest.fn().mockResolvedValue(true),
+          waitForFunction: jest.fn().mockResolvedValue(true),
+          waitForTimeout: jest.fn().mockResolvedValue(undefined),
+          click: jest.fn().mockResolvedValue(undefined),
+          screenshot: jest.fn().mockResolvedValue(Buffer.from('mock screenshot')),
+          pdf: jest.fn().mockResolvedValue(Buffer.from('mock pdf')),
+          setViewport: jest.fn().mockResolvedValue(undefined),
+          setExtraHTTPHeaders: jest.fn().mockResolvedValue(undefined),
+          context: jest.fn().mockReturnValue({
+            addCookies: jest.fn().mockResolvedValue(undefined)
+          }),
+          close: jest.fn().mockResolvedValue(undefined)
+        }),
+        close: jest.fn().mockResolvedValue(undefined)
+      })
+    })
+  }
+}));
+
 describe('PlaywrightScraper', () => {
   let scraper: PlaywrightScraper;
 
@@ -98,7 +154,6 @@ describe('PlaywrightScraper', () => {
         screenshot: {
           fullPage: true,
           type: 'png',
-          quality: 90,
           omitBackground: true
         }
       };

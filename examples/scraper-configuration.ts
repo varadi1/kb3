@@ -20,7 +20,7 @@ const basicConfig = createDefaultConfiguration({
 const advancedConfig = createDefaultConfiguration({
   scraping: {
     // Enable multiple scraping libraries
-    enabledScrapers: ['http', 'playwright', 'crawl4ai', 'firecrawl', 'docling'],
+    enabledScrapers: ['http', 'playwright', 'crawl4ai', 'docling'],
 
     // Set default scraper for unmatched URLs
     defaultScraper: 'http',
@@ -53,20 +53,13 @@ const advancedConfig = createDefaultConfiguration({
         priority: 20
       },
 
-      // Use Firecrawl for API documentation
+      // Use Crawl4AI for API documentation
       {
         pattern: 'docs.*.com',
-        scraperName: 'firecrawl',
+        scraperName: 'crawl4ai',
         priority: 15
       }
-    ],
-
-    // Configuration for specific scrapers
-    scraperConfigs: {
-      firecrawl: {
-        apiKey: process.env.FIRECRAWL_API_KEY
-      }
-    }
+    ]
   }
 });
 
@@ -102,7 +95,7 @@ async function demonstrateScraperUsage() {
     'https://example.com/app/dashboard',        // Will use Playwright
     'https://medium.com/article',               // Will use Crawl4AI
     'https://example.com/report.pdf',           // Will use Docling
-    'https://docs.api.com/reference',           // Will use Firecrawl
+    'https://docs.api.com/reference',           // Will use Crawl4AI
     'https://regular-site.com'                  // Will use default HTTP scraper
   ]);
 

@@ -56,7 +56,8 @@ export class ExtensionBasedDetector extends BaseUrlDetector {
 
       // Text formats
       ['txt', { contentType: ContentType.TXT, mimeType: 'text/plain' }],
-      ['md', { contentType: ContentType.TXT, mimeType: 'text/markdown' }],
+      ['md', { contentType: ContentType.MARKDOWN, mimeType: 'text/markdown' }],
+      ['markdown', { contentType: ContentType.MARKDOWN, mimeType: 'text/markdown' }],
       ['json', { contentType: ContentType.JSON, mimeType: 'application/json' }],
       ['xml', { contentType: ContentType.XML, mimeType: 'application/xml', alternativeMimeTypes: ['text/xml'] }],
 

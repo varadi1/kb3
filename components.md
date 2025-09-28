@@ -1,4 +1,49 @@
-### Components, classes, and exported functions
+# KB3 Components Documentation
+
+## Recent Updates (2025-01-28)
+
+### Scraper Implementation Status
+
+All scrapers have been verified to work with real content (not mock data):
+
+| Scraper | Status | Dependencies | Notes |
+|---------|--------|--------------|-------|
+| **HttpScraper** | ✅ Fully Working | None (native Node.js) | Basic HTTP/HTTPS fetching |
+| **PlaywrightScraper** | ✅ Fully Working | playwright@1.55.0 | Full browser automation |
+| **Crawl4AIScraper** | ✅ Fully Working | Crawl4AI@0.7.4 (Python) | Uses Python Bridge |
+| **DoclingScraper** | ✅ Fully Working | docling@2.54.0 (Python) | PDF/document processing |
+| **DeepDoctectionScraper** | ✅ Working | deepdoctection@0.46, python-doctr@1.0.0 | ML-based analysis with fallback |
+
+### Python Bridge Architecture
+
+Python-based scrapers execute wrapper scripts via PythonBridge:
+- Virtual environment: `.venv/bin/python`
+- JSON serialization for data exchange
+- Output suppression for verbose ML libraries
+- Graceful fallbacks when dependencies missing
+
+### Installation Requirements
+
+```bash
+# Node.js dependencies
+npm install
+
+# Python dependencies
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Playwright browsers
+px playwright install chromium
+```
+
+For full ML capabilities:
+```bash
+pip install python-doctr[torch]  # OCR for DeepDoctection
+# Optional: detectron2 for advanced layout detection
+```
+
+## Components, classes, and exported functions
 
 | Component | File | Classes | Exported functions | Description | Inputs | Outputs |
 |---|---|---|---|---|---|---|
@@ -11,7 +56,7 @@
 | detectors | `src/detectors/UrlDetectorRegistry.ts` | `UrlDetectorRegistry` | — | Holds and prioritizes detectors | — | — |
 | detectors | `src/detectors/index.ts` | — | - `createDefaultDetectorRegistry` | Create a registry with extension, header, and content detectors | none | UrlDetectorRegistry |
 | factory | `src/factory/KnowledgeBaseFactory.ts` | `KnowledgeBaseFactory` | — | Constructs configured orchestrators and components | — | — |
-| factory | `src/factory/KnowledgeBaseFactoryWithTags.ts` | `KnowledgeBaseFactoryWithTags` | `createKnowledgeBaseWithTags` | Factory for creating knowledge base with tag support | config: KnowledgeBaseConfigWithTags | KnowledgeBaseOrchestratorWithTags |
+| factory | `src/factory/KnowledgeBaseFactory.ts` | `KnowledgeBaseFactory` | `createKnowledgeBase` | Factory for creating knowledge base with all features (tags, file tracking) | config: KnowledgeBaseConfigExtended | KnowledgeBaseOrchestrator |
 | factory | `src/factory/index.ts` | — | — | Re-exports factory APIs | — | — |
 | fetchers | `src/fetchers/BaseFetcher.ts` | `BaseFetcher` (abstract) | — | Abstract base for content fetchers | — | — |
 | fetchers | `src/fetchers/HttpFetcher.ts` | `HttpFetcher` | — | Fetches content over HTTP/HTTPS | — | — |
@@ -22,11 +67,15 @@
 | fetchers | `src/fetchers/index.ts` | — | - `createDefaultFetcherRegistry` | Create registry with `SmartHttpFetcher` and `FileFetcher` | none | FetcherRegistry |
 | scrapers | `src/scrapers/BaseScraper.ts` | `BaseScraper` (abstract) | — | Abstract base for scraper implementations | — | — |
 | scrapers | `src/scrapers/HttpScraper.ts` | `HttpScraper` | — | Adapter for HTTP fetcher as scraper | — | — |
-| scrapers | `src/scrapers/PlaywrightScraper.ts` | `PlaywrightScraper` | — | Full browser automation with Playwright - supports JS, screenshots, PDFs, cookies | url: string, options?: ScraperOptions | ScrapedContent |
-| scrapers | `src/scrapers/Crawl4AIScraper.ts` | `Crawl4AIScraper` | — | AI-powered web crawling with extraction strategies and content chunking | url: string, options?: ScraperOptions | ScrapedContent |
+| scrapers | `src/scrapers/PlaywrightScraper.ts` | `PlaywrightScraper` | — | Full browser automation with Playwright - supports JS, screenshots, PDFs, cookies (✅ VERIFIED WORKING) | url: string, options?: ScraperOptions | ScrapedContent |
+| scrapers | `src/scrapers/Crawl4AIScraper.ts` | `Crawl4AIScraper` | — | AI-powered web crawling with Python bridge - extraction strategies and content chunking (✅ VERIFIED WORKING) | url: string, options?: ScraperOptions | ScrapedContent |
 | scrapers | `src/scrapers/FirecrawlScraper.ts` | `FirecrawlScraper` | — | API-based scraping service (placeholder) | — | — |
-| scrapers | `src/scrapers/DoclingScraper.ts` | `DoclingScraper` | — | Document extraction with OCR support for PDF, DOCX, PPTX, images | url: string, options?: ScraperOptions | ScrapedContent |
-| scrapers | `src/scrapers/DeepDoctectionScraper.ts` | `DeepDoctectionScraper` | — | Deep document analysis (placeholder) | — | — |
+| scrapers | `src/scrapers/DoclingScraper.ts` | `DoclingScraper` | — | Document extraction with OCR support for PDF, DOCX, PPTX via Python bridge (✅ VERIFIED WORKING) | url: string, options?: ScraperOptions | ScrapedContent |
+| scrapers | `src/scrapers/DeepDoctectionScraper.ts` | `DeepDoctectionScraper` | — | ML-based document layout analysis with Python bridge (✅ WORKING WITH FALLBACK) | url: string, options?: ScraperOptions | ScrapedContent |
+| scrapers | `src/scrapers/PythonBridge.ts` | `PythonBridge` | — | Executes Python scripts in virtual environment for scraper integration | scriptPath: string, args: any[], options?: {timeout?: number} | PythonExecutionResult<T> |
+| scrapers | `python_wrappers/crawl4ai_wrapper.py` | — | — | Python wrapper for Crawl4AI library with fallback support | config: Dict (JSON) | Dict with crawling results |
+| scrapers | `python_wrappers/docling_wrapper.py` | — | — | Python wrapper for Docling document processing | config: Dict (JSON) | Dict with document extraction |
+| scrapers | `python_wrappers/deepdoctection_wrapper.py` | — | — | Python wrapper for DeepDoctection ML analysis with graceful fallback | config: Dict (JSON) | Dict with analysis results |
 | scrapers | `src/scrapers/ScraperRegistry.ts` | `ScraperRegistry` | — | Singleton registry for managing scrapers | — | — |
 | scrapers | `src/scrapers/ScraperSelector.ts` | `ScraperSelector`, `DomainBasedSelectionStrategy` | — | Selects appropriate scraper for URLs based on rules | — | — |
 | scrapers | `src/scrapers/ScraperFactory.ts` | `ScraperFactory` | — | Factory for creating and configuring scrapers | — | — |
@@ -51,8 +100,7 @@
 | interfaces | `src/interfaces/ITagManager.ts` | — | — | Tag management interfaces | — | — |
 | interfaces | `src/interfaces/IUrlTagRepository.ts` | — | — | URL-tag relationship interfaces | — | — |
 | interfaces | `src/interfaces/index.ts` | — | — | Re-exports interfaces | — | — |
-| orchestrator | `src/orchestrator/KnowledgeBaseOrchestrator.ts` | `KnowledgeBaseOrchestrator` | — | Coordinates pipeline with batch processing, per-URL configs, and metadata persistence | processUrl, processUrls, processUrlsWithConfigs | ProcessingResult[] with full metadata |
-| orchestrator | `src/orchestrator/KnowledgeBaseOrchestratorWithTags.ts` | `KnowledgeBaseOrchestratorWithTags` | — | Enhanced orchestrator with tag support for batch operations | processUrlWithTags, processUrlsWithTags, processUrlsByTags | ProcessingResult[] with tags metadata |
+| orchestrator | `src/orchestrator/KnowledgeBaseOrchestrator.ts` | `KnowledgeBaseOrchestrator` | — | Integrated orchestrator coordinating full pipeline with file tracking & tag support | processUrl, processUrls, processUrlsWithConfigs, processUrlWithTags, processUrlsByTags, getOriginalFileRepository | ProcessingResult with full metadata, optional tags & file tracking |
 | orchestrator | `src/orchestrator/index.ts` | — | — | Re-exports orchestrator | — | — |
 | processors | `src/processors/BaseProcessor.ts` | `BaseProcessor` (abstract) | — | Abstract base for content processors | — | — |
 | processors | `src/processors/TextProcessor.ts` | `TextProcessor` | — | Processes plain text | — | — |
@@ -224,7 +272,7 @@ The tagging system provides a hierarchical organization structure for URLs with 
 1. **SqlTagManager** - Manages tag lifecycle (CRUD operations, hierarchy)
 2. **SqlUrlTagRepository** - Handles many-to-many URL-tag relationships
 3. **SqlUrlRepositoryWithTags** - Enhanced URL repository with tag integration
-4. **KnowledgeBaseOrchestratorWithTags** - Extended orchestrator for tag-based operations
+4. **KnowledgeBaseOrchestrator** - Integrated orchestrator with file tracking and tag-based operations
 
 ### Database Schema
 

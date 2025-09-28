@@ -3,7 +3,7 @@
  * Tests that original files are properly tracked in the database
  */
 
-import { KnowledgeBaseFactoryWithFileTracking } from '../../src/factory/KnowledgeBaseFactoryWithFileTracking';
+import { KnowledgeBaseFactoryWithFileTracking } from '../../src/factory/KnowledgeBaseFactory';
 import { createSqlConfiguration } from '../../src/config/Configuration';
 import { FileStatus } from '../../src/interfaces/IOriginalFileRepository';
 import * as path from 'path';
@@ -81,7 +81,7 @@ describe('Original File Tracking', () => {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify file was tracked in the repository
-      const trackedFiles = await kb.getOriginalFileRepository().getOriginalFilesByUrl(fileUrl);
+      const trackedFiles = await kb.getOriginalFileRepository()!.getOriginalFilesByUrl(fileUrl);
       expect(trackedFiles.length).toBeGreaterThan(0);
       const fileRecord = trackedFiles[0];
 
@@ -138,12 +138,12 @@ describe('Original File Tracking', () => {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Test retrieving files by URL
-      const doc1Files = await kb.getOriginalFileRepository().getOriginalFilesByUrl(urls[0]);
+      const doc1Files = await kb.getOriginalFileRepository()!.getOriginalFilesByUrl(urls[0]);
       expect(doc1Files).toHaveLength(1);
       expect(doc1Files[0].url).toBe(urls[0]);
       expect(doc1Files[0].mimeType).toBe('text/html');
 
-      const doc3Files = await kb.getOriginalFileRepository().getOriginalFilesByUrl(urls[2]);
+      const doc3Files = await kb.getOriginalFileRepository()!.getOriginalFilesByUrl(urls[2]);
       expect(doc3Files).toHaveLength(1);
       expect(doc3Files[0].mimeType).toBe('text/plain');
     });
@@ -193,16 +193,16 @@ describe('Original File Tracking', () => {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // List all files
-      const allFiles = await kb.getOriginalFileRepository().listOriginalFiles();
+      const allFiles = await kb.getOriginalFileRepository()!.listOriginalFiles();
       expect(allFiles).toHaveLength(3);
 
       // Filter by MIME type
-      const htmlFiles = await kb.getOriginalFileRepository().listOriginalFiles({
+      const htmlFiles = await kb.getOriginalFileRepository()!.listOriginalFiles({
         mimeType: 'text/html'
       });
       expect(htmlFiles).toHaveLength(2);
 
-      const textFiles = await kb.getOriginalFileRepository().listOriginalFiles({
+      const textFiles = await kb.getOriginalFileRepository()!.listOriginalFiles({
         mimeType: 'text/plain'
       });
       expect(textFiles).toHaveLength(1);
@@ -254,7 +254,7 @@ describe('Original File Tracking', () => {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Get statistics
-      const stats = await kb.getOriginalFileRepository().getStatistics();
+      const stats = await kb.getOriginalFileRepository()!.getStatistics();
 
       expect(stats.totalFiles).toBe(3);
       expect(stats.totalSize).toBe(8000);
@@ -301,23 +301,23 @@ describe('Original File Tracking', () => {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Get the file that was tracked
-      const trackedFiles = await kb.getOriginalFileRepository().getOriginalFilesByUrl(fileUrl);
+      const trackedFiles = await kb.getOriginalFileRepository()!.getOriginalFilesByUrl(fileUrl);
       expect(trackedFiles.length).toBeGreaterThan(0);
       const originalFileId = trackedFiles[0].id;
 
       // Verify initial status
-      let fileRecord = await kb.getOriginalFileRepository().getOriginalFile(originalFileId);
+      let fileRecord = await kb.getOriginalFileRepository()!.getOriginalFile(originalFileId);
       expect(fileRecord?.status).toBe(FileStatus.ACTIVE);
 
       // Update status to archived
-      const updated = await kb.getOriginalFileRepository().updateFileStatus(
+      const updated = await kb.getOriginalFileRepository()!.updateFileStatus(
         originalFileId,
         FileStatus.ARCHIVED
       );
       expect(updated).toBe(true);
 
       // Verify status was updated
-      fileRecord = await kb.getOriginalFileRepository().getOriginalFile(originalFileId);
+      fileRecord = await kb.getOriginalFileRepository()!.getOriginalFile(originalFileId);
       expect(fileRecord?.status).toBe(FileStatus.ARCHIVED);
     });
 
@@ -358,7 +358,7 @@ describe('Original File Tracking', () => {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Get the file that was tracked
-      const trackedFiles = await kb.getOriginalFileRepository().getOriginalFilesByUrl(fileUrl);
+      const trackedFiles = await kb.getOriginalFileRepository()!.getOriginalFilesByUrl(fileUrl);
       expect(trackedFiles.length).toBeGreaterThan(0);
       const originalFileId = trackedFiles[0].id;
 
@@ -366,7 +366,7 @@ describe('Original File Tracking', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
 
       // Access the file (this should update accessed_at)
-      const fileRecord = await kb.getOriginalFileRepository().getOriginalFile(originalFileId);
+      const fileRecord = await kb.getOriginalFileRepository()!.getOriginalFile(originalFileId);
 
       expect(fileRecord?.accessedAt).toBeDefined();
       expect(fileRecord?.accessedAt).toBeInstanceOf(Date);

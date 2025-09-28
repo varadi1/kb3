@@ -213,13 +213,13 @@ describe('Dependency Inversion Principle Compliance', () => {
   });
 
   describe('Dependency Injection', () => {
-    test('factory should inject dependencies based on configuration', () => {
+    test('factory should inject dependencies based on configuration', async () => {
       // Factory should create dependencies based on configuration
       // and inject them into high-level modules
       const { createDefaultConfiguration } = require('../../src/config');
       const config = createDefaultConfiguration();
 
-      const orchestrator = KnowledgeBaseFactory.createKnowledgeBase(config);
+      const orchestrator = await KnowledgeBaseFactory.createKnowledgeBase(config);
 
       expect(orchestrator).toBeDefined();
       expect(orchestrator).toBeInstanceOf(KnowledgeBaseOrchestrator);
@@ -366,14 +366,14 @@ describe('Dependency Inversion Principle Compliance', () => {
   });
 
   describe('Configuration-Based Dependency Injection', () => {
-    test('system should create appropriate implementations based on configuration', () => {
+    test('system should create appropriate implementations based on configuration', async () => {
       const { createDefaultConfiguration, createProductionConfiguration } = require('../../src/config');
 
       const devConfig = createDefaultConfiguration();
       const prodConfig = createProductionConfiguration();
 
-      const devOrchestrator = KnowledgeBaseFactory.createKnowledgeBase(devConfig);
-      const prodOrchestrator = KnowledgeBaseFactory.createKnowledgeBase(prodConfig);
+      const devOrchestrator = await KnowledgeBaseFactory.createKnowledgeBase(devConfig);
+      const prodOrchestrator = await KnowledgeBaseFactory.createKnowledgeBase(prodConfig);
 
       // Both should create valid orchestrators
       expect(devOrchestrator).toBeDefined();

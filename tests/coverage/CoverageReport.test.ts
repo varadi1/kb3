@@ -270,14 +270,12 @@ describe('Test Coverage Verification', () => {
       // Verify coverage meets 80% requirement
       expect(overallCoverage).toBeGreaterThanOrEqual(80);
 
-      console.log('Test Coverage Report:');
-      console.log('====================');
-      Object.entries(components).forEach(([name, stats]) => {
-        console.log(`${name}: ${stats.percentage}% (${stats.covered}/${stats.methods} methods)`);
-      });
-      console.log(`\nOverall Coverage: ${overallCoverage.toFixed(1)}%`);
-      console.log(`Requirement: ≥80%`);
-      console.log(`Status: ${overallCoverage >= 80 ? '✅ PASSING' : '❌ FAILING'}`);
+      // Concise coverage summary
+      const componentSummary = Object.entries(components)
+        .map(([name, stats]) => `${name}: ${stats.percentage}%`)
+        .join(', ');
+
+      console.log(`Coverage: ${componentSummary} | Overall: ${overallCoverage.toFixed(1)}% ${overallCoverage >= 80 ? '✅' : '❌'}`);
     });
 
     test('verifies SOLID principle coverage', () => {
@@ -293,11 +291,9 @@ describe('Test Coverage Verification', () => {
         expect(coverage.length).toBeGreaterThan(0);
       });
 
-      console.log('\nSOLID Principle Coverage:');
-      console.log('========================');
-      Object.entries(principles).forEach(([principle, coverage]) => {
-        console.log(`${principle}: ✅ Covered (${coverage.length} test groups)`);
-      });
+      // Concise SOLID summary
+      const solidSummary = Object.keys(principles).map(p => p.charAt(0)).join('');
+      console.log(`SOLID Coverage: ${solidSummary} ✅ All principles covered`);
     });
 
     test('verifies critical path coverage', () => {
@@ -329,11 +325,10 @@ describe('Test Coverage Verification', () => {
         expect(steps.length).toBeGreaterThan(0);
       });
 
-      console.log('\nCritical Path Coverage:');
-      console.log('======================');
-      Object.entries(criticalPaths).forEach(([path, steps]) => {
-        console.log(`${path}: ✅ ${steps.length} steps covered`);
-      });
+      // Concise critical path summary
+      const pathCount = Object.keys(criticalPaths).length;
+      const stepCount = Object.values(criticalPaths).reduce((acc, steps) => acc + steps.length, 0);
+      console.log(`Critical Paths: ${pathCount} flows, ${stepCount} steps ✅`);
     });
   });
 });

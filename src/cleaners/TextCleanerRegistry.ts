@@ -41,7 +41,7 @@ export class TextCleanerRegistry implements ITextCleanerRegistry {
     }
 
     this.cleaners.set(cleaner.name, cleaner);
-    console.log(`Registered text cleaner: ${cleaner.name}`);
+    // Successfully registered cleaner
   }
 
   /**
@@ -54,7 +54,7 @@ export class TextCleanerRegistry implements ITextCleanerRegistry {
     }
 
     this.cleaners.delete(cleanerName);
-    console.log(`Unregistered text cleaner: ${cleanerName}`);
+    // Successfully unregistered cleaner
   }
 
   /**
@@ -92,7 +92,7 @@ export class TextCleanerRegistry implements ITextCleanerRegistry {
    */
   clear(): void {
     this.cleaners.clear();
-    console.log('Cleared all registered text cleaners');
+    // Successfully cleared all cleaners
   }
 
   /**
@@ -146,7 +146,7 @@ export class TextCleanerRegistry implements ITextCleanerRegistry {
     this.register(new StringJsCleaner());
     this.register(new RemarkCleaner());
 
-    console.log('Initialized default text cleaners');
+    // Successfully initialized default cleaners
   }
 
   /**
@@ -190,7 +190,7 @@ export class TextCleanerRegistry implements ITextCleanerRegistry {
       const cleaner = this.cleaners.get(name);
       if (cleaner && settings.config) {
         cleaner.updateConfig(settings.config);
-        console.log(`Updated configuration for cleaner: ${name}`);
+        // Successfully updated configuration
       }
     }
   }
