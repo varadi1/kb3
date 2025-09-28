@@ -11,6 +11,8 @@ export * from './IKnowledgeStore';
 export * from './IFileStorage';
 export * from './IOrchestrator';
 export * from './IUrlRepository';
+export * from './IOriginalFileRepository';
+export * from './IProcessedFileRepository';
 
 // Common types and enums
 export { ContentType } from './IUrlDetector';

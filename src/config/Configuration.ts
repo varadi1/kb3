@@ -41,6 +41,11 @@ export interface KnowledgeBaseConfig {
       type?: 'sql';
       path?: string;
     };
+    processedFileStore?: {
+      type?: 'sql';
+      path?: string;
+      enabled?: boolean;
+    };
     enableDuplicateDetection?: boolean;
     enableUrlTracking?: boolean;
     urlRepositoryPath?: string;
@@ -116,6 +121,20 @@ export interface ProcessingOptionsConfig {
 export function createDefaultConfiguration(overrides?: Partial<KnowledgeBaseConfig>): KnowledgeBaseConfig {
   const defaultConfig: KnowledgeBaseConfig = {
     storage: {
+      // Use unified storage by default
+      unified: {
+        enabled: true,
+        dbPath: './data/unified.db',
+        enableWAL: true,
+        enableForeignKeys: true,
+        backupEnabled: false,
+        autoMigrate: true,
+        migrationOptions: {
+          backupOriginal: true,
+          deleteOriginalAfterSuccess: false
+        }
+      },
+      // Legacy configuration kept for compatibility
       knowledgeStore: {
         type: 'memory',
         indexedFields: ['url', 'contentType', 'tags', 'title'],
@@ -222,8 +241,18 @@ export function createDevelopmentConfiguration(): KnowledgeBaseConfig {
 }
 
 export function createSqlConfiguration(overrides?: Partial<KnowledgeBaseConfig>): KnowledgeBaseConfig {
+  // Now uses unified storage by default (single database file)
   const baseConfig = createDefaultConfiguration({
     storage: {
+      unified: {
+        enabled: true,
+        dbPath: './data/unified.db',
+        enableWAL: true,
+        enableForeignKeys: true,
+        backupEnabled: true,
+        autoMigrate: true
+      },
+      // Legacy config kept for shape compatibility
       knowledgeStore: {
         type: 'sql',
         dbPath: './data/knowledge.db',
@@ -280,6 +309,10 @@ export function createUnifiedConfiguration(overrides?: Partial<KnowledgeBaseConf
       },
       originalFileStore: {
         type: 'sql'
+      },
+      processedFileStore: {
+        type: 'sql',
+        enabled: true
       },
       enableDuplicateDetection: true,
       enableUrlTracking: true

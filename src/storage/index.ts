@@ -26,6 +26,11 @@ export { SqlUrlTagRepository } from './SqlUrlTagRepository';
 // Original File Repository
 export { SqlOriginalFileRepository } from './SqlOriginalFileRepository';
 
+// Processed File Repository and Storage
+export { SqlProcessedFileRepository } from './SqlProcessedFileRepository';
+export { ProcessedFileStorageWithTracking } from './ProcessedFileStorageWithTracking';
+export { FileStorageWithTracking } from './FileStorageWithTracking';
+
 // Import required classes for the factory functions
 import { BaseKnowledgeStore } from './BaseKnowledgeStore';
 import { MemoryKnowledgeStore } from './MemoryKnowledgeStore';

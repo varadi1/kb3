@@ -33,7 +33,10 @@ import {
 import { SqlKnowledgeStore } from '../storage/SqlKnowledgeStore';
 import { SqlUrlRepository } from '../storage/SqlUrlRepository';
 import { SqlOriginalFileRepository } from '../storage/SqlOriginalFileRepository';
+import { SqlProcessedFileRepository } from '../storage/SqlProcessedFileRepository';
 import { FileStorageWithTracking } from '../storage/FileStorageWithTracking';
+import { ProcessedFileStorageWithTracking } from '../storage/ProcessedFileStorageWithTracking';
+import { ContentProcessorWithCleaning } from '../processors/ContentProcessorWithCleaning';
 import { IUrlRepository } from '../interfaces/IUrlRepository';
 import { IContentChangeDetector } from '../interfaces/IContentChangeDetector';
 import { ContentChangeDetector } from '../detectors/ContentChangeDetector';
@@ -84,13 +87,9 @@ export class KnowledgeBaseFactory {
   static async createKnowledgeBase(
     config: KnowledgeBaseConfigExtended
   ): Promise<KnowledgeBaseWithFullFeatures> {
-    // Check if unified storage is enabled
-    if (config.storage.unified?.enabled) {
-      return this.createUnifiedKnowledgeBase(config);
-    }
-
-    // Legacy path - create with separate databases
-    return this.createLegacyKnowledgeBase(config);
+    // Always use unified storage (single database)
+    // The legacy multi-database approach is deprecated
+    return this.createUnifiedKnowledgeBase(config);
   }
 
   /**
@@ -116,10 +115,35 @@ export class KnowledgeBaseFactory {
     // Get repositories from unified storage
     const repositories = unifiedStorage.getRepositories();
 
+    // Initialize processed file repository if enabled
+    let processedFileStorage: any = null;
+    if (config.storage.processedFileStore?.enabled) {
+      const processedFilePath = config.storage.processedFileStore.path ||
+        path.join(path.dirname(config.storage.unified!.dbPath), 'processed_files.db');
+
+      try {
+        const processedFileRepository = new SqlProcessedFileRepository(processedFilePath);
+        await processedFileRepository.initialize();
+
+        const baseProcessedStorage = new LocalFileStorage('./data/processed', false, false);
+        processedFileStorage = new ProcessedFileStorageWithTracking(
+          baseProcessedStorage,
+          processedFileRepository
+        );
+      } catch (error) {
+        console.warn('Could not initialize processed file repository:', error);
+      }
+    }
+
     // Create base components
     const urlDetector = this.createUrlDetector(config);
     const contentFetcher = this.createContentFetcher(config);
-    const contentProcessor = this.createContentProcessor(config);
+    const baseContentProcessor = this.createContentProcessor(config);
+
+    // Wrap processor with cleaning capabilities if processed storage is available
+    const contentProcessor = processedFileStorage ?
+      new ContentProcessorWithCleaning(baseContentProcessor, undefined, processedFileStorage) :
+      baseContentProcessor;
 
     // Create file storage with tracking
     const baseFileStorage = this.createFileStorage(config);
@@ -173,72 +197,6 @@ export class KnowledgeBaseFactory {
         - Knowledge Entries: ${result.migratedTables.knowledgeEntries}
         - Original Files: ${result.migratedTables.originalFiles}`);
     }
-  }
-
-  /**
-   * Creates knowledge base with legacy storage (multiple databases)
-   */
-  private static async createLegacyKnowledgeBase(
-    config: KnowledgeBaseConfigExtended
-  ): Promise<KnowledgeBaseWithFullFeatures> {
-    // Initialize original file repository (always enabled now)
-    let originalFileRepository: any;
-    const originalFilePath = config.storage.originalFileStore?.path ||
-      path.join(
-        path.dirname(config.storage.knowledgeStore.dbPath || config.storage.knowledgeStore.path || './data'),
-        'original_files.db'
-      );
-
-    try {
-      originalFileRepository = new SqlOriginalFileRepository(originalFilePath);
-      await originalFileRepository.initialize();
-    } catch (error) {
-      // Log the error but continue - the original file tracking is optional
-      console.warn('Could not initialize original file repository, continuing without file tracking:', error);
-      // Create a null repository that does nothing
-      originalFileRepository = {
-        recordOriginalFile: async () => ({ id: 'null' }),
-        getOriginalFile: async () => null,
-        listOriginalFiles: async () => [],
-        getOriginalFilesByUrl: async () => [],
-        updateFileStatus: async () => true,
-        updateFileAccessTime: async () => true,
-        getFileStatistics: async () => ({ totalFiles: 0, byMimeType: {}, byStatus: {}, byScraper: {} }),
-        clearOldFiles: async () => 0,
-        close: async () => {}
-      } as any;
-    }
-
-    // Create base components
-    const urlDetector = this.createUrlDetector(config);
-    const contentFetcher = this.createContentFetcher(config);
-    const contentProcessor = this.createContentProcessor(config);
-    const knowledgeStore = this.createKnowledgeStore(config);
-
-    // Create file storage with tracking (always enabled now)
-    const baseFileStorage = this.createFileStorage(config);
-    const fileStorage = new FileStorageWithTracking(
-      baseFileStorage,
-      originalFileRepository
-    );
-
-    // Create URL repository with tags (always enabled now)
-    const urlRepository = await this.createUrlRepositoryWithTags(config);
-    const contentChangeDetector = this.createContentChangeDetector(config, urlRepository);
-
-    // Create orchestrator with all features integrated
-    const orchestrator = new KnowledgeBaseOrchestrator(
-      urlDetector,
-      contentFetcher,
-      contentProcessor,
-      knowledgeStore,
-      fileStorage,
-      urlRepository,
-      contentChangeDetector,
-      originalFileRepository  // File tracking support
-    );
-
-    return orchestrator as KnowledgeBaseWithFullFeatures;
   }
 
   /**

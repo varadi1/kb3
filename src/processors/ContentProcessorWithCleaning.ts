@@ -14,6 +14,8 @@ import { TextFormat, IChainResult } from '../interfaces/ITextCleaner';
 import { TextCleaningOrchestrator } from '../cleaners/TextCleaningOrchestrator';
 import { TextCleanerRegistry } from '../cleaners/TextCleanerRegistry';
 import { TextCleanerConfigManager } from '../cleaners/TextCleanerConfigManager';
+import { IFileStorage } from '../interfaces/IFileStorage';
+import { ProcessingType } from '../interfaces/IProcessedFileRepository';
 
 export interface ProcessingOptionsWithCleaning extends ProcessingOptions {
   textCleaning?: {
@@ -24,23 +26,30 @@ export interface ProcessingOptionsWithCleaning extends ProcessingOptions {
     storeMetadata?: boolean; // Store cleaning metadata
     preserveOriginal?: boolean; // Keep original text in metadata
     format?: TextFormat; // Override format detection
+    saveCleanedFile?: boolean; // Save cleaned content as a separate file
+    originalFileId?: string; // Reference to the original file
   };
 }
 
 export interface ProcessedContentWithCleaning extends ProcessedContent {
   cleaningResult?: IChainResult;
   originalText?: string;
+  cleanedFilePath?: string; // Path to the saved cleaned file
+  processedFileId?: string; // ID of the processed file record
 }
 
 export class ContentProcessorWithCleaning implements IContentProcessor {
   private baseProcessor: IContentProcessor;
   private cleaningOrchestrator: TextCleaningOrchestrator;
+  private processedFileStorage?: IFileStorage;
 
   constructor(
     baseProcessor: IContentProcessor,
-    orchestrator?: TextCleaningOrchestrator
+    orchestrator?: TextCleaningOrchestrator,
+    processedFileStorage?: IFileStorage
   ) {
     this.baseProcessor = baseProcessor;
+    this.processedFileStorage = processedFileStorage;
 
     if (!orchestrator) {
       // Initialize with default configuration
@@ -136,6 +145,52 @@ export class ContentProcessorWithCleaning implements IContentProcessor {
               .filter((w, i, arr) => arr.indexOf(w) === i) // Unique warnings
           }
         };
+      }
+
+      // Save cleaned file if requested and storage is available
+      if (options.textCleaning.saveCleanedFile && this.processedFileStorage) {
+        try {
+          const cleanedContent = Buffer.from(result.text, 'utf8');
+          const filename = `cleaned_${Date.now()}.txt`;
+
+          const storagePath = await this.processedFileStorage.store(
+            cleanedContent,
+            filename,
+            {
+              metadata: {
+                url: options.textCleaning.url || 'unknown',
+                mimeType: 'text/plain',
+                originalFileId: options.textCleaning.originalFileId,
+                processingType: ProcessingType.CLEANED,
+                cleanersUsed: cleaningResult.cleanerResults.map(r => r.metadata.cleanerName),
+                cleaningConfig: {
+                  format: textFormat,
+                  autoSelected: options.textCleaning.autoSelect,
+                  preservedOriginal: options.textCleaning.preserveOriginal
+                },
+                contentType: contentType,
+                originalLength: baseResult.text.length,
+                cleanedLength: result.text.length
+              }
+            }
+          );
+
+          result.cleanedFilePath = storagePath;
+
+          // Extract processed file ID from metadata if available
+          const metadata = await this.processedFileStorage.getMetadata(storagePath);
+          if (metadata?.metadata?.processedFileId) {
+            result.processedFileId = metadata.metadata.processedFileId;
+          }
+
+          console.log(`Cleaned content saved to: ${storagePath}`);
+        } catch (error) {
+          console.error('Failed to save cleaned file:', error);
+          result.metadata = {
+            ...result.metadata,
+            fileSaveError: error instanceof Error ? error.message : 'Unknown error'
+          };
+        }
       }
 
       console.log(`Text cleaning applied: ${baseResult.text.length} -> ${result.text.length} characters`);
