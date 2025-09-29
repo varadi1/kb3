@@ -161,13 +161,14 @@ router.post('/cancel/:id(*)',
 // GET /api/process/queue - Get processing queue status
 router.get('/queue', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const queueStatus = await kb3Service.getQueueStatus();
     const stats = await kb3Service.getStatistics();
 
     res.json({
       success: true,
       data: {
         ...stats,
-        queue: [] // Would need actual queue implementation
+        ...queueStatus
       }
     });
   } catch (error) {
@@ -198,5 +199,47 @@ router.post('/retry',
     }
   }
 );
+
+// POST /api/process/start - Start queue processing
+router.post('/start', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await kb3Service.startQueueProcessing();
+
+    res.json({
+      success: true,
+      message: 'Queue processing started'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/process/stop - Stop queue processing
+router.post('/stop', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await kb3Service.stopQueueProcessing();
+
+    res.json({
+      success: true,
+      message: 'Queue processing stopped'
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/process/completed - Clear completed items from queue
+router.delete('/completed', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const clearedCount = await kb3Service.clearCompletedFromQueue();
+
+    res.json({
+      success: true,
+      message: `Cleared ${clearedCount} completed items from queue`
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default router;

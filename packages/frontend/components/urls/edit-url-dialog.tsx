@@ -23,6 +23,7 @@ import {
 import { useKb3Store } from '@/lib/store'
 import { useToast } from '@/components/ui/use-toast'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { X, Settings } from 'lucide-react'
 import type { Url } from '@/lib/store'
 import { ParameterEditor } from '@/components/config/parameter-editor'
@@ -54,6 +55,7 @@ export function EditUrlDialog({ url, open, onOpenChange }: EditUrlDialogProps) {
   const [selectedExistingTag, setSelectedExistingTag] = useState<string>('')
   const [parameterEditorOpen, setParameterEditorOpen] = useState(false)
   const [scraperParameters, setScraperParameters] = useState<Record<string, any>>({})
+  const [selectedCleaners, setSelectedCleaners] = useState<string[]>([])
 
   const { updateUrl, fetchConfig, configData, fetchTags } = useKb3Store()
   const { toast } = useToast()
@@ -66,6 +68,7 @@ export function EditUrlDialog({ url, open, onOpenChange }: EditUrlDialogProps) {
         metadata: url.metadata || {}
       })
       setSelectedTags(url.tags || [])
+      setSelectedCleaners(url.cleaners || [])
       setScraperParameters({}) // Reset parameters
 
       // Fetch available tags
@@ -116,7 +119,8 @@ export function EditUrlDialog({ url, open, onOpenChange }: EditUrlDialogProps) {
     try {
       const updatedData = {
         ...editedUrl,
-        tags: selectedTags
+        tags: selectedTags,
+        cleaners: selectedCleaners
       }
 
       await updateUrl(url.id, updatedData)
@@ -223,6 +227,23 @@ export function EditUrlDialog({ url, open, onOpenChange }: EditUrlDialogProps) {
     { value: 'failed', label: 'Failed' },
     { value: 'skipped', label: 'Skipped' }
   ]
+
+  const availableCleaners = [
+    { value: 'sanitizehtml', label: 'Sanitize HTML', description: 'Remove dangerous HTML elements' },
+    { value: 'xss', label: 'XSS Cleaner', description: 'Prevent XSS attacks' },
+    { value: 'voca', label: 'Voca', description: 'Text normalization' },
+    { value: 'remark', label: 'Remark', description: 'Markdown processing' },
+    { value: 'readability', label: 'Readability', description: 'Extract main content' },
+    { value: 'stringjs', label: 'StringJS', description: 'String manipulation' }
+  ]
+
+  const handleCleanerToggle = (cleanerValue: string, checked: boolean) => {
+    if (checked) {
+      setSelectedCleaners(prev => [...prev, cleanerValue])
+    } else {
+      setSelectedCleaners(prev => prev.filter(c => c !== cleanerValue))
+    }
+  }
 
   return (
     <>
@@ -411,6 +432,52 @@ export function EditUrlDialog({ url, open, onOpenChange }: EditUrlDialogProps) {
                 {Object.keys(scraperParameters).length} parameter{Object.keys(scraperParameters).length === 1 ? '' : 's'} configured
               </div>
             )}
+          </div>
+
+          {/* Cleaners */}
+          <div className="grid grid-cols-4 items-start gap-4">
+            <Label className="text-right pt-2">
+              Cleaners
+            </Label>
+            <div className="col-span-3 space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Select cleaners to process the content (applied in order)
+              </p>
+              <div className="space-y-2">
+                {availableCleaners.map(cleaner => (
+                  <div key={cleaner.value} className="flex items-start space-x-3 py-1">
+                    <Checkbox
+                      id={`cleaner-${cleaner.value}`}
+                      checked={selectedCleaners.includes(cleaner.value)}
+                      onCheckedChange={(checked) => handleCleanerToggle(cleaner.value, checked as boolean)}
+                    />
+                    <div className="grid gap-1 leading-none">
+                      <Label
+                        htmlFor={`cleaner-${cleaner.value}`}
+                        className="text-sm font-normal cursor-pointer"
+                      >
+                        {cleaner.label}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {cleaner.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {selectedCleaners.length > 0 && (
+                <div className="mt-2 p-2 bg-muted rounded-md">
+                  <p className="text-xs text-muted-foreground mb-1">Processing order:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedCleaners.map((cleaner, index) => (
+                      <Badge key={cleaner} variant="secondary" className="text-xs">
+                        {index + 1}. {availableCleaners.find(c => c.value === cleaner)?.label}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Metadata (JSON) */}

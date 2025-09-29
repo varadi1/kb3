@@ -67,8 +67,23 @@ export function ConfigPanel() {
   const loadConfig = async () => {
     try {
       const config = await fetchConfig()
-      setScraperConfigs(config.scrapers || [])
-      setCleanerConfigs(config.cleaners || [])
+      // Ensure all required fields are set for scrapers
+      const scrapersWithDefaults = (config.scrapers || []).map((scraper, index) => ({
+        type: scraper.type, // Use the type from backend
+        enabled: scraper.enabled ?? false,
+        priority: scraper.priority ?? (index + 1) * 10,
+        parameters: scraper.parameters || {}
+      }))
+      setScraperConfigs(scrapersWithDefaults)
+
+      // Ensure all required fields are set for cleaners
+      const cleanersWithDefaults = (config.cleaners || []).map((cleaner, index) => ({
+        type: cleaner.type, // Use the type from backend
+        enabled: cleaner.enabled ?? false,
+        order: cleaner.order ?? index + 1,
+        parameters: cleaner.parameters || {}
+      }))
+      setCleanerConfigs(cleanersWithDefaults)
     } catch (error) {
       toast({
         title: 'Error',
@@ -103,7 +118,7 @@ export function ConfigPanel() {
       {
         type: selectedScraper,
         enabled: true,
-        priority: scraperConfigs.length + 1,
+        priority: (scraperConfigs.length + 1) * 10,
         parameters: {},
       },
     ])

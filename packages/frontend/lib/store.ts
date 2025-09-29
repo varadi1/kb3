@@ -289,32 +289,40 @@ export const useKb3Store = create<Kb3State>()(
       },
 
       updateTag: async (id, updates) => {
-        try {
-          const response = await fetch(`/api/tags/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updates)
-          })
-          const data = await response.json()
-          if (data.success) {
-            get().fetchTags()
-          }
-        } catch (error) {
-          console.error('Failed to update tag:', error)
+        const response = await fetch(`/api/tags/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates)
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Failed to update tag' }))
+          throw new Error(errorData.message || 'Failed to update tag')
+        }
+
+        const data = await response.json()
+        if (data.success) {
+          get().fetchTags()
+        } else {
+          throw new Error(data.message || 'Failed to update tag')
         }
       },
 
       deleteTag: async (id) => {
-        try {
-          const response = await fetch(`/api/tags/${id}`, {
-            method: 'DELETE'
-          })
-          const data = await response.json()
-          if (data.success) {
-            get().fetchTags()
-          }
-        } catch (error) {
-          console.error('Failed to delete tag:', error)
+        const response = await fetch(`/api/tags/${id}`, {
+          method: 'DELETE'
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Failed to delete tag' }))
+          throw new Error(errorData.message || 'Failed to delete tag')
+        }
+
+        const data = await response.json()
+        if (data.success) {
+          get().fetchTags()
+        } else {
+          throw new Error(data.message || 'Failed to delete tag')
         }
       },
 
@@ -665,6 +673,90 @@ export const useKb3Store = create<Kb3State>()(
           }
         } catch (error) {
           console.error('Failed to set URL cleaner configs:', error)
+          throw error
+        }
+      },
+
+      // Queue Management Actions
+      fetchQueue: async () => {
+        try {
+          const response = await fetch('/api/process/queue')
+          const data = await response.json()
+          if (data.success && data.data.queue) {
+            return data.data.queue
+          }
+          return []
+        } catch (error) {
+          console.error('Failed to fetch queue:', error)
+          return []
+        }
+      },
+
+      startProcessing: async () => {
+        try {
+          const response = await fetch('/api/process/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          })
+          const data = await response.json()
+          if (!data.success) {
+            throw new Error(data.message || 'Failed to start processing')
+          }
+          return data
+        } catch (error) {
+          console.error('Failed to start processing:', error)
+          throw error
+        }
+      },
+
+      stopProcessing: async () => {
+        try {
+          const response = await fetch('/api/process/stop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          })
+          const data = await response.json()
+          if (!data.success) {
+            throw new Error(data.message || 'Failed to stop processing')
+          }
+          return data
+        } catch (error) {
+          console.error('Failed to stop processing:', error)
+          throw error
+        }
+      },
+
+      retryItem: async (id) => {
+        try {
+          const response = await fetch('/api/process/retry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls: [id] })
+          })
+          const data = await response.json()
+          if (!data.success) {
+            throw new Error(data.message || 'Failed to retry item')
+          }
+          return data
+        } catch (error) {
+          console.error('Failed to retry item:', error)
+          throw error
+        }
+      },
+
+      clearCompleted: async () => {
+        try {
+          const response = await fetch('/api/process/completed', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+          })
+          const data = await response.json()
+          if (!data.success) {
+            throw new Error(data.message || 'Failed to clear completed items')
+          }
+          return data
+        } catch (error) {
+          console.error('Failed to clear completed items:', error)
           throw error
         }
       },

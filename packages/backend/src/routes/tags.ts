@@ -82,16 +82,16 @@ router.post('/',
 // PUT /api/tags/:id - Update tag
 router.put('/:id',
   [
-    param('id').isInt(),
+    param('id').isUUID(),
     body('name').optional().isString().trim().notEmpty(),
-    body('parentId').optional().isInt(),
+    body('parentId').optional().isUUID(),
     body('description').optional().isString(),
     body('color').optional().isHexColor()
   ],
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id;
       const updates = req.body;
 
       const success = await kb3Service.updateTag(id, updates);
@@ -109,12 +109,12 @@ router.put('/:id',
 // DELETE /api/tags/:id - Delete tag
 router.delete('/:id',
   [
-    param('id').isInt()
+    param('id').isUUID()
   ],
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id;
 
       const success = await kb3Service.deleteTag(id);
 

@@ -1,0 +1,18 @@
+{
+  "path": "/Users/varadiimre/0SWDEV/kb3/packages/backend/data/files/content.html",
+  "size": 1256,
+  "createdAt": "2025-09-29T07:15:33.643Z",
+  "updatedAt": "2025-09-29T07:15:33.643Z",
+  "mimeType": "text/html",
+  "checksum": "84238dfc8092e5d9c0dac8ef93371a07",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://example.com",
+    "mimeType": "text/html",
+    "originalSize": 1256,
+    "fetchedAt": "2025-09-29T07:15:33.642Z",
+    "headers": {},
+    "scraperUsed": "http"
+  }
+}

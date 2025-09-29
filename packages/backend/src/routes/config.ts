@@ -26,14 +26,8 @@ const handleValidationErrors = (req: Request, res: Response, next: NextFunction)
 // GET /api/config/scrapers - Get available scrapers and their configurations
 router.get('/scrapers', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const scrapers = kb3Service.getAvailableScrapers();
-
-    const scraperConfigs = scrapers.map(scraper => ({
-      name: scraper,
-      displayName: getScraperDisplayName(scraper),
-      description: getScraperDescription(scraper),
-      config: kb3Service.getScraperConfig(scraper)
-    }));
+    // Get the actual scraper configurations from kb3Service
+    const scraperConfigs = await kb3Service.getScraperConfigs();
 
     res.json({
       success: true,
@@ -47,14 +41,8 @@ router.get('/scrapers', async (req: Request, res: Response, next: NextFunction) 
 // GET /api/config/cleaners - Get available cleaners and their configurations
 router.get('/cleaners', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const cleaners = kb3Service.getAvailableCleaners();
-
-    const cleanerConfigs = cleaners.map(cleaner => ({
-      name: cleaner,
-      displayName: getCleanerDisplayName(cleaner),
-      description: getCleanerDescription(cleaner),
-      config: kb3Service.getCleanerConfig(cleaner)
-    }));
+    // Get the actual cleaner configurations from kb3Service
+    const cleanerConfigs = await kb3Service.getCleanerConfigs();
 
     res.json({
       success: true,
@@ -64,6 +52,58 @@ router.get('/cleaners', async (req: Request, res: Response, next: NextFunction) 
     next(error);
   }
 });
+
+// PUT /api/config/scrapers - Update scraper configuration
+router.put('/scrapers',
+  [
+    body('scrapers').isArray(),
+    body('scrapers.*.type').isString(),
+    body('scrapers.*.enabled').isBoolean(),
+    body('scrapers.*.priority').isInt({ min: 0, max: 100 }),
+    body('scrapers.*.parameters').optional().isObject()
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { scrapers } = req.body;
+      await kb3Service.updateScraperConfigs(scrapers);
+
+      res.json({
+        success: true,
+        message: 'Scraper configuration updated successfully',
+        data: scrapers
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// PUT /api/config/cleaners - Update cleaner configuration
+router.put('/cleaners',
+  [
+    body('cleaners').isArray(),
+    body('cleaners.*.type').isString(),
+    body('cleaners.*.enabled').isBoolean(),
+    body('cleaners.*.order').isInt({ min: 0, max: 100 }),
+    body('cleaners.*.parameters').optional().isObject()
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { cleaners } = req.body;
+      await kb3Service.updateCleanerConfigs(cleaners);
+
+      res.json({
+        success: true,
+        message: 'Cleaner configuration updated successfully',
+        data: cleaners
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 // GET /api/config/url/:id - Get URL-specific configuration
 router.get('/url/:id',
@@ -506,50 +546,6 @@ router.post('/test',
 );
 
 // Helper functions
-function getScraperDisplayName(scraper: string): string {
-  const names: Record<string, string> = {
-    'http': 'HTTP Scraper',
-    'playwright': 'Playwright Browser',
-    'crawl4ai': 'Crawl4AI',
-    'docling': 'Docling PDF Processor',
-    'deepdoctection': 'Deep Doctection'
-  };
-  return names[scraper] || scraper;
-}
-
-function getScraperDescription(scraper: string): string {
-  const descriptions: Record<string, string> = {
-    'http': 'Basic HTTP/HTTPS requests for static content',
-    'playwright': 'Browser automation for dynamic JavaScript content',
-    'crawl4ai': 'AI-powered content extraction',
-    'docling': 'PDF and document processing',
-    'deepdoctection': 'Layout analysis and OCR capabilities'
-  };
-  return descriptions[scraper] || '';
-}
-
-function getCleanerDisplayName(cleaner: string): string {
-  const names: Record<string, string> = {
-    'sanitizehtml': 'HTML Sanitizer',
-    'xss': 'XSS Protection',
-    'voca': 'Text Normalizer',
-    'remark': 'Markdown Processor',
-    'readability': 'Content Extractor'
-  };
-  return names[cleaner] || cleaner;
-}
-
-function getCleanerDescription(cleaner: string): string {
-  const descriptions: Record<string, string> = {
-    'sanitizehtml': 'Remove dangerous HTML elements and attributes',
-    'xss': 'Prevent XSS attacks by filtering malicious content',
-    'voca': 'Normalize and clean text content',
-    'remark': 'Process and clean Markdown content',
-    'readability': 'Extract main article content from web pages'
-  };
-  return descriptions[cleaner] || '';
-}
-
 function getConfigTemplates(): any[] {
   return [
     {

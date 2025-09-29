@@ -125,6 +125,7 @@ export function UrlsTable() {
               <TableHead>Status</TableHead>
               <TableHead>Tags</TableHead>
               <TableHead>Scraper</TableHead>
+              <TableHead>Cleaners</TableHead>
               <TableHead>Processed</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -177,6 +178,23 @@ export function UrlsTable() {
                 <Badge variant="outline">
                   {url.scraperType || 'default'}
                 </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex flex-wrap gap-1">
+                  {(url.cleaners || []).slice(0, 2).map((cleaner) => (
+                    <Badge key={cleaner} variant="secondary" className="text-xs">
+                      {cleaner}
+                    </Badge>
+                  ))}
+                  {(url.cleaners || []).length > 2 && (
+                    <Badge variant="outline" className="text-xs">
+                      +{(url.cleaners || []).length - 2}
+                    </Badge>
+                  )}
+                  {(!url.cleaners || url.cleaners.length === 0) && (
+                    <span className="text-xs text-muted-foreground">None</span>
+                  )}
+                </div>
               </TableCell>
               <TableCell>
                 {url.processedAt ? formatDate(url.processedAt) : 'Not processed'}

@@ -6,6 +6,7 @@ import {
 } from 'kb3';
 import * as path from 'path';
 import { EventEmitter } from 'events';
+import { SqlGlobalConfigPersistence } from './SqlGlobalConfigPersistence';
 
 export interface UrlWithTags {
   url: string;
@@ -35,6 +36,10 @@ export class KB3Service extends EventEmitter {
   private processingQueue: Map<string, ProcessingResult> = new Map();
   private urlStore: Map<string, any> = new Map(); // Local cache for URLs
   private initialized: Promise<void>;
+  private globalConfigPersistence: SqlGlobalConfigPersistence;
+  private isQueueProcessing: boolean = false;
+  private queueInterval: NodeJS.Timeout | null = null;
+  private processingItems: Map<string, any> = new Map(); // Track items being processed
 
   private constructor() {
     super();
@@ -95,6 +100,37 @@ export class KB3Service extends EventEmitter {
   }
 
   private async initialize(): Promise<void> {
+    // Initialize global config persistence
+    const dbPath = path.join(process.cwd(), 'data', 'unified.db');
+    this.globalConfigPersistence = new SqlGlobalConfigPersistence(dbPath);
+
+    // Load saved configuration from database
+    const savedConfig = await this.globalConfigPersistence.loadAllConfig();
+
+    // Merge saved config with default config
+    if (savedConfig.scrapers && savedConfig.scrapers.length > 0) {
+      this.config.scraping.enabledScrapers = savedConfig.scrapers
+        .filter(s => s.enabled)
+        .map(s => s.type);
+
+      // Update scraper configs
+      savedConfig.scrapers.forEach(scraper => {
+        if (scraper.parameters) {
+          this.config.scraping.scraperConfigs[scraper.type] = {
+            ...this.config.scraping.scraperConfigs[scraper.type],
+            ...scraper.parameters
+          };
+        }
+      });
+    }
+
+    if (savedConfig.cleaners && savedConfig.cleaners.length > 0) {
+      this.config.cleaning = this.config.cleaning || { enabledCleaners: [], cleanerConfigs: {} };
+      this.config.cleaning.enabledCleaners = savedConfig.cleaners
+        .filter(c => c.enabled)
+        .map(c => c.type);
+    }
+
     // createKnowledgeBase is async, must await it
     this.orchestrator = await KnowledgeBaseFactory.createKnowledgeBase(this.config);
     this.setupEventHandlers();
@@ -353,7 +389,8 @@ export class KB3Service extends EventEmitter {
   async setUrlParameters(url: string, parameters: UrlParameters): Promise<void> {
     await this.ensureInitialized();
 
-    const fetcher = this.config.contentFetcher;
+    // Get the content fetcher from the orchestrator, not the config
+    const fetcher = (this.orchestrator as any).contentFetcher;
     if (!fetcher || !('setUrlParameters' in fetcher)) {
       throw new Error('URL parameters configuration not available');
     }
@@ -367,7 +404,8 @@ export class KB3Service extends EventEmitter {
   async getUrlParameters(url: string): Promise<UrlParameters | null> {
     await this.ensureInitialized();
 
-    const fetcher = this.config.contentFetcher;
+    // Get the content fetcher from the orchestrator, not the config
+    const fetcher = (this.orchestrator as any).contentFetcher;
     if (!fetcher || !('getParameters' in fetcher)) {
       return null;
     }
@@ -391,7 +429,8 @@ export class KB3Service extends EventEmitter {
   async removeUrlParameters(url: string): Promise<void> {
     await this.ensureInitialized();
 
-    const fetcher = this.config.contentFetcher;
+    // Get the content fetcher from the orchestrator, not the config
+    const fetcher = (this.orchestrator as any).contentFetcher;
     if (!fetcher || !('parameterManager' in fetcher)) {
       return;
     }
@@ -581,6 +620,144 @@ export class KB3Service extends EventEmitter {
     return configs[cleanerType] || {};
   }
 
+  // Update scraper configuration
+  async updateScraperConfigs(scrapers: Array<{
+    type: string;
+    enabled: boolean;
+    priority: number;
+    parameters?: Record<string, any>;
+  }>): Promise<void> {
+    // Store scrapers configuration in memory
+    // In production, this should be persisted to a database
+    if (!this.config.scraping) {
+      this.config.scraping = {
+        enabledScrapers: [],
+        defaultScraper: 'http',
+        scraperConfigs: {}
+      };
+    }
+
+    // Update enabled scrapers
+    this.config.scraping.enabledScrapers = scrapers
+      .filter(s => s.enabled)
+      .map(s => s.type);
+
+    // Update scraper configs with parameters
+    scrapers.forEach(scraper => {
+      if (!this.config.scraping.scraperConfigs[scraper.type]) {
+        this.config.scraping.scraperConfigs[scraper.type] = {};
+      }
+      this.config.scraping.scraperConfigs[scraper.type] = {
+        ...this.config.scraping.scraperConfigs[scraper.type],
+        ...scraper.parameters,
+        priority: scraper.priority,
+        enabled: scraper.enabled
+      };
+    });
+
+    console.log('Updated scraper configs:', scrapers);
+
+    // Save to database for persistence
+    await this.globalConfigPersistence.saveScraperConfig(scrapers);
+  }
+
+  // Update cleaner configuration
+  async updateCleanerConfigs(cleaners: Array<{
+    type: string;
+    enabled: boolean;
+    order: number;
+    parameters?: Record<string, any>;
+  }>): Promise<void> {
+    // Store cleaners configuration in memory
+    // In production, this should be persisted to a database
+    if (!this.config.cleaning) {
+      this.config.cleaning = {
+        enabledCleaners: [],
+        cleanerConfigs: {}
+      };
+    }
+
+    // Update enabled cleaners
+    this.config.cleaning.enabledCleaners = cleaners
+      .filter(c => c.enabled)
+      .sort((a, b) => a.order - b.order)
+      .map(c => c.type);
+
+    // Update cleaner configs with parameters
+    cleaners.forEach(cleaner => {
+      if (!this.config.cleaning.cleanerConfigs[cleaner.type]) {
+        this.config.cleaning.cleanerConfigs[cleaner.type] = {};
+      }
+      this.config.cleaning.cleanerConfigs[cleaner.type] = {
+        ...this.config.cleaning.cleanerConfigs[cleaner.type],
+        ...cleaner.parameters,
+        order: cleaner.order,
+        enabled: cleaner.enabled
+      };
+    });
+
+    console.log('Updated cleaner configs:', cleaners);
+
+    // Save to database for persistence
+    await this.globalConfigPersistence.saveCleanerConfig(cleaners);
+  }
+
+  // Get current scraper configuration
+  async getScraperConfigs(): Promise<Array<{
+    type: string;
+    enabled: boolean;
+    priority: number;
+    parameters?: Record<string, any>;
+  }>> {
+    // Load from database first
+    const savedScrapers = await this.globalConfigPersistence.loadScraperConfig();
+
+    if (savedScrapers && savedScrapers.length > 0) {
+      return savedScrapers;
+    }
+
+    // Fallback to in-memory config
+    const enabledScrapers = this.config.scraping?.enabledScrapers || ['http'];
+    const scraperConfigs = this.config.scraping?.scraperConfigs || {};
+
+    const availableScrapers = this.getAvailableScrapers();
+
+    return availableScrapers.map(scraperType => ({
+      type: scraperType,
+      enabled: enabledScrapers.includes(scraperType),
+      priority: scraperConfigs[scraperType]?.priority || 10,
+      parameters: scraperConfigs[scraperType] || {}
+    }));
+  }
+
+  // Get current cleaner configuration
+  async getCleanerConfigs(): Promise<Array<{
+    type: string;
+    enabled: boolean;
+    order: number;
+    parameters?: Record<string, any>;
+  }>> {
+    // Load from database first
+    const savedCleaners = await this.globalConfigPersistence.loadCleanerConfig();
+
+    if (savedCleaners && savedCleaners.length > 0) {
+      return savedCleaners;
+    }
+
+    // Fallback to in-memory config
+    const enabledCleaners = this.config.cleaning?.enabledCleaners || [];
+    const cleanerConfigs = this.config.cleaning?.cleanerConfigs || {};
+
+    const availableCleaners = this.getAvailableCleaners();
+
+    return availableCleaners.map((cleanerType, index) => ({
+      type: cleanerType,
+      enabled: enabledCleaners.includes(cleanerType),
+      order: cleanerConfigs[cleanerType]?.order || index,
+      parameters: cleanerConfigs[cleanerType] || {}
+    }));
+  }
+
   // Content Access
   async getOriginalContent(urlId: string): Promise<Buffer | null> {
     await this.ensureInitialized();
@@ -689,8 +866,138 @@ export class KB3Service extends EventEmitter {
     return { success: true, imported: 0 };
   }
 
+  // Queue Management Methods
+  async startQueueProcessing(): Promise<void> {
+    await this.ensureInitialized();
+
+    if (this.isQueueProcessing) {
+      throw new Error('Queue processing is already running');
+    }
+
+    this.isQueueProcessing = true;
+    this.emit('queue:started');
+
+    // Start processing pending URLs at regular intervals
+    this.queueInterval = setInterval(async () => {
+      await this.processNextInQueue();
+    }, 5000); // Process next item every 5 seconds
+  }
+
+  async stopQueueProcessing(): Promise<void> {
+    await this.ensureInitialized();
+
+    if (!this.isQueueProcessing) {
+      throw new Error('Queue processing is not running');
+    }
+
+    this.isQueueProcessing = false;
+    if (this.queueInterval) {
+      clearInterval(this.queueInterval);
+      this.queueInterval = null;
+    }
+    this.emit('queue:stopped');
+  }
+
+  async clearCompletedFromQueue(): Promise<number> {
+    await this.ensureInitialized();
+
+    let clearedCount = 0;
+    for (const [id, item] of this.processingItems) {
+      if (item.status === 'completed') {
+        this.processingItems.delete(id);
+        clearedCount++;
+      }
+    }
+
+    this.emit('queue:cleared', { count: clearedCount });
+    return clearedCount;
+  }
+
+  private async processNextInQueue(): Promise<void> {
+    if (!this.isQueueProcessing) {
+      return;
+    }
+
+    try {
+      // Get pending URLs from repository
+      const urlRepository = this.orchestrator.getUrlRepository();
+      if (!urlRepository) {
+        return;
+      }
+
+      const pendingUrls = await urlRepository.list({ status: 'pending' });
+      if (pendingUrls.length === 0) {
+        return;
+      }
+
+      // Process the first pending URL
+      const urlToProcess = pendingUrls[0];
+
+      // Add to processing items
+      this.processingItems.set(urlToProcess.url, {
+        id: urlToProcess.url,
+        url: urlToProcess.url,
+        status: 'processing',
+        startedAt: new Date().toISOString()
+      });
+
+      this.emit('queue:processing', { url: urlToProcess.url });
+
+      try {
+        // Process the URL
+        const result = await this.processUrl(urlToProcess.url);
+
+        // Update processing item status
+        const item = this.processingItems.get(urlToProcess.url);
+        if (item) {
+          item.status = result.success ? 'completed' : 'failed';
+          item.completedAt = new Date().toISOString();
+          if (!result.success) {
+            item.error = result.error || 'Processing failed';
+          }
+        }
+
+        this.emit('queue:processed', { url: urlToProcess.url, result });
+      } catch (error) {
+        // Update processing item with error
+        const item = this.processingItems.get(urlToProcess.url);
+        if (item) {
+          item.status = 'failed';
+          item.completedAt = new Date().toISOString();
+          item.error = error instanceof Error ? error.message : 'Unknown error';
+        }
+
+        this.emit('queue:error', { url: urlToProcess.url, error });
+      }
+    } catch (error) {
+      console.error('Error processing queue:', error);
+    }
+  }
+
+  // Get current queue status
+  async getQueueStatus(): Promise<any> {
+    await this.ensureInitialized();
+
+    const queue = Array.from(this.processingItems.values());
+    return {
+      isProcessing: this.isQueueProcessing,
+      queue,
+      stats: {
+        pending: queue.filter(i => i.status === 'pending').length,
+        processing: queue.filter(i => i.status === 'processing').length,
+        completed: queue.filter(i => i.status === 'completed').length,
+        failed: queue.filter(i => i.status === 'failed').length
+      }
+    };
+  }
+
   // Cleanup
   async cleanup(): Promise<void> {
+    // Stop queue processing if running
+    if (this.isQueueProcessing) {
+      await this.stopQueueProcessing();
+    }
+
     // Cleanup resources if needed
     this.removeAllListeners();
   }

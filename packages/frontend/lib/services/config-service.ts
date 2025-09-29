@@ -62,10 +62,14 @@ export class ConfigService implements IConfigService {
       }
 
       const responses = await Promise.all(requests)
-      const failed = responses.find(r => !r.ok)
 
-      if (failed) {
-        throw new Error('Failed to update configuration')
+      // Check if all responses are successful
+      for (const response of responses) {
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+          console.error('Configuration update failed:', errorData)
+          throw new Error(errorData.message || 'Failed to update configuration')
+        }
       }
     } catch (error) {
       console.error('Failed to update config:', error)
