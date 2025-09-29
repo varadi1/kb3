@@ -173,12 +173,14 @@ describe('UrlsTable Component', () => {
     // So we check that the expected menu items exist
     const processButtons = screen.getAllByText('Process')
     const editButtons = screen.getAllByText('Edit')
-    const downloadButtons = screen.getAllByText('Download Content')
+    const downloadCleanedButtons = screen.getAllByText('Download Cleaned')
+    const downloadOriginalButtons = screen.getAllByText('Download Original')
     const deleteButtons = screen.getAllByText('Delete')
 
     expect(processButtons.length).toBeGreaterThan(0)
     expect(editButtons.length).toBeGreaterThan(0)
-    expect(downloadButtons.length).toBeGreaterThan(0)
+    expect(downloadCleanedButtons.length).toBeGreaterThan(0)
+    expect(downloadOriginalButtons.length).toBeGreaterThan(0)
     expect(deleteButtons.length).toBeGreaterThan(0)
   })
 

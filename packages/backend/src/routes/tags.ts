@@ -29,8 +29,8 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
     tags.forEach(tag => {
       const tagNode = tagMap.get(tag.id);
-      if (tag.parent_id) {
-        const parent = tagMap.get(tag.parent_id);
+      if (tag.parentId) {
+        const parent = tagMap.get(tag.parentId);
         if (parent) {
           parent.children.push(tagNode);
         }
@@ -84,7 +84,7 @@ router.put('/:id',
   [
     param('id').isInt(),
     body('name').optional().isString().trim().notEmpty(),
-    body('parent_id').optional().isInt(),
+    body('parentId').optional().isInt(),
     body('description').optional().isString(),
     body('color').optional().isHexColor()
   ],

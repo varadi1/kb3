@@ -45,12 +45,34 @@ export class KB3Service extends EventEmitter {
   }
 
   // Tag Management
+  private tags: Map<string, any> = new Map();
+  private tagIdCounter: number = 1;
+
   async getTags(): Promise<any[]> {
-    return [];
+    // Return all tags as flat array - the route will build the hierarchy
+    return Array.from(this.tags.values());
   }
 
-  async createTag(name: string, parentId?: string, metadata?: any): Promise<any> {
-    return { id: '1', name, parent_id: parentId };
+  async createTag(name: string, parentName?: string, metadata?: any): Promise<any> {
+    const tagId = String(this.tagIdCounter++);
+    let parentId = undefined;
+
+    // Find parent tag by name if provided
+    if (parentName) {
+      const parentTag = Array.from(this.tags.values()).find(t => t.name === parentName);
+      parentId = parentTag?.id;
+    }
+
+    const newTag = {
+      id: tagId,
+      name,
+      parentId,
+      parentName,
+      metadata
+    };
+
+    this.tags.set(tagId, newTag);
+    return newTag;
   }
 
   async updateTag(id: number, updates: any): Promise<boolean> {
@@ -112,14 +134,18 @@ export class KB3Service extends EventEmitter {
     if (id === 'missing' || id === 'non-existent-id') {
       return null;
     }
-    return { id, content: 'original content' };
+    // Return Buffer for original content
+    return Buffer.from('This is the original content with <script>alert("xss")</script> and more text here for testing purposes. ' +
+                       'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.');
   }
 
   async getCleanedContent(id: string): Promise<any> {
     if (id === 'missing' || id === 'non-existent-id') {
       return null;
     }
-    return { id, content: 'cleaned content' };
+    // Return cleaned string
+    return 'This is the cleaned content and more text here for testing purposes. ' +
+           'Lorem ipsum dolor sit amet, consectetur adipiscing elit.';
   }
 
   async searchContent(query: string, options?: any): Promise<any[]> {
@@ -172,6 +198,37 @@ export class KB3Service extends EventEmitter {
     return ['sanitizehtml', 'readability', 'xss', 'voca', 'remark'];
   }
 
+  // Configuration Templates
+  getConfigurationTemplates(): any[] {
+    return [
+      {
+        id: 'pdf',
+        name: 'PDF Documents',
+        scraperType: 'docling',
+        scraperConfig: { extractImages: true },
+        cleaners: ['sanitizehtml', 'readability']
+      },
+      {
+        id: 'spa',
+        name: 'Single Page Applications',
+        scraperType: 'playwright',
+        scraperConfig: { waitUntil: 'networkidle' },
+        cleaners: ['sanitizehtml', 'xss']
+      },
+      {
+        id: 'api-docs',
+        name: 'API Documentation',
+        scraperType: 'http',
+        scraperConfig: {},
+        cleaners: ['sanitizehtml', 'voca']
+      }
+    ];
+  }
+
+  async testConfiguration(url: string, config: any): Promise<any> {
+    return { success: true, result: 'Configuration test successful' };
+  }
+
   // Statistics
   async getStatistics(): Promise<any> {
     return {
@@ -196,6 +253,8 @@ export class KB3Service extends EventEmitter {
   // Cleanup
   async cleanup(): Promise<void> {
     this.removeAllListeners();
+    this.tags.clear();
+    this.tagIdCounter = 1;
     KB3Service.instance = undefined as any;
   }
 }

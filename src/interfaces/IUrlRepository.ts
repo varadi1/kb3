@@ -77,6 +77,7 @@ export interface UrlRecord {
   lastChecked: Date;
   processCount: number;
   metadata?: UrlMetadata;
+  tags?: string[]; // Added to include tag names
 }
 
 export interface UrlMetadata {

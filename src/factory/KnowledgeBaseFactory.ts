@@ -19,6 +19,7 @@ import { UrlDetectorRegistry, createDefaultDetectorRegistry } from '../detectors
 import { FetcherRegistry, createDefaultFetcherRegistry } from '../fetchers';
 import { ScraperFactory } from '../scrapers/ScraperFactory';
 import { ScraperAwareContentFetcher } from '../fetchers/ScraperAwareContentFetcher';
+import { PersistentParameterManager } from '../scrapers/PersistentParameterManager';
 
 // Processors
 import { ProcessorRegistry, createDefaultProcessorRegistry } from '../processors';
@@ -26,6 +27,7 @@ import { ProcessorRegistry, createDefaultProcessorRegistry } from '../processors
 // Storage
 import { LocalFileStorage } from '../storage';
 import { SqlProcessedFileRepository } from '../storage/SqlProcessedFileRepository';
+import { SqlConfigurationPersistence } from '../storage/SqlConfigurationPersistence';
 import { FileStorageWithTracking } from '../storage/FileStorageWithTracking';
 import { ProcessedFileStorageWithTracking } from '../storage/ProcessedFileStorageWithTracking';
 import { ContentProcessorWithCleaning } from '../processors/ContentProcessorWithCleaning';
@@ -144,7 +146,7 @@ export class KnowledgeBaseFactory {
 
     // Create base components
     const urlDetector = this.createUrlDetector(config);
-    const contentFetcher = this.createContentFetcher(config);
+    const contentFetcher = await this.createContentFetcher(config, repositories.urlRepository);
     const baseContentProcessor = this.createContentProcessor(config);
 
     // Wrap processor with cleaning capabilities if processed storage is available
@@ -255,7 +257,10 @@ export class KnowledgeBaseFactory {
    * @param config System configuration
    * @returns Content fetcher registry
    */
-  private static createContentFetcher(config: KnowledgeBaseConfig): FetcherRegistry | ScraperAwareContentFetcher {
+  private static async createContentFetcher(
+    config: KnowledgeBaseConfig,
+    urlRepository?: any
+  ): Promise<FetcherRegistry | ScraperAwareContentFetcher> {
     const registry = createDefaultFetcherRegistry();
 
     // Configure retry settings
@@ -268,7 +273,19 @@ export class KnowledgeBaseFactory {
 
     // If scraping is configured, wrap with ScraperAwareContentFetcher
     if (config.scraping && config.scraping.enabledScrapers && config.scraping.enabledScrapers.length > 0) {
-      return ScraperFactory.createScraperAwareContentFetcher(registry, config);
+      // Create persistent parameter manager if URL repository is available
+      let parameterManager;
+      if (urlRepository && (config as any).enablePersistentConfig !== false) {
+        const persistence = new SqlConfigurationPersistence(urlRepository);
+        parameterManager = new PersistentParameterManager(persistence);
+
+        // Preload existing configurations and wait for it
+        await parameterManager.preloadConfigurations().catch(error => {
+          console.warn('Failed to preload URL configurations:', error);
+        });
+      }
+
+      return ScraperFactory.createScraperAwareContentFetcher(registry, config, parameterManager);
     }
 
     return registry;

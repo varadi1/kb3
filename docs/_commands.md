@@ -1,6 +1,6 @@
 
 please think ultrahard about this issue: we have many tests failing! Stick to solid principles! 
-Run 'npm test' in packages/backend folder and Examine and analyze the situation, think of the root cause of this, use driver tree method to find it, and then fix it. DO NOT STOP until you can make ALL TESTS PASS!
+Run 'npm test' in the packages/backend folder and Examine and analyze the situation, think of the root cause of this, use driver tree method to find it, and then fix it. DO NOT STOP until you can make ALL TESTS PASS!
 
 Fix EACH failure one by one, showing the related test passes after each fix.
 Please avoid overmocking!
@@ -10,6 +10,7 @@ Keep working on this until ALL! tests PASS!, DON'T STOP before or don't move on 
 If tests fail, diagnose why and fix them - repeat until successful
 You cannot claim success if even one test (any one of them) is failing!!!
 
+in packages/backend
 
 ---
  why do I have 3 KnowledgeBaseFactory files? I want one that has all the features: KnowledgeBaseFactory.ts,
@@ -56,7 +57,7 @@ you to analyse the situation and answer me to this question. Don't apologise, ju
 
 ---
 
-please think ultrahard and tell me if the followings are in place with the system: a frontend now that is make use of how the system works and support its processes. 
+please think ultrahard and tell me if the followings are implemented and are in place in the system: a frontend now that is make use of how the system works and support its processes. 
 	- So if I can see all the stored urls in a table view,
 	- add new urls one by one or in batches
 	- I can set tags to one or all selected urls
@@ -70,3 +71,23 @@ please think ultrahard and tell me if the followings are in place with the syste
 	- I can access to a link that would open / download the original or the processed file or open the url
 	- I can export and import urls and meta data in json or txt
 In case there is is something missing, please design the next steps to create those. Keep SOLID principles in mind and update tests and documentations (claude.md, readme.md, components.md)
+
+---
+please think ultrahard and design the implementation of the Per-URL Config Override: Frontend ready but needs backend persistence
+Keep SOLID principles in mind and update tests and documentations (claude.md, readme.md, components.md)
+
+---
+
+/analyze please think ultrahard and find out why when I add or update a tag when editing an url, I don't get to select the already existing tags, but I have to type in the tag name, which is not logical. I click on the save button then I can I get a feedback that it was saved successfully, I can see it in the list of urls that the edited url now has a tag, but in reality it is not being added to the url list, because when I go to the tags list the new tag is not there and when I go back to the list or urls it is not there. Nasty error.
+Please check your solution results with playwright.
+You can only claim success if you can add a new url and then it it appears on the list of urls using only playwright. You have to confirm the addition.
+
+/analyze what is the connection between the tag values in the metadata of a url and the tags that are displayed with the tag, I suppose they should be in line.
+
+---
+
+/analyze please tell me how it is now in the system. How can I attach a tool (scraper and cleaner) to a specific url or a selection of urls?
+When I go to the Configuration menu, what does it mean when I set thing here, where does it have an effect?
+Why cannot I set anything for the html scraper?
+Where can I set the domain specific limitations, like rate limiting, etc?
+If you see a problem come up with a detailed plan to fix it.

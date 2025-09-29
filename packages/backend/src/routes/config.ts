@@ -1,9 +1,18 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { KB3Service } from '../services/kb3Service';
+import { ParameterService } from '../services/parameterService';
+import { ParameterStorageService } from '../services/parameterStorageService';
 
 const router = Router();
 const kb3Service = KB3Service.getInstance();
+const parameterService = new ParameterService();
+const parameterStorage = new ParameterStorageService();
+
+// Initialize parameter storage
+parameterStorage.initialize().catch(err => {
+  console.error('Failed to initialize parameter storage:', err);
+});
 
 // Validation middleware
 const handleValidationErrors = (req: Request, res: Response, next: NextFunction) => {
@@ -56,6 +65,34 @@ router.get('/cleaners', async (req: Request, res: Response, next: NextFunction) 
   }
 });
 
+// GET /api/config/url/:id - Get URL-specific configuration
+router.get('/url/:id',
+  [
+    param('id').isString()
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const config = await kb3Service.getUrlParameters(id);
+
+      if (!config) {
+        return res.status(404).json({
+          success: false,
+          message: 'No configuration found for this URL'
+        });
+      }
+
+      res.json({
+        success: true,
+        data: config
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // POST /api/config/url/:id - Set URL-specific configuration
 router.post('/url/:id',
   [
@@ -90,6 +127,27 @@ router.post('/url/:id',
           cleanerConfigs,
           priority
         }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// DELETE /api/config/url/:id - Remove URL-specific configuration
+router.delete('/url/:id',
+  [
+    param('id').isString()
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      await kb3Service.removeUrlParameters(id);
+
+      res.json({
+        success: true,
+        message: 'Configuration removed successfully'
       });
     } catch (error) {
       next(error);
@@ -137,6 +195,277 @@ router.post('/templates',
     }
   }
 );
+
+// GET /api/config/scrapers/:type/schema - Get parameter schema for a scraper
+router.get('/scrapers/:type/schema', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { type } = req.params;
+    const schema = parameterService.getParameterSchema(type);
+
+    if (!schema) {
+      return res.status(404).json({
+        success: false,
+        message: `Schema not found for scraper type: ${type}`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: schema
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/config/scrapers/:type/defaults - Get default parameters for a scraper
+router.get('/scrapers/:type/defaults', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { type } = req.params;
+    const defaults = parameterService.getDefaultParameters(type);
+
+    if (!defaults) {
+      return res.status(404).json({
+        success: false,
+        message: `Default parameters not found for scraper type: ${type}`
+      });
+    }
+
+    res.json({
+      success: true,
+      data: defaults
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/config/scrapers/:type/validate - Validate parameters for a scraper
+router.post('/scrapers/:type/validate',
+  [
+    param('type').isString(),
+    body('parameters').isObject()
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { type } = req.params;
+      const { parameters } = req.body;
+
+      const validation = parameterService.validateParameters(type, parameters);
+
+      res.json({
+        success: validation.valid,
+        data: {
+          valid: validation.valid,
+          errors: validation.errors,
+          warnings: validation.warnings,
+          normalizedParams: validation.normalizedParams
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/config/scrapers/schemas - Get all scraper parameter schemas
+router.get('/scrapers/schemas', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const schemas = parameterService.getAllParameterSchemas();
+
+    res.json({
+      success: true,
+      data: schemas
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/config/url/:id/parameters - Get detailed parameters for a URL
+router.get('/url/:id/parameters',
+  [param('id').isString()],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      // Get from kb3Service first (it has persistent storage)
+      let parameters = await kb3Service.getUrlParameters(id);
+
+      // If not found, check our parameter storage
+      if (!parameters) {
+        const storedConfig = await parameterStorage.getParameters(id);
+        if (storedConfig) {
+          parameters = {
+            scraperType: storedConfig.scraperType,
+            parameters: storedConfig.parameters,
+            priority: storedConfig.priority
+          };
+        }
+      }
+
+      res.json({
+        success: true,
+        data: parameters
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/config/url/:id/parameters - Set detailed parameters for a URL
+router.post('/url/:id/parameters',
+  [
+    param('id').isString(),
+    body('scraperType').isString(),
+    body('parameters').isObject(),
+    body('priority').optional().isInt({ min: 0, max: 100 }),
+    body('enabled').optional().isBoolean()
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { scraperType, parameters, priority, enabled } = req.body;
+
+      // Validate parameters
+      const validation = parameterService.validateParameters(scraperType, parameters);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid parameters',
+          errors: validation.errors
+        });
+      }
+
+      // Store in both systems for consistency
+      const config = {
+        scraperType,
+        parameters: validation.normalizedParams,
+        priority: priority || 10,
+        enabled: enabled !== false
+      };
+
+      // Store in parameter storage
+      await parameterStorage.saveParameters(id, config);
+
+      // Also update in kb3Service
+      await kb3Service.setUrlParameters(id, {
+        scraperType,
+        parameters: validation.normalizedParams,
+        priority
+      });
+
+      res.json({
+        success: true,
+        message: 'Parameters saved successfully',
+        data: {
+          url: id,
+          ...config
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// DELETE /api/config/url/:id/parameters - Remove parameters for a URL
+router.delete('/url/:id/parameters',
+  [param('id').isString()],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      // Remove from both storage systems
+      await parameterStorage.deleteParameters(id);
+      await kb3Service.removeUrlParameters(id);
+
+      res.json({
+        success: true,
+        message: 'Parameters removed successfully'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/config/batch/parameters - Set parameters for multiple URLs
+router.post('/batch/parameters',
+  [
+    body('urls').isArray().notEmpty(),
+    body('scraperType').isString(),
+    body('parameters').isObject(),
+    body('priority').optional().isInt({ min: 0, max: 100 }),
+    body('enabled').optional().isBoolean()
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { urls, scraperType, parameters, priority, enabled } = req.body;
+
+      // Validate parameters
+      const validation = parameterService.validateParameters(scraperType, parameters);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid parameters',
+          errors: validation.errors
+        });
+      }
+
+      const config = {
+        scraperType,
+        parameters: validation.normalizedParams,
+        priority: priority || 10,
+        enabled: enabled !== false
+      };
+
+      // Save to storage for all URLs
+      const configs = urls.map((url: string) => ({ url, config }));
+      await parameterStorage.saveParametersBatch(configs);
+
+      // Also update in kb3Service for each URL
+      for (const url of urls) {
+        await kb3Service.setUrlParameters(url, {
+          scraperType,
+          parameters: validation.normalizedParams,
+          priority
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `Parameters saved for ${urls.length} URLs`,
+        data: {
+          count: urls.length,
+          config
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// GET /api/config/parameters/stats - Get parameter configuration statistics
+router.get('/parameters/stats', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const stats = await parameterStorage.getStatistics();
+
+    res.json({
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // POST /api/config/test - Test configuration on a URL
 router.post('/test',

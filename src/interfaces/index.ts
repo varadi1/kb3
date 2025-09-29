@@ -13,6 +13,11 @@ export * from './IOrchestrator';
 export * from './IUrlRepository';
 export * from './IOriginalFileRepository';
 export * from './IProcessedFileRepository';
+export * from './IConfigurationPersistence';
+
+// Scraper interfaces
+export * from './IScraper';
+export * from './IScraperParameters';
 
 // Common types and enums
 export { ContentType } from './IUrlDetector';
@@ -20,3 +25,4 @@ export { ProcessingStatus, SortField, SortOrder } from './IKnowledgeStore';
 export { FileSort, SortOrder as FileSortOrder } from './IFileStorage';
 export { ProcessingStage, ErrorCode } from './IOrchestrator';
 export { UrlStatus } from './IUrlRepository';
+export { ScraperType } from './IScraper';

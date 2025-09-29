@@ -8,7 +8,7 @@
 jest.mock('../../src/services/kb3Service');
 
 import request from 'supertest';
-import { app, httpServer } from '../../src/index';
+import { app, httpServer, cleanupWebSocket } from '../../src/index';
 import { KB3Service } from '../../src/services/kb3Service';
 
 describe('Smoke Tests - Critical Paths', () => {
@@ -19,6 +19,7 @@ describe('Smoke Tests - Critical Paths', () => {
   });
 
   afterAll(async () => {
+    cleanupWebSocket();
     httpServer.close();
     await kb3Service.cleanup();
   });

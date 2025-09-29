@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { UrlsTable } from '@/components/urls/urls-table'
 import { AddUrlDialog } from '@/components/urls/add-url-dialog'
+import { BatchOperationsPanel } from '@/components/urls/batch-operations'
 import { TagManager } from '@/components/tags/tag-manager'
 import { ProcessingQueue } from '@/components/processing/processing-queue'
 import { ConfigPanel } from '@/components/config/config-panel'
@@ -127,6 +128,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <UrlsTable />
+              <BatchOperationsPanel />
             </CardContent>
           </Card>
         </TabsContent>

@@ -24,6 +24,7 @@ import { IContentChangeDetector } from '../interfaces/IContentChangeDetector';
 import { IOriginalFileRepository, OriginalFileInfo } from '../interfaces/IOriginalFileRepository';
 import { SqlUrlRepository, UrlMetadataWithTags } from '../storage/SqlUrlRepository';
 import { ITag } from '../interfaces/ITag';
+import { ITagManager } from '../interfaces/ITagManager';
 import { ErrorHandler } from '../utils/ErrorHandler';
 import * as crypto from 'crypto';
 
@@ -894,11 +895,34 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
   // ============================================
 
   /**
+   * Get the URL repository for direct access
+   */
+  getUrlRepository(): IUrlRepository | undefined {
+    return this.urlRepository;
+  }
+
+  /**
+   * Get the content fetcher for direct access
+   */
+  getContentFetcher(): IContentFetcher {
+    return this.contentFetcher;
+  }
+
+  /**
+   * Get the tag manager for direct access
+   */
+  getTagManager(): ITagManager | undefined {
+    const tagManager = this.urlRepositoryWithTags?.getTagManager();
+    return tagManager ?? undefined;
+  }
+
+  /**
    * Get the original file repository for direct access
    */
   getOriginalFileRepository(): IOriginalFileRepository | undefined {
     return this.originalFileRepository;
   }
+
 
   // ============================================
   // TAG SUPPORT FEATURES

@@ -6,7 +6,7 @@ interface ClientData {
   subscribedTags: Set<string>;
 }
 
-export function setupWebSocket(io: SocketIOServer, kb3Service: KB3Service): void {
+export function setupWebSocket(io: SocketIOServer, kb3Service: KB3Service): () => void {
   const clients = new Map<string, ClientData>();
 
   // Setup KB3 event forwarding
@@ -147,8 +147,8 @@ export function setupWebSocket(io: SocketIOServer, kb3Service: KB3Service): void
     });
   });
 
-  // Periodic status broadcast
-  setInterval(async () => {
+  // Periodic status broadcast - store reference for cleanup
+  const statsInterval = setInterval(async () => {
     try {
       const stats = await kb3Service.getStatistics();
       io.emit('stats:update', stats);
@@ -158,4 +158,11 @@ export function setupWebSocket(io: SocketIOServer, kb3Service: KB3Service): void
   }, 30000); // Every 30 seconds
 
   console.log('WebSocket server initialized');
+
+  // Return cleanup function
+  return () => {
+    clearInterval(statsInterval);
+    kb3Service.removeAllListeners();
+    io.removeAllListeners();
+  };
 }

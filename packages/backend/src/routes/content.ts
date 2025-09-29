@@ -16,7 +16,7 @@ const handleValidationErrors = (req: Request, res: Response, next: NextFunction)
 };
 
 // GET /api/content/:id/original - Get original content
-router.get('/:id/original',
+router.get('/:id(*)/original',
   [
     param('id').isString()
   ],
@@ -47,7 +47,7 @@ router.get('/:id/original',
 );
 
 // GET /api/content/:id/cleaned - Get cleaned content
-router.get('/:id/cleaned',
+router.get('/:id(*)/cleaned',
   [
     param('id').isString()
   ],
@@ -80,7 +80,7 @@ router.get('/:id/cleaned',
 );
 
 // GET /api/content/:id/metadata - Get content metadata
-router.get('/:id/metadata',
+router.get('/:id(*)/metadata',
   [
     param('id').isString()
   ],
@@ -112,7 +112,8 @@ router.get('/:id/metadata',
 );
 
 // POST /api/content/:id/reprocess - Reprocess content with new settings
-router.post('/:id/reprocess',
+// Note: id can be a full URL path - use wildcard
+router.post('/:id(*)/reprocess',
   [
     param('id').isString(),
     body('cleaners').optional().isArray(),
@@ -141,7 +142,7 @@ router.post('/:id/reprocess',
 );
 
 // GET /api/content/:id/download - Download original file
-router.get('/:id/download',
+router.get('/:id(*)/download',
   [
     param('id').isString()
   ],
@@ -174,7 +175,7 @@ router.get('/:id/download',
 );
 
 // POST /api/content/:id/compare - Compare original vs cleaned
-router.post('/:id/compare',
+router.post('/:id(*)/compare',
   [
     param('id').isString()
   ],

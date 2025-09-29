@@ -26,7 +26,7 @@ export interface UrlMetadataWithTags extends UrlMetadata {
   tags?: string[];
 }
 
-export interface UrlRecordWithTags extends UrlRecord {
+export interface UrlRecordWithTags extends Omit<UrlRecord, 'tags'> {
   tags?: ITag[];
 }
 
@@ -556,13 +556,19 @@ export class SqlUrlRepository implements IUrlRepository {
 
       if (this.tagsEnabled && this.urlTagRepository) {
         const tags = await this.urlTagRepository.getTagsForUrl(urlInfo.id);
+        const { tags: _, ...urlInfoWithoutTags } = urlInfo;
         return {
-          ...urlInfo,
+          ...urlInfoWithoutTags,
           tags
         };
       }
 
-      return urlInfo;
+      // Convert to UrlRecordWithTags format (without ITag[] tags)
+      const { tags: _, ...urlInfoWithoutTags } = urlInfo;
+      return {
+        ...urlInfoWithoutTags,
+        tags: undefined
+      };
     } catch (error) {
       throw ErrorHandler.createError(
         'URL_INFO_WITH_TAGS_ERROR',

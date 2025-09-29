@@ -84,6 +84,16 @@ class Database {
     }
     return this;
   }
+
+  exec(sql, callback) {
+    if (typeof callback === 'function') {
+      process.nextTick(() => callback(null));
+    } else if (typeof sql === 'function') {
+      // Handle case where first argument is the callback
+      process.nextTick(() => sql(null));
+    }
+    return this;
+  }
 }
 
 module.exports = {

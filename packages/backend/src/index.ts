@@ -69,8 +69,8 @@ app.use('/api/config', configRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/export', exportRoutes);
 
-// WebSocket Setup
-setupWebSocket(io, kb3Service);
+// WebSocket Setup - store cleanup function
+const cleanupWebSocket = setupWebSocket(io, kb3Service);
 
 // Error handling middleware
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -119,6 +119,7 @@ if (process.env.NODE_ENV !== 'test') {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
+  cleanupWebSocket();
   httpServer.close(() => {
     console.log('Server closed');
     kb3Service.cleanup().then(() => {
@@ -129,6 +130,7 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   console.log('\nSIGINT received, shutting down gracefully...');
+  cleanupWebSocket();
   httpServer.close(() => {
     console.log('Server closed');
     kb3Service.cleanup().then(() => {
@@ -137,4 +139,4 @@ process.on('SIGINT', async () => {
   });
 });
 
-export { app, httpServer, io };
+export { app, httpServer, io, cleanupWebSocket };

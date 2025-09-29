@@ -66,10 +66,30 @@ router.post('/',
 
       const result = await kb3Service.addUrl(url, tags);
 
-      res.status(201).json({
-        success: true,
-        data: result
-      });
+      // Check if the operation was successful
+      if (!result.success) {
+        // Handle duplicate URL error specifically
+        if (result.error?.code === 'DUPLICATE_URL') {
+          res.status(409).json({
+            success: false,
+            error: result.error.message || 'URL already exists',
+            data: result
+          });
+        } else {
+          // Handle other failures
+          res.status(400).json({
+            success: false,
+            error: result.error?.message || 'Failed to add URL',
+            data: result
+          });
+        }
+      } else {
+        // Success case
+        res.status(201).json({
+          success: true,
+          data: result
+        });
+      }
     } catch (error) {
       next(error);
     }
@@ -112,20 +132,57 @@ router.put('/:id',
     param('id').isString(),
     body('metadata').optional().isObject(),
     body('status').optional().isIn(['pending', 'processing', 'completed', 'failed', 'skipped']),
-    body('priority').optional().isInt({ min: 0, max: 100 })
+    body('priority').optional().isInt({ min: 0, max: 100 }),
+    body('tags').optional().isArray(),
+    body('authority').optional().isInt({ min: 0, max: 5 }),
+    body('scraperType').optional().isString(),
+    body('cleaners').optional().isArray()
   ],
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
       const updates = req.body;
+      let updateSuccess = true;
 
-      // This would need implementation in KB3Service
-      res.json({
-        success: true,
-        message: 'URL updated successfully',
-        data: { id, ...updates }
-      });
+      // Handle tag updates if provided
+      if (updates.tags !== undefined) {
+        // Use the new addTagsToUrlById method that handles ID to URL conversion
+        const tagSuccess = await kb3Service.addTagsToUrlById(id, updates.tags);
+        updateSuccess = updateSuccess && tagSuccess;
+      }
+
+      // Handle authority updates
+      if (updates.authority !== undefined) {
+        const authoritySuccess = await kb3Service.updateUrlAuthority(id, updates.authority);
+        updateSuccess = updateSuccess && authoritySuccess;
+      }
+
+      // Handle scraper/cleaner configuration
+      if (updates.scraperType || updates.cleaners || updates.priority) {
+        await kb3Service.setUrlParameters(id, {
+          scraperType: updates.scraperType,
+          cleaners: updates.cleaners,
+          priority: updates.priority
+        });
+      }
+
+      // TODO: Handle metadata and status updates when KB3Service supports them
+      // For now, these are stored locally but not persisted to the database
+
+      if (updateSuccess) {
+        res.json({
+          success: true,
+          message: 'URL updated successfully',
+          data: { id, ...updates }
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: 'Failed to update URL completely',
+          data: { id, ...updates }
+        });
+      }
     } catch (error) {
       next(error);
     }
@@ -156,10 +213,11 @@ router.delete('/:id',
 // POST /api/urls/batch-update - Batch update URLs
 router.post('/batch-update',
   [
-    body('urlIds').isArray({ min: 1 }),
-    body('urlIds.*').isString(),
-    body('updates').isObject(),
+    body('urlIds').isArray({ min: 1 }).withMessage('Provide at least one URL ID'),
+    body('urlIds.*').isString().withMessage('Each URL ID must be a string'),
+    body('updates').isObject().withMessage('Updates must be an object'),
     body('updates.tags').optional().isArray(),
+    body('updates.authority').optional().isInt({ min: 0, max: 5 }).withMessage('authority must be between 0 and 5'),
     body('updates.scraperType').optional().isString(),
     body('updates.cleaners').optional().isArray(),
     body('updates.priority').optional().isInt({ min: 0, max: 100 })
@@ -168,32 +226,100 @@ router.post('/batch-update',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { urlIds, updates } = req.body;
+      let updated = 0;
+      const failed: string[] = [];
 
       // Process each URL with updates
-      const promises = urlIds.map((urlId: string) => {
-        if (updates.scraperType || updates.cleaners) {
-          return kb3Service.setUrlParameters(urlId, {
-            scraperType: updates.scraperType,
-            cleaners: updates.cleaners,
-            priority: updates.priority
-          });
+      for (const urlId of urlIds) {
+        try {
+          // Handle scraper/cleaner configuration updates
+          if (updates.scraperType || updates.cleaners || updates.priority) {
+            await kb3Service.setUrlParameters(urlId, {
+              scraperType: updates.scraperType,
+              cleaners: updates.cleaners,
+              priority: updates.priority
+            });
+          }
+
+          // Handle authority updates
+          if (updates.authority !== undefined) {
+            await kb3Service.updateUrlAuthority(urlId, updates.authority);
+          }
+
+          // Handle tag updates
+          if (updates.tags) {
+            await kb3Service.addTagsToUrl(urlId, updates.tags);
+          }
+
+          updated++;
+        } catch (err) {
+          failed.push(urlId);
         }
-        return Promise.resolve();
-      });
+      }
 
-      await Promise.all(promises);
+      // Return appropriate status based on results
+      if (failed.length === 0) {
+        res.json({
+          success: true,
+          data: {
+            updated,
+            total: urlIds.length
+          }
+        });
+      } else if (updated > 0) {
+        res.status(207).json({
+          success: false,
+          data: {
+            updated,
+            failed: failed.length,
+            total: urlIds.length
+          },
+          failedUrls: failed
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: 'No URLs were updated',
+          failedUrls: failed
+        });
+      }
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
-      if (updates.tags) {
-        const tagPromises = urlIds.map((urlId: string) =>
-          kb3Service.addTagsToUrl(urlId, updates.tags)
-        );
-        await Promise.all(tagPromises);
+// POST /api/urls/batch-tags - Batch add/remove tags
+router.post('/batch-tags',
+  [
+    body('urlIds').isArray({ min: 1 }).withMessage('Provide at least one URL ID'),
+    body('urlIds.*').isString(),
+    body('operation').isIn(['add', 'remove']).withMessage('Operation must be "add" or "remove"'),
+    body('tags').isArray({ min: 1 }).withMessage('Provide at least one tag'),
+    body('tags.*').isString()
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { urlIds, operation, tags } = req.body;
+      let processed = 0;
+
+      for (const urlId of urlIds) {
+        if (operation === 'add') {
+          await kb3Service.addTagsToUrl(urlId, tags);
+        } else {
+          await kb3Service.removeTagsFromUrl(urlId, tags);
+        }
+        processed++;
       }
 
       res.json({
         success: true,
-        message: `Updated ${urlIds.length} URLs`,
-        affectedUrls: urlIds
+        data: {
+          processed,
+          operation,
+          tags
+        }
       });
     } catch (error) {
       next(error);

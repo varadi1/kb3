@@ -19,6 +19,9 @@ export { SqlUrlRepository } from './SqlUrlRepository';
 export { SqlUrlRepository as SqlUrlRepositoryWithTags } from './SqlUrlRepository'; // Backward compatibility
 export { UrlMetadataWithTags, UrlRecordWithTags } from './SqlUrlRepository';
 
+// Configuration Persistence
+export { SqlConfigurationPersistence } from './SqlConfigurationPersistence';
+
 // Tag Management
 export { SqlTagManager } from './SqlTagManager';
 export { SqlUrlTagRepository } from './SqlUrlTagRepository';

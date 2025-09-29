@@ -13,9 +13,11 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { useKb3Store } from '@/lib/store'
 import { useToast } from '@/components/ui/use-toast'
-import { Save, Plus, Trash2 } from 'lucide-react'
+import { Save, Plus, Trash2, Settings, CheckCircle } from 'lucide-react'
+import { ParameterEditor } from './parameter-editor'
 
 interface ScraperConfig {
   type: string
@@ -36,6 +38,8 @@ export function ConfigPanel() {
   const [cleanerConfigs, setCleanerConfigs] = useState<CleanerConfig[]>([])
   const [selectedScraper, setSelectedScraper] = useState<string>('http')
   const [selectedCleaner, setSelectedCleaner] = useState<string>('sanitize-html')
+  const [parameterEditorOpen, setParameterEditorOpen] = useState(false)
+  const [editingScraperIndex, setEditingScraperIndex] = useState<number | null>(null)
 
   const { fetchConfig, updateConfig } = useKb3Store()
   const { toast } = useToast()
@@ -117,6 +121,39 @@ export function ConfigPanel() {
     )
   }
 
+  const openParameterEditor = (index: number) => {
+    setEditingScraperIndex(index)
+    setParameterEditorOpen(true)
+  }
+
+  const handleSaveParameters = async (parameters: Record<string, any>) => {
+    if (editingScraperIndex !== null) {
+      const config = scraperConfigs[editingScraperIndex]
+      updateScraperConfig(editingScraperIndex, { parameters })
+
+      // You could also save to backend here if needed
+      try {
+        // Optional: Save to backend immediately
+        // await saveScraperParameters(config.type, parameters)
+
+        toast({
+          title: 'Success',
+          description: 'Scraper parameters updated',
+        })
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to update parameters',
+          variant: 'destructive',
+        })
+      }
+    }
+  }
+
+  const hasConfiguredParameters = (config: ScraperConfig) => {
+    return config.parameters && Object.keys(config.parameters).length > 0
+  }
+
   const addCleanerConfig = () => {
     setCleanerConfigs([
       ...cleanerConfigs,
@@ -184,13 +221,29 @@ export function ConfigPanel() {
                     className="flex items-center gap-2 p-3 border rounded-md"
                   >
                     <div className="flex-1">
-                      <div className="font-medium">
-                        {availableScrapers.find((s) => s.value === config.type)?.label}
+                      <div className="flex items-center gap-2">
+                        <div className="font-medium">
+                          {availableScrapers.find((s) => s.value === config.type)?.label}
+                        </div>
+                        {hasConfiguredParameters(config) && (
+                          <Badge variant="secondary" className="text-xs">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            {Object.keys(config.parameters).length} params
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         Priority: {config.priority}
                       </div>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openParameterEditor(index)}
+                    >
+                      <Settings className="h-4 w-4 mr-1" />
+                      Configure
+                    </Button>
                     <Label className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -286,6 +339,20 @@ export function ConfigPanel() {
         <Save className="mr-2 h-4 w-4" />
         Save Configuration
       </Button>
+
+      {/* Parameter Editor Dialog */}
+      {editingScraperIndex !== null && (
+        <ParameterEditor
+          open={parameterEditorOpen}
+          onClose={() => {
+            setParameterEditorOpen(false)
+            setEditingScraperIndex(null)
+          }}
+          scraperType={scraperConfigs[editingScraperIndex].type}
+          initialParameters={scraperConfigs[editingScraperIndex].parameters}
+          onSave={handleSaveParameters}
+        />
+      )}
     </div>
   )
 }

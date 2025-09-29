@@ -1,8 +1,11 @@
 module.exports = {
-  preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: ['**/*.test.ts', '**/*.spec.ts'],
+  testPathIgnorePatterns: ['/node_modules/', '/tests/e2e/'],
+  transform: {
+    '^.+\\.ts$': ['ts-jest', {}]
+  },
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
@@ -26,10 +29,5 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(kb3|sqlite3)/)'
   ],
-  globals: {
-    'ts-jest': {
-      isolatedModules: true
-    }
-  },
   testTimeout: 30000
 };

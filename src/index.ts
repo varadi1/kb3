@@ -32,8 +32,18 @@ export {
   FileKnowledgeStore,
   LocalFileStorage,
   SqlKnowledgeStore,
-  SqlUrlRepository
+  SqlUrlRepository,
+  SqlConfigurationPersistence
 } from './storage';
+
+// Scraper parameter management
+export {
+  ScraperParameterManager,
+  PlaywrightParameterValidator,
+  Crawl4AIParameterValidator,
+  DoclingParameterValidator
+} from './scrapers/ScraperParameterManager';
+export { PersistentParameterManager } from './scrapers/PersistentParameterManager';
 
 // Utilities
 export * from './utils';

@@ -15,7 +15,8 @@ const handleValidationErrors = (req: Request, res: Response, next: NextFunction)
 };
 
 // POST /api/process/url/:id - Process single URL
-router.post('/url/:id',
+// Note: id can be a full URL, so we use (.*) to capture everything
+router.post('/url/:id(*)',
   [
     param('id').isString(),
     body('scraperType').optional().isString(),
@@ -28,10 +29,11 @@ router.post('/url/:id',
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      // The ID might be a URL encoded in the path
+      const url = decodeURIComponent(req.params.id);
       const options = req.body;
 
-      const result = await kb3Service.processUrl(id, options);
+      const result = await kb3Service.processUrl(url, options);
 
       res.json({
         success: true,
@@ -108,20 +110,21 @@ router.post('/by-tags',
 );
 
 // GET /api/process/status/:id - Get processing status for URL
-router.get('/status/:id',
+// Note: id can be a full URL, so we use (.*) to capture everything
+router.get('/status/:id(*)',
   [
     param('id').isString()
   ],
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { id } = req.params;
+      const url = decodeURIComponent(req.params.id);
 
       // This would need real-time status tracking implementation
       res.json({
         success: true,
         data: {
-          url: id,
+          url,
           status: 'completed', // Would be fetched from actual processing state
           progress: 100,
           message: 'Processing completed'
@@ -134,7 +137,8 @@ router.get('/status/:id',
 );
 
 // POST /api/process/cancel/:id - Cancel processing for URL
-router.post('/cancel/:id',
+// Note: id can be a full URL, so we use (.*) to capture everything
+router.post('/cancel/:id(*)',
   [
     param('id').isString()
   ],

@@ -221,6 +221,22 @@ export class Crawl4AIParameterValidator extends BaseParameterValidator {
       }
     }
 
+    if (parameters.extractLinks !== undefined) {
+      if (typeof parameters.extractLinks !== 'boolean') {
+        errors.push('extractLinks must be a boolean');
+      } else {
+        normalized.extractLinks = parameters.extractLinks;
+      }
+    }
+
+    if (parameters.extractMetadata !== undefined) {
+      if (typeof parameters.extractMetadata !== 'boolean') {
+        errors.push('extractMetadata must be a boolean');
+      } else {
+        normalized.extractMetadata = parameters.extractMetadata;
+      }
+    }
+
     // Copy over other valid parameters
     const validParams = this.getSupportedParameters();
     for (const key of Object.keys(parameters)) {
@@ -258,7 +274,7 @@ export class Crawl4AIParameterValidator extends BaseParameterValidator {
       'pageTimeout', 'verbose', 'excludeExternalLinks',
       'excludeInternalLinks', 'excludeDomains', 'includeDomains',
       'maxPages', 'baseUrl', 'timeout', 'userAgent', 'headers',
-      'proxy', 'retries'
+      'proxy', 'retries', 'extractLinks', 'extractMetadata'
     ];
   }
 }
@@ -372,6 +388,160 @@ export class DoclingParameterValidator extends BaseParameterValidator {
 }
 
 /**
+ * Validator for HTTP scraper parameters
+ */
+export class HttpParameterValidator extends BaseParameterValidator {
+  validate(parameters: any): ParameterValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const normalized: any = {};
+
+    // Validate base parameters
+    errors.push(...this.validateBaseParameters(parameters));
+
+    // Check for unknown parameters first
+    const validParams = this.getSupportedParameters();
+    for (const key of Object.keys(parameters)) {
+      if (!validParams.includes(key)) {
+        errors.push(`Unknown parameter: ${key}`);
+      }
+    }
+
+    // HTTP-specific parameters
+    if (parameters.timeout !== undefined) {
+      if (typeof parameters.timeout !== 'number' || parameters.timeout <= 0) {
+        errors.push('timeout must be a positive number');
+      } else {
+        normalized.timeout = parameters.timeout;
+      }
+    }
+
+    if (parameters.headers !== undefined) {
+      if (typeof parameters.headers !== 'object' || parameters.headers === null) {
+        errors.push('headers must be an object');
+      } else {
+        normalized.headers = parameters.headers;
+      }
+    }
+
+    if (parameters.userAgent !== undefined) {
+      if (typeof parameters.userAgent !== 'string') {
+        errors.push('userAgent must be a string');
+      } else {
+        normalized.userAgent = parameters.userAgent;
+      }
+    }
+
+    if (parameters.followRedirects !== undefined) {
+      if (typeof parameters.followRedirects !== 'boolean') {
+        errors.push('followRedirects must be a boolean');
+      } else {
+        normalized.followRedirects = parameters.followRedirects;
+      }
+    }
+
+    if (parameters.maxRedirects !== undefined) {
+      if (typeof parameters.maxRedirects !== 'number' || parameters.maxRedirects < 0) {
+        errors.push('maxRedirects must be a non-negative number');
+      } else {
+        normalized.maxRedirects = parameters.maxRedirects;
+      }
+    }
+
+    // Copy over other valid parameters
+    for (const key of Object.keys(parameters)) {
+      if (validParams.includes(key) && !normalized.hasOwnProperty(key)) {
+        (normalized as any)[key] = parameters[key];
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined,
+      normalizedParams: normalized
+    };
+  }
+
+  getDefaultParameters(): any {
+    return {
+      timeout: 30000,
+      followRedirects: true,
+      maxRedirects: 5
+    };
+  }
+
+  getSupportedParameters(): string[] {
+    return [
+      'timeout', 'headers', 'userAgent', 'proxy',
+      'followRedirects', 'maxRedirects', 'retries',
+      'retryDelay', 'encoding', 'responseType',
+      'auth', 'cookies', 'decompress', 'keepAlive'
+    ];
+  }
+}
+
+/**
+ * Validator for DeepDoctection scraper parameters
+ */
+export class DeepDoctectionParameterValidator extends BaseParameterValidator {
+  validate(parameters: any): ParameterValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const normalized: any = {};
+
+    // Validate base parameters
+    errors.push(...this.validateBaseParameters(parameters));
+
+    // DeepDoctection-specific parameters
+    if (parameters.confidence !== undefined) {
+      if (typeof parameters.confidence !== 'number' || parameters.confidence < 0 || parameters.confidence > 1) {
+        errors.push('confidence must be a number between 0 and 1');
+      } else {
+        normalized.confidence = parameters.confidence;
+      }
+    }
+
+    if (parameters.layoutAnalysis !== undefined) {
+      if (typeof parameters.layoutAnalysis !== 'boolean') {
+        errors.push('layoutAnalysis must be a boolean');
+      } else {
+        normalized.layoutAnalysis = parameters.layoutAnalysis;
+      }
+    }
+
+    // Copy over other valid parameters
+    const validParams = this.getSupportedParameters();
+    for (const key of Object.keys(parameters)) {
+      if (validParams.includes(key) && !normalized.hasOwnProperty(key)) {
+        (normalized as any)[key] = parameters[key];
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined,
+      normalizedParams: normalized
+    };
+  }
+
+  getDefaultParameters(): any {
+    return {
+      confidence: 0.7,
+      layoutAnalysis: true
+    };
+  }
+
+  getSupportedParameters(): string[] {
+    return [
+      'confidence', 'layoutAnalysis', 'model', 'device',
+      'timeout', 'maxPages', 'detectTables', 'detectFigures'
+    ];
+  }
+}
+
+/**
  * Main parameter manager implementation
  */
 export class ScraperParameterManager implements IParameterManager {
@@ -380,9 +550,11 @@ export class ScraperParameterManager implements IParameterManager {
 
   constructor() {
     // Register default validators
+    this.validators.set('http', new HttpParameterValidator());
     this.validators.set('playwright', new PlaywrightParameterValidator());
     this.validators.set('crawl4ai', new Crawl4AIParameterValidator());
     this.validators.set('docling', new DoclingParameterValidator());
+    this.validators.set('deepdoctection', new DeepDoctectionParameterValidator());
   }
 
   setParameters(url: string, config: ScraperConfiguration): void {
@@ -473,6 +645,10 @@ export class ScraperParameterManager implements IParameterManager {
 
   exportParameters(): Map<string, ScraperConfiguration> {
     return new Map(this.parameters);
+  }
+
+  getConfiguredUrls(): string[] {
+    return Array.from(this.parameters.keys());
   }
 
   importParameters(params: Map<string, ScraperConfiguration>): void {

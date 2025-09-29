@@ -10,6 +10,7 @@ import { ScraperRegistry } from '../scrapers/ScraperRegistry';
 import { HttpScraper } from '../scrapers/HttpScraper';
 import { IScraper, ScraperOptions } from '../interfaces/IScraper';
 import { ScraperParameterManager } from '../scrapers/ScraperParameterManager';
+import { IParameterManager } from '../interfaces/IScraperParameters';
 import { IRateLimiter } from '../interfaces/IRateLimiter';
 import { IErrorCollector } from '../interfaces/IErrorCollector';
 import { DomainRateLimiter } from '../scrapers/DomainRateLimiter';
@@ -23,7 +24,7 @@ export class ScraperAwareContentFetcher implements IContentFetcher {
   private readonly scraperSelector: ScraperSelector;
   private readonly scraperRegistry: ScraperRegistry;
   private readonly fallbackFetcher: IContentFetcher;
-  private readonly parameterManager: ScraperParameterManager;
+  private readonly parameterManager: IParameterManager;
   private readonly rateLimiter: IRateLimiter;
   private readonly errorCollector: IErrorCollector;
 
@@ -31,7 +32,7 @@ export class ScraperAwareContentFetcher implements IContentFetcher {
     fallbackFetcher: IContentFetcher,
     scraperSelector?: ScraperSelector,
     scraperRegistry?: ScraperRegistry,
-    parameterManager?: ScraperParameterManager,
+    parameterManager?: IParameterManager,
     rateLimiter?: IRateLimiter,
     errorCollector?: IErrorCollector
   ) {
@@ -128,15 +129,18 @@ export class ScraperAwareContentFetcher implements IContentFetcher {
   /**
    * Gets the parameter manager for configuring scraper parameters
    */
-  getParameterManager(): ScraperParameterManager {
+  getParameterManager(): IParameterManager {
     return this.parameterManager;
   }
 
   /**
    * Sets parameters for a specific URL
    */
-  setUrlParameters(url: string, config: ScraperConfiguration): void {
-    this.parameterManager.setParameters(url, config);
+  async setUrlParameters(url: string, config: ScraperConfiguration): Promise<void> {
+    const setParams = (this.parameterManager as any).setParameters(url, config);
+    if (setParams instanceof Promise) {
+      await setParams;
+    }
   }
 
   /**

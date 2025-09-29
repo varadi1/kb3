@@ -81,6 +81,40 @@ kb3/
 3. **Use `dev-data/` for temporary test outputs**
 4. **Production code goes in `src/` ONLY**
 
+### Advanced Scraper Parameters Architecture
+
+The parameter system follows strict SOLID principles:
+
+#### Service Layer (NEW)
+- **ParameterService**: Manages parameter schemas, validation, and defaults
+  - Single Responsibility: Parameter logic only
+  - Extensible through validator registration
+  - Schema-based configuration
+
+- **ParameterStorageService**: Handles database persistence
+  - Single Responsibility: Storage operations only
+  - SQLite backend with prepared statements
+  - Batch operations support
+
+- **Parameter Validators**: One validator per scraper type
+  - BaseParameterValidator abstract class
+  - PlaywrightParameterValidator
+  - Crawl4AIParameterValidator
+  - DoclingParameterValidator
+  - Open for extension via registry pattern
+
+#### Frontend Components (NEW)
+- **ParameterEditor**: Dynamic form generation
+  - Schema-driven UI
+  - Grouped parameters by category
+  - Real-time validation
+  - Type-specific input components
+
+- **ParameterConfigService**: Frontend service layer
+  - API communication
+  - Caching strategy
+  - Type-safe operations
+
 ## Development Rules
 
 ### 1. Adding New Features
@@ -197,36 +231,88 @@ The KB3 system includes a full-featured web interface with:
 - Advanced data grid with TanStack Table
 - State management with Zustand
 - UI components with shadcn/ui and Tailwind CSS
+- **Service Layer Architecture** (NEW)
+  - Segregated interfaces (ISP compliance)
+  - Dependency injection pattern
+  - Singleton service instances
+  - Clean separation of concerns
 
 ### Features
 
-1. **URL Management Dashboard**
+1. **URL Management Dashboard** ✅
    - Table view with sorting, filtering, pagination
-   - Multi-select operations
-   - Inline editing of metadata
-   - Status indicators and progress tracking
+   - Multi-select operations with checkboxes
+   - Edit dialog for single URL metadata editing
+   - Status indicators with color coding
+   - Authority level management (0-5 scale)
+   - Download original/cleaned content
+   - External link access
 
-2. **Tag Management**
-   - Hierarchical tag tree
-   - Drag-and-drop organization
-   - Bulk tag assignment
+2. **Tag Management** ✅
+   - Hierarchical tag tree with expand/collapse
+   - Create, edit, delete tags
+   - URL count per tag
+   - Tag assignment in URL edit dialog
+   - Batch tag assignment for multiple URLs
 
-3. **Scraper & Cleaner Configuration**
-   - Per-URL configuration
-   - Tool chain selection
-   - Template management
-   - Test configurations
+3. **Batch Operations Panel** ✅ (NEW)
+   - Bulk tag assignment/removal
+   - Batch authority updates (0-5 levels)
+   - Batch status changes
+   - Batch processing of selected URLs
+   - Export selected URLs
+   - Bulk delete operations
+   - Clear selection feature
 
-4. **Processing Monitor**
-   - Real-time progress updates
-   - Queue management
-   - Error recovery
-   - Batch operations
+4. **Content Viewer** ✅ (NEW)
+   - View original and cleaned content
+   - Side-by-side comparison
+   - Content statistics (words, lines, characters)
+   - Reduction percentage calculation
+   - Copy to clipboard functionality
+   - Download original/cleaned files
+   - Processing metadata display
 
-5. **Import/Export**
-   - JSON, CSV, TXT formats
-   - Validation and preview
-   - Template downloads
+5. **Scraper & Cleaner Configuration** ✅
+   - Basic scraper selection UI
+   - Cleaner chain configuration
+   - Enable/disable toggles
+   - Priority/order settings
+   - Per-URL scraper configuration in Edit dialog
+
+6. **Processing Monitor** ✅
+   - Basic queue monitoring component
+   - Real-time progress updates via WebSocket
+   - Process individual or batch URLs
+   - Status tracking
+
+7. **Import/Export** ✅
+   - JSON, CSV, TXT format support
+   - File upload or paste content
+   - Format validation
+   - Export all or selected URLs
+   - Template examples provided
+
+8. **Per-URL Configuration Override** ✅ (NEW)
+   - Persistent scraper/cleaner configurations per URL
+   - Survives system restarts
+   - Accessible via Edit URL dialog
+   - Batch configuration support
+   - GET/POST/DELETE API endpoints
+   - Automatic loading on URL processing
+
+9. **Advanced Scraper Parameters** ✅ (NEW)
+   - Dynamic parameter editor UI with grouped settings
+   - Real-time validation and error feedback
+   - Schema-based form generation
+   - Per-scraper parameter configurations:
+     - **Playwright**: Viewport, timeouts, screenshots, PDF generation
+     - **Crawl4AI**: Extraction strategies, caching, content filtering
+     - **Docling**: OCR settings, table extraction, document types
+     - **DeepDoctection**: Layout analysis, confidence thresholds
+   - Batch parameter configuration for multiple URLs
+   - Default values and reset functionality
+   - Parameter statistics and monitoring
 
 ### Running the Web Interface
 
@@ -244,6 +330,33 @@ cd packages/frontend
 npm run dev
 
 # Access at http://localhost:3000
+```
+
+### Frontend Component Structure (Updated)
+
+```
+packages/frontend/
+├── components/
+│   ├── urls/
+│   │   ├── urls-table.tsx         # URL table with multi-select
+│   │   ├── add-url-dialog.tsx     # Add single URL dialog
+│   │   ├── edit-url-dialog.tsx    # ✅ NEW: Edit URL properties
+│   │   └── batch-operations.tsx   # ✅ NEW: Batch operations panel
+│   ├── content/
+│   │   └── content-viewer.tsx     # ✅ NEW: View/compare content
+│   ├── tags/
+│   │   └── tag-manager.tsx        # Hierarchical tag management
+│   ├── config/
+│   │   └── config-panel.tsx       # Scraper/cleaner configuration
+│   ├── import-export/
+│   │   └── import-export-panel.tsx # Import/export functionality
+│   └── ui/                        # Reusable UI components
+├── lib/
+│   ├── services/                  # ✅ NEW: Service layer
+│   │   ├── interfaces.ts          # SOLID interfaces (ISP)
+│   │   ├── config-service.ts      # Configuration management
+│   │   └── import-export-service.ts # Import/export operations
+│   └── store.ts                   # ✅ ENHANCED: Zustand store with new actions
 ```
 
 ## Installation
@@ -352,22 +465,123 @@ All scrapers verified working (2025-01-28):
 4. **DoclingScraper** - ✅ PDF/document processing
 5. **DeepDoctectionScraper** - ✅ Layout analysis (with fallback)
 
-Configure scrapers per URL:
+### Per-URL Configuration (Persistent)
+
+**NEW**: URL-specific configurations are now persisted in the database and survive restarts!
+
+#### Configure scrapers per URL:
 
 ```typescript
-fetcher.setUrlParameters('https://app.example.com', {
+// Set configuration (automatically persisted)
+await fetcher.setUrlParameters('https://app.example.com', {
   scraperType: 'playwright',
   parameters: {
     headless: true,
     viewport: { width: 1920, height: 1080 },
     waitUntil: 'networkidle'
-  }
+  },
+  priority: 20
 });
+
+// Configuration persists across restarts
+const kb2 = await KnowledgeBaseFactory.createKnowledgeBase(config);
+// Previous configuration is automatically loaded
+```
+
+#### Batch Configuration:
+
+```typescript
+// Configure multiple URLs at once
+await parameterManager.setBatchParameters({
+  urls: ['https://site1.com', 'https://site2.com'],
+  scraperType: 'crawl4ai',
+  parameters: {
+    extractLinks: true,
+    extractMetadata: true
+  },
+  priority: 15
+});
+```
+
+#### Web API Endpoints:
+
+```bash
+# Get URL configuration
+GET /api/config/url/:id
+
+# Set URL configuration
+POST /api/config/url/:id
+{
+  "scraperType": "playwright",
+  "scraperConfig": { "headless": true },
+  "cleaners": ["sanitizehtml", "readability"],
+  "priority": 20
+}
+
+# Remove URL configuration
+DELETE /api/config/url/:id
+
+# === Advanced Parameter Endpoints (NEW) ===
+
+# Get parameter schema for a scraper
+GET /api/config/scrapers/:type/schema
+
+# Get default parameters
+GET /api/config/scrapers/:type/defaults
+
+# Validate parameters
+POST /api/config/scrapers/:type/validate
+{
+  "parameters": {
+    "headless": true,
+    "viewport": { "width": 1280, "height": 720 }
+  }
+}
+
+# Get all schemas
+GET /api/config/scrapers/schemas
+
+# Get detailed parameters for URL
+GET /api/config/url/:id/parameters
+
+# Set detailed parameters for URL
+POST /api/config/url/:id/parameters
+{
+  "scraperType": "playwright",
+  "parameters": {
+    "headless": false,
+    "viewport": { "width": 1920, "height": 1080 },
+    "waitUntil": "networkidle",
+    "screenshot": true,
+    "scrollToBottom": true
+  },
+  "priority": 20,
+  "enabled": true
+}
+
+# Delete parameters for URL
+DELETE /api/config/url/:id/parameters
+
+# Batch parameter configuration
+POST /api/config/batch/parameters
+{
+  "urls": ["https://site1.com", "https://site2.com"],
+  "scraperType": "crawl4ai",
+  "parameters": {
+    "maxDepth": 2,
+    "extractionStrategy": "llm",
+    "onlyMainContent": true
+  },
+  "priority": 15
+}
+
+# Get parameter statistics
+GET /api/config/parameters/stats
 ```
 
 Priority system:
 - 25+: File extensions
-- 20: Specific URLs
+- 20: Specific URLs (with custom config)
 - 15: Domain patterns
 - 10: General patterns
 - 0-5: Fallbacks

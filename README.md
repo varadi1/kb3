@@ -88,6 +88,7 @@ Open your browser and navigate to `http://localhost:3000`
 ### Core Capabilities
 - **Multiple Scrapers**: HTTP, Playwright, Crawl4AI, Docling, DeepDoctection
 - **Content Cleaners**: HTML sanitization, XSS protection, text normalization
+- **Per-URL Configuration** ✨: Persistent scraper/cleaner settings per URL that survive restarts
 - **Unified Storage**: Single SQLite database with automatic migration
 - **File Tracking**: SHA256 checksums, metadata preservation
 - **Extensible Architecture**: Plugin-based system following SOLID principles
@@ -608,6 +609,76 @@ Benefits of unified storage:
 - Foreign key integrity prevents orphaned data
 - Better performance with fewer file handles
 - Simplified CI/CD deployment
+
+### Per-URL Configuration (Persistent)
+
+Configure scrapers and cleaners for specific URLs. These configurations are persisted in the database and automatically applied when processing URLs:
+
+```typescript
+const kb = await KnowledgeBaseFactory.createKnowledgeBase(config);
+
+// Configure a specific URL to use Playwright with custom settings
+const fetcher = kb.config.contentFetcher;
+await fetcher.setUrlParameters('https://app.example.com', {
+  scraperType: 'playwright',
+  parameters: {
+    headless: false,
+    viewport: { width: 1920, height: 1080 },
+    waitUntil: 'networkidle',
+    screenshot: true
+  },
+  cleaners: ['sanitizehtml', 'readability'],
+  priority: 20
+});
+
+// Process the URL - configuration is automatically applied
+await kb.processUrl('https://app.example.com');
+
+// Configuration persists across restarts
+const kb2 = await KnowledgeBaseFactory.createKnowledgeBase(config);
+// Previous configuration is automatically loaded and applied
+```
+
+#### Batch Configuration
+
+```typescript
+// Configure multiple URLs at once
+const manager = fetcher.parameterManager;
+await manager.setBatchParameters({
+  urls: [
+    'https://docs.site1.com/page1',
+    'https://docs.site1.com/page2',
+    'https://docs.site1.com/page3'
+  ],
+  scraperType: 'crawl4ai',
+  parameters: {
+    extractLinks: true,
+    extractMetadata: true,
+    onlyMainContent: true
+  },
+  priority: 15
+});
+```
+
+#### Web API Usage
+
+```bash
+# Set configuration for a URL
+curl -X POST http://localhost:4000/api/config/url/https://example.com \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scraperType": "playwright",
+    "scraperConfig": { "headless": true },
+    "cleaners": ["sanitizehtml", "readability"],
+    "priority": 20
+  }'
+
+# Get configuration for a URL
+curl http://localhost:4000/api/config/url/https://example.com
+
+# Remove configuration for a URL
+curl -X DELETE http://localhost:4000/api/config/url/https://example.com
+```
 
 ### Original File Tracking
 

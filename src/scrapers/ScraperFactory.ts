@@ -13,6 +13,7 @@ import { DoclingScraper } from './DoclingScraper';
 import { DeepDoctectionScraper } from './DeepDoctectionScraper';
 import { ScraperAwareContentFetcher } from '../fetchers/ScraperAwareContentFetcher';
 import { IContentFetcher } from '../interfaces/IContentFetcher';
+import { IParameterManager } from '../interfaces/IScraperParameters';
 import { KnowledgeBaseConfig } from '../config/Configuration';
 import { DomainRateLimiter } from './DomainRateLimiter';
 import { ScrapingErrorCollector } from './ScrapingErrorCollector';
@@ -77,7 +78,8 @@ export class ScraperFactory {
    */
   static createScraperAwareContentFetcher(
     baseFetcher: IContentFetcher,
-    config: KnowledgeBaseConfig
+    config: KnowledgeBaseConfig,
+    parameterManager?: IParameterManager
   ): ScraperAwareContentFetcher {
     const { registry, selector } = ScraperFactory.setupScrapers(config);
 
@@ -91,7 +93,7 @@ export class ScraperFactory {
       baseFetcher,
       selector,
       registry,
-      undefined, // parameter manager will be created internally
+      parameterManager, // use provided parameter manager or default
       rateLimiter,
       errorCollector
     );

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useKb3Store } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { EditUrlDialog } from './edit-url-dialog'
 import {
   Table,
   TableBody,
@@ -43,11 +44,14 @@ export function UrlsTable() {
     selectAllUrls,
     deselectAllUrls,
     processUrl,
-    deleteUrl
+    deleteUrl,
+    downloadContent
   } = useKb3Store()
 
   const [sortBy, setSortBy] = useState<string>('createdAt')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
+  const [editingUrl, setEditingUrl] = useState<any>(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
 
   useEffect(() => {
     fetchUrls()
@@ -105,28 +109,29 @@ export function UrlsTable() {
   }
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[50px]">
-              <Checkbox
-                checked={selectedUrls.size === urls.length}
-                onCheckedChange={handleSelectAll}
-                aria-label="Select all"
-              />
-            </TableHead>
-            <TableHead>URL</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Tags</TableHead>
-            <TableHead>Scraper</TableHead>
-            <TableHead>Processed</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {urls.map((url) => (
-            <TableRow key={url.id}>
+    <>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={selectedUrls.size === urls.length}
+                  onCheckedChange={handleSelectAll}
+                  aria-label="Select all"
+                />
+              </TableHead>
+              <TableHead>URL</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Tags</TableHead>
+              <TableHead>Scraper</TableHead>
+              <TableHead>Processed</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {urls.map((url) => (
+              <TableRow key={url.id}>
               <TableCell>
                 <Checkbox
                   checked={selectedUrls.has(url.id)}
@@ -156,14 +161,14 @@ export function UrlsTable() {
               </TableCell>
               <TableCell>
                 <div className="flex flex-wrap gap-1">
-                  {url.tags.slice(0, 3).map((tag) => (
+                  {(url.tags || []).slice(0, 3).map((tag) => (
                     <Badge key={tag} variant="secondary" className="text-xs">
                       {tag}
                     </Badge>
                   ))}
-                  {url.tags.length > 3 && (
+                  {(url.tags || []).length > 3 && (
                     <Badge variant="outline" className="text-xs">
-                      +{url.tags.length - 3}
+                      +{(url.tags || []).length - 3}
                     </Badge>
                   )}
                 </div>
@@ -193,14 +198,27 @@ export function UrlsTable() {
                       <Play className="mr-2 h-4 w-4" />
                       Process
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setEditingUrl(url)
+                        setEditDialogOpen(true)
+                      }}
+                    >
                       <Edit className="mr-2 h-4 w-4" />
                       Edit
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => downloadContent(url.id, 'cleaned')}
+                    >
                       <Download className="mr-2 h-4 w-4" />
-                      Download Content
+                      Download Cleaned
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => downloadContent(url.id, 'original')}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download Original
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
@@ -218,5 +236,15 @@ export function UrlsTable() {
         </TableBody>
       </Table>
     </div>
+
+    {/* Edit Dialog */}
+    {editingUrl && (
+      <EditUrlDialog
+        url={editingUrl}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+      />
+    )}
+  </>
   )
 }

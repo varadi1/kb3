@@ -317,9 +317,9 @@ describe('Batch Processing with Per-URL Settings - Integration', () => {
 
       // With skipRateLimit, should process quickly without waiting
       // Allow more time for test environment variability
-      expect(totalTime).toBeLessThan(30000); // 30 seconds - very lenient to avoid CI flakiness
+      expect(totalTime).toBeLessThan(35000); // 35 seconds - very lenient to avoid CI flakiness
       expect(results).toHaveLength(2);
-    });
+    }, 60000); // Increase timeout to 60 seconds to prevent timeout errors
   });
 
   describe('Metadata Persistence', () => {

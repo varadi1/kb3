@@ -44,8 +44,8 @@ export interface UnifiedRepositories {
  */
 export interface IUrlRepositoryWithTags extends IUrlRepository {
   registerWithTags(url: string, metadata?: UrlMetadata & { tags?: string[] }): Promise<string>;
-  getUrlInfoWithTags(url: string): Promise<(UrlRecord & { tags?: ITag[] }) | null>;
-  getUrlsByTags(tagNames: string[], requireAll?: boolean): Promise<(UrlRecord & { tags?: ITag[] })[]>;
+  getUrlInfoWithTags(url: string): Promise<(Omit<UrlRecord, 'tags'> & { tags?: ITag[] }) | null>;
+  getUrlsByTags(tagNames: string[], requireAll?: boolean): Promise<(Omit<UrlRecord, 'tags'> & { tags?: ITag[] })[]>;
 }
 
 /**
@@ -661,7 +661,14 @@ class UrlRepositoryImpl implements IUrlRepositoryWithTags {
   async getUrlInfo(url: string): Promise<UrlRecord | null> {
     const normalizedUrl = this.normalizeUrl(url);
     const row = await this.get<any>(
-      'SELECT * FROM urls WHERE url = ? OR normalized_url = ?',
+      `SELECT
+        u.*,
+        GROUP_CONCAT(t.name) as tag_names
+      FROM urls u
+      LEFT JOIN url_tags ut ON u.id = ut.url_id
+      LEFT JOIN tags t ON ut.tag_id = t.id
+      WHERE u.url = ? OR u.normalized_url = ?
+      GROUP BY u.id`,
       [url, normalizedUrl]
     );
 
@@ -670,27 +677,29 @@ class UrlRepositoryImpl implements IUrlRepositoryWithTags {
     return this.rowToUrlRecord(row);
   }
 
-  async getUrlInfoWithTags(url: string): Promise<(UrlRecord & { tags?: ITag[] }) | null> {
+  async getUrlInfoWithTags(url: string): Promise<(Omit<UrlRecord, 'tags'> & { tags?: ITag[] }) | null> {
     const urlInfo = await this.getUrlInfo(url);
     if (!urlInfo) return null;
 
     const tags = await this.urlTagRepository.getTagsForUrl(urlInfo.id);
+    const { tags: _, ...urlInfoWithoutTags } = urlInfo;
     return {
-      ...urlInfo,
+      ...urlInfoWithoutTags,
       tags
     };
   }
 
-  async getUrlsByTags(tagNames: string[], requireAll: boolean = false): Promise<(UrlRecord & { tags?: ITag[] })[]> {
+  async getUrlsByTags(tagNames: string[], requireAll: boolean = false): Promise<(Omit<UrlRecord, 'tags'> & { tags?: ITag[] })[]> {
     const urlIds = await this.urlTagRepository.getUrlsWithTagNames(tagNames, requireAll);
-    const urls: (UrlRecord & { tags?: ITag[] })[] = [];
+    const urls: (Omit<UrlRecord, 'tags'> & { tags?: ITag[] })[] = [];
 
     for (const urlId of urlIds) {
       const urlRecord = await this.getUrlById(urlId);
       if (urlRecord) {
         const tags = await this.urlTagRepository.getTagsForUrl(urlId);
+        const { tags: _, ...urlRecordWithoutTags } = urlRecord;
         urls.push({
-          ...urlRecord,
+          ...urlRecordWithoutTags,
           tags
         });
       }
@@ -765,27 +774,36 @@ class UrlRepositoryImpl implements IUrlRepositoryWithTags {
   }
 
   async listUrls(filter?: UrlFilter): Promise<UrlRecord[]> {
-    let query = 'SELECT * FROM urls WHERE 1=1';
+    let query = `
+      SELECT
+        u.*,
+        GROUP_CONCAT(t.name) as tag_names
+      FROM urls u
+      LEFT JOIN url_tags ut ON u.id = ut.url_id
+      LEFT JOIN tags t ON ut.tag_id = t.id
+      WHERE 1=1
+    `;
     const params: any[] = [];
 
     if (filter) {
       if (filter.status) {
-        query += ' AND status = ?';
+        query += ' AND u.status = ?';
         params.push(filter.status);
       }
 
       if (filter.since) {
-        query += ' AND first_seen >= ?';
+        query += ' AND u.first_seen >= ?';
         params.push(filter.since.getTime());
       }
 
       if (filter.contentType) {
-        query += ' AND json_extract(metadata, "$.contentType") = ?';
+        query += ' AND json_extract(u.metadata, "$.contentType") = ?';
         params.push(filter.contentType);
       }
     }
 
-    query += ' ORDER BY last_checked DESC';
+    query += ' GROUP BY u.id';
+    query += ' ORDER BY u.last_checked DESC';
 
     if (filter?.limit) {
       query += ' LIMIT ?';
@@ -928,7 +946,8 @@ class UrlRepositoryImpl implements IUrlRepositoryWithTags {
       firstSeen: new Date(row.first_seen),
       lastChecked: new Date(row.last_checked),
       processCount: row.process_count,
-      metadata: JSON.parse(row.metadata)
+      metadata: JSON.parse(row.metadata),
+      tags: row.tag_names ? row.tag_names.split(',') : []
     };
   }
 

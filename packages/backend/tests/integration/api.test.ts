@@ -1,7 +1,7 @@
 jest.mock('../../src/services/kb3Service');
 
 import request from 'supertest';
-import { app, httpServer } from '../../src/index';
+import { app, httpServer, cleanupWebSocket } from '../../src/index';
 import { KB3Service } from '../../src/services/kb3Service';
 
 describe('API Integration Tests', () => {
@@ -12,6 +12,7 @@ describe('API Integration Tests', () => {
   });
 
   afterAll(async () => {
+    cleanupWebSocket();
     httpServer.close();
     await kb3Service.cleanup();
   });

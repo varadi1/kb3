@@ -157,6 +157,8 @@ export interface Crawl4AIParameters extends BaseScraperParameters {
   includeDomains?: string[];
   maxPages?: number;
   baseUrl?: string;
+  extractLinks?: boolean;
+  extractMetadata?: boolean;
 }
 
 /**
