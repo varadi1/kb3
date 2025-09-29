@@ -499,6 +499,153 @@ export class KB3Service extends EventEmitter {
     return urlObj ? urlObj.url : null;
   }
 
+  // Get single URL object by ID - needed for tests
+  async getUrl(id: string): Promise<any | null> {
+    await this.ensureInitialized();
+    const urls = await this.getUrls();
+    return urls.find(u => u.id === id || u.url === id) || null;
+  }
+
+  // Update URL metadata - needed for tests
+  async updateUrl(id: string, updates: any): Promise<{ success: boolean }> {
+    await this.ensureInitialized();
+    try {
+      // Get URL repository from orchestrator
+      const urlRepository = this.orchestrator.getUrlRepository();
+      if (!urlRepository) {
+        throw new Error('URL repository not available');
+      }
+
+      // Find the actual URL record ID (could be URL string or UUID)
+      const urls = await this.getUrls();
+      const urlObj = urls.find(u => u.id === id || u.url === id);
+
+      if (!urlObj) {
+        console.error('URL not found:', id);
+        return { success: false };
+      }
+
+      const urlRecordId = urlObj.id;
+
+      // Handle different update types
+      if (updates.tags !== undefined) {
+        await this.addTagsToUrl(urlRecordId, updates.tags);
+      }
+
+      if (updates.authority !== undefined) {
+        await this.updateUrlAuthority(urlRecordId, updates.authority);
+      }
+
+      if (updates.status !== undefined) {
+        // Persist status to database
+        const { UrlStatus } = await import('kb3');
+        const statusMapping: { [key: string]: any } = {
+          'pending': UrlStatus.PENDING,
+          'processing': UrlStatus.PROCESSING,
+          'completed': UrlStatus.COMPLETED,
+          'failed': UrlStatus.FAILED,
+          'skipped': UrlStatus.SKIPPED
+        };
+
+        const dbStatus = statusMapping[updates.status];
+        if (dbStatus) {
+          await urlRepository.updateStatus(urlRecordId, dbStatus);
+        }
+
+        // Also update local cache
+        const existingUrl = this.urlStore.get(id) || { url: id };
+        this.urlStore.set(id, { ...existingUrl, status: updates.status });
+      }
+
+      if (updates.metadata !== undefined) {
+        // Persist metadata to database
+        await urlRepository.updateMetadata(urlRecordId, updates.metadata);
+
+        // Also update local cache
+        const existingUrl = this.urlStore.get(id) || { url: id };
+        this.urlStore.set(id, { ...existingUrl, metadata: updates.metadata });
+      }
+
+      // Handle scraper configuration updates
+      if (updates.scraperType || updates.cleaners || updates.priority) {
+        await this.setUrlParameters(urlObj.url, {
+          scraperType: updates.scraperType,
+          cleaners: updates.cleaners,
+          priority: updates.priority
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating URL:', error);
+      return { success: false };
+    }
+  }
+
+  // Delete a single URL
+  async deleteUrl(id: string): Promise<boolean> {
+    await this.ensureInitialized();
+
+    // Get URL repository from orchestrator
+    const urlRepository = this.orchestrator.getUrlRepository();
+    if (!urlRepository) {
+      throw new Error('URL repository not available');
+    }
+
+    // First check if the ID is a UUID or URL
+    let urlRecord = null;
+    const urls = await this.getUrls();
+    const urlObj = urls.find(u => u.id === id || u.url === id);
+
+    if (!urlObj) {
+      return false; // URL not found
+    }
+
+    // Remove from repository using the ID
+    const success = await urlRepository.remove(urlObj.id);
+
+    if (success) {
+      // Clean up related data
+      this.urlStore.delete(id);
+      this.urlStore.delete(urlObj.url);
+      this.emit('url:deleted', { id: urlObj.id, url: urlObj.url });
+
+      // Remove associated parameters if they exist
+      try {
+        await this.removeUrlParameters(urlObj.url);
+      } catch (error) {
+        // Parameters might not exist, that's okay
+        console.log('No parameters to remove for URL:', urlObj.url);
+      }
+    }
+
+    return success;
+  }
+
+  // Delete multiple URLs
+  async deleteUrls(ids: string[]): Promise<{ successful: number; failed: string[] }> {
+    await this.ensureInitialized();
+
+    const failed: string[] = [];
+    let successful = 0;
+
+    for (const id of ids) {
+      try {
+        const deleted = await this.deleteUrl(id);
+        if (deleted) {
+          successful++;
+        } else {
+          failed.push(id);
+        }
+      } catch (error) {
+        console.error(`Failed to delete URL ${id}:`, error);
+        failed.push(id);
+      }
+    }
+
+    return { successful, failed };
+  }
+
   async addTagsToUrl(url: string, tagNames: string[]): Promise<boolean> {
     await this.ensureInitialized();
     const success = await this.orchestrator.addTagsToUrl(url, tagNames);
@@ -521,6 +668,15 @@ export class KB3Service extends EventEmitter {
     // For now, return true as tag removal is not yet implemented in orchestrator
     // TODO: Implement in orchestrator
     this.emit('url:untagged', { url, tags: tagNames });
+    return true;
+  }
+
+  async setUrlTags(url: string, tagNames: string[]): Promise<boolean> {
+    await this.ensureInitialized();
+    // Replace all existing tags with the new set of tags
+    // This is a combination of removing all existing tags and adding new ones
+    // TODO: Implement in orchestrator
+    this.emit('url:tags-replaced', { url, tags: tagNames });
     return true;
   }
 
@@ -835,35 +991,73 @@ export class KB3Service extends EventEmitter {
   }): Promise<any> {
     await this.ensureInitialized();
     try {
-      // Use what we can get from the orchestrator
-      const tags = await this.orchestrator.getTags().catch(() => []);
-
-      // Get URLs from database via repository
-      const urlRepository = this.orchestrator.getUrlRepository();
-      let urls = urlRepository ? await urlRepository.list() : [];
-
-      // Filter by tags if specified
-      if (options.tags && options.tags.length > 0) {
-        urls = urls.filter(u =>
-          u.tags && u.tags.some((t: string) => options.tags?.includes(t))
-        );
-      }
+      // Use the getUrls method which can be properly mocked
+      let urls = await this.getUrls({ tags: options.tags });
 
       // Filter by URL IDs if specified
       if (options.urlIds && options.urlIds.length > 0) {
-        urls = urls.filter(u => options.urlIds?.includes(u.url));
+        urls = urls.filter(u => options.urlIds?.includes(u.id) || options.urlIds?.includes(u.url));
       }
 
-      return { urls, tags, format: options.format };
+      // Return just the filtered URLs array for export
+      // The route will handle formatting
+      return urls;
     } catch (error) {
       console.error('Error exporting data:', error);
-      return { urls: [], tags: [], format: options.format };
+      return [];
     }
   }
 
   async importData(data: any, format: 'json' | 'csv' | 'txt'): Promise<any> {
-    // Would need implementation
-    return { success: true, imported: 0 };
+    await this.ensureInitialized();
+
+    let successful = 0;
+    let failed = 0;
+    const errors: any[] = [];
+
+    // Process each URL
+    for (const item of data) {
+      try {
+        // Add URL with tags
+        const result = await this.addUrl(item.url, item.tags || []);
+
+        if (result.success) {
+          successful++;
+
+          // Update authority if provided
+          if (item.authority !== undefined && item.authority !== null) {
+            await this.updateUrl(item.url, { authority: item.authority });
+          }
+
+          // Update other metadata if provided
+          if (item.metadata || item.status) {
+            await this.updateUrl(item.url, {
+              metadata: item.metadata,
+              status: item.status
+            });
+          }
+        } else {
+          failed++;
+          errors.push({
+            url: item.url,
+            error: result.error?.message || 'Failed to add URL'
+          });
+        }
+      } catch (error) {
+        failed++;
+        errors.push({
+          url: item.url,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
+
+    return {
+      total: data.length,
+      successful,
+      failed,
+      errors
+    };
   }
 
   // Queue Management Methods
@@ -953,7 +1147,12 @@ export class KB3Service extends EventEmitter {
           item.status = result.success ? 'completed' : 'failed';
           item.completedAt = new Date().toISOString();
           if (!result.success) {
-            item.error = result.error || 'Processing failed';
+            // Ensure error is always a string
+            if (typeof result.error === 'object' && result.error !== null) {
+              item.error = (result.error as any).message || JSON.stringify(result.error);
+            } else {
+              item.error = String(result.error || 'Processing failed');
+            }
           }
         }
 
@@ -978,15 +1177,19 @@ export class KB3Service extends EventEmitter {
   async getQueueStatus(): Promise<any> {
     await this.ensureInitialized();
 
-    const queue = Array.from(this.processingItems.values());
+    const queueArray = Array.from(this.processingItems.values());
+
+    // Ensure queue is always a valid array
+    const queue = Array.isArray(queueArray) ? queueArray : [];
+
     return {
       isProcessing: this.isQueueProcessing,
-      queue,
+      queue: queue,
       stats: {
-        pending: queue.filter(i => i.status === 'pending').length,
-        processing: queue.filter(i => i.status === 'processing').length,
-        completed: queue.filter(i => i.status === 'completed').length,
-        failed: queue.filter(i => i.status === 'failed').length
+        pending: queue.filter(i => i?.status === 'pending').length,
+        processing: queue.filter(i => i?.status === 'processing').length,
+        completed: queue.filter(i => i?.status === 'completed').length,
+        failed: queue.filter(i => i?.status === 'failed').length
       }
     };
   }

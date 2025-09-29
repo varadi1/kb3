@@ -59,15 +59,19 @@ router.post('/batch',
     try {
       const { urls, options } = req.body;
 
-      const results = await kb3Service.processUrls(urls, options);
+      // Queue URLs for processing (async operation)
+      const jobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      res.json({
+      // Start processing asynchronously
+      kb3Service.processUrls(urls, options).catch(err => {
+        console.error(`Batch processing job ${jobId} failed:`, err);
+      });
+
+      res.status(202).json({
         success: true,
-        data: results,
-        summary: {
-          total: results.length,
-          successful: results.filter(r => r.success).length,
-          failed: results.filter(r => !r.success).length
+        data: {
+          queued: urls.length,
+          jobId
         }
       });
     } catch (error) {

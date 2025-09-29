@@ -198,6 +198,119 @@ export class KB3Service extends EventEmitter {
     return ['sanitizehtml', 'readability', 'xss', 'voca', 'remark'];
   }
 
+  async getScraperConfigs(): Promise<any[]> {
+    return [
+      {
+        name: 'http',
+        type: 'http',
+        enabled: true,
+        priority: 10,
+        parameters: {}
+      },
+      {
+        name: 'playwright',
+        type: 'playwright',
+        enabled: true,
+        priority: 20,
+        parameters: {
+          headless: true,
+          viewport: { width: 1920, height: 1080 }
+        }
+      },
+      {
+        name: 'crawl4ai',
+        type: 'crawl4ai',
+        enabled: false,
+        priority: 15,
+        parameters: {}
+      }
+    ];
+  }
+
+  async getCleanerConfigs(): Promise<any[]> {
+    return [
+      {
+        name: 'sanitizehtml',
+        type: 'sanitizehtml',
+        enabled: true,
+        order: 1,
+        parameters: {
+          allowedTags: ['p', 'div', 'span'],
+          allowedAttributes: {}
+        }
+      },
+      {
+        name: 'readability',
+        type: 'readability',
+        enabled: true,
+        order: 2,
+        parameters: {}
+      },
+      {
+        name: 'xss',
+        type: 'xss',
+        enabled: false,
+        order: 3,
+        parameters: {}
+      }
+    ];
+  }
+
+  async updateScraperConfigs(scrapers: any[]): Promise<void> {
+    // Mock implementation
+  }
+
+  async updateCleanerConfigs(cleaners: any[]): Promise<void> {
+    // Mock implementation
+  }
+
+  async getQueueStatus(): Promise<any> {
+    return {
+      queue: [],
+      processing: 0,
+      completed: 0,
+      failed: 0,
+      total: 0
+    };
+  }
+
+  async getUrl(id: string): Promise<any> {
+    return {
+      id,
+      url: `http://test${id}.com`,
+      status: 'pending',
+      tags: [],
+      authority: 0
+    };
+  }
+
+  async deleteUrls(ids: string[]): Promise<{ successful: number; failed: string[] }> {
+    return {
+      successful: ids.length,
+      failed: []
+    };
+  }
+
+  async addTagsToUrlById(id: string, tags: string[]): Promise<boolean> {
+    return true;
+  }
+
+  async setUrlTags(id: string, tags: string[]): Promise<boolean> {
+    return true;
+  }
+
+  async updateUrlAuthority(id: string, authority: number): Promise<boolean> {
+    return true;
+  }
+
+  async reprocessUrl(id: string, options?: any): Promise<any> {
+    return {
+      success: true,
+      url: `http://test${id}.com`,
+      result: 'Reprocessed successfully'
+    };
+  }
+
   // Configuration Templates
   getConfigurationTemplates(): any[] {
     return [

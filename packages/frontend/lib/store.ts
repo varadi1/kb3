@@ -76,6 +76,7 @@ interface Kb3State {
   addUrls: (urls: { url: string; tags?: string[] }[]) => Promise<void>
   updateUrl: (id: string, updates: Partial<Url>) => Promise<void>
   deleteUrl: (id: string) => Promise<void>
+  deleteUrls: (ids: string[]) => Promise<void>
   selectUrl: (id: string) => void
   deselectUrl: (id: string) => void
   selectAllUrls: () => void
@@ -227,6 +228,40 @@ export const useKb3Store = create<Kb3State>()(
           }
         } catch (error) {
           console.error('Failed to delete URL:', error)
+        }
+      },
+
+      deleteUrls: async (ids) => {
+        try {
+          const response = await fetch('/api/urls/batch-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urlIds: ids })
+          })
+          const data = await response.json()
+
+          if (data.success || data.data?.successful > 0) {
+            // Remove deleted URLs from local state
+            const deletedIds = ids.filter((id, index) =>
+              !data.data?.failedUrls?.includes(ids[index])
+            )
+
+            set((state) => ({
+              urls: state.urls.filter(u => !deletedIds.includes(u.id)),
+              selectedUrls: new Set([...state.selectedUrls].filter(uid => !deletedIds.includes(uid)))
+            }))
+
+            // Refresh to ensure consistency
+            get().fetchUrls()
+          }
+
+          // Throw error if some deletions failed for UI feedback
+          if (data.data?.failedUrls?.length > 0) {
+            throw new Error(`Failed to delete ${data.data.failedUrls.length} URLs`)
+          }
+        } catch (error) {
+          console.error('Failed to delete URLs:', error)
+          throw error
         }
       },
 
@@ -682,8 +717,16 @@ export const useKb3Store = create<Kb3State>()(
         try {
           const response = await fetch('/api/process/queue')
           const data = await response.json()
-          if (data.success && data.data.queue) {
-            return data.data.queue
+
+          // Ensure we always return an array
+          if (data.success && data.data?.queue) {
+            // Validate it's actually an array
+            if (Array.isArray(data.data.queue)) {
+              return data.data.queue
+            } else {
+              console.warn('Queue is not an array:', typeof data.data.queue, data.data.queue)
+              return []
+            }
           }
           return []
         } catch (error) {

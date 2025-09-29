@@ -64,6 +64,14 @@ export interface IUrlRepository {
    * @returns Promise resolving to success status
    */
   updateHash(id: string, contentHash: string): Promise<boolean>;
+
+  /**
+   * Updates metadata for a URL
+   * @param id The URL record ID
+   * @param metadata The metadata to update
+   * @returns Promise resolving to success status
+   */
+  updateMetadata(id: string, metadata: Partial<UrlMetadata>): Promise<boolean>;
 }
 
 export interface UrlRecord {

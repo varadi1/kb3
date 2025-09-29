@@ -48,7 +48,7 @@ export function BatchOperationsPanel() {
     batchUpdateAuthority,
     batchUpdateUrls,
     processUrls,
-    batchUpdateUrls: batchDelete,
+    deleteUrls,
     deselectAllUrls
   } = useKb3Store()
 
@@ -199,10 +199,7 @@ export function BatchOperationsPanel() {
     setIsProcessing(true)
     try {
       const urlIds = Array.from(selectedUrls)
-      // Use the store's delete method for each URL
-      for (const id of urlIds) {
-        await batchUpdateUrls([id], { status: 'skipped' }) // Mark as deleted
-      }
+      await deleteUrls(urlIds)
 
       toast({
         title: 'Success',
@@ -213,7 +210,7 @@ export function BatchOperationsPanel() {
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to delete URLs',
+        description: error instanceof Error ? error.message : 'Failed to delete URLs',
         variant: 'destructive'
       })
     } finally {

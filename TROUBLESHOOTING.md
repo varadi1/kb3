@@ -9,14 +9,121 @@
 - [Processing Errors](#processing-errors)
 
 ## Statistics
-- Total Entries: 5
-- Success Rate: 100% (5/5)
-- Most Common: API Type Mismatches
-- Time Saved: ~85 minutes
+- Total Entries: 9
+- Success Rate: 100% (10/10)
+- Most Common: Backend Connection Issues
+- Time Saved: ~160 minutes
 
 ---
 
 ## React/JSX Errors
+
+### [JSX002]: Objects are not valid as a React child - Processing Queue Data Structure
+**First Seen**: 2025-09-29
+**Occurrences**: 2
+**Success Rate**: 2/2 (100%)
+**Tags**: #react #frontend #processing #queue #error-handling #data-validation
+
+#### Problem
+- **Symptom**: React error "Objects are not valid as a React child" when clicking Start Processing
+- **Error**: Full error shows object with keys {id, url, status, startedAt, completedAt, error}
+- **Context**: Occurs in ProcessingQueue component when queue data is malformed
+- **Impact**: Processing tab becomes completely unusable, shows error screen
+
+#### Root Cause
+The `fetchQueue()` function in the store was returning undefined or non-array values when the backend response structure changed or during error states. This caused React to attempt rendering objects directly as children, triggering the error.
+
+#### Solution
+1. **Store Validation** (2/2 success):
+   ```typescript
+   // In store.ts - Ensure fetchQueue always returns array
+   fetchQueue: async () => {
+     try {
+       const response = await fetch('/api/process/queue')
+       const data = await response.json()
+
+       if (data.success && data.data?.queue) {
+         if (Array.isArray(data.data.queue)) {
+           return data.data.queue
+         } else {
+           console.warn('Queue is not an array:', typeof data.data.queue, data.data.queue)
+           return []
+         }
+       }
+       return []
+     } catch (error) {
+       console.error('Failed to fetch queue:', error)
+       return []
+     }
+   }
+   ```
+
+2. **Component Validation** (2/2 success):
+   ```typescript
+   // In processing-queue.tsx - Validate queue data
+   const loadQueue = async () => {
+     try {
+       const items = await fetchQueue()
+       const validItems = Array.isArray(items) ? items : []
+       setQueue(validItems)
+       setIsProcessing(validItems.some(item => item?.status === 'processing'))
+     } catch (error) {
+       console.error('Failed to load queue:', error)
+       setQueue([]) // Always set to array on error
+     }
+   }
+   ```
+
+3. **Backend Validation** (2/2 success):
+   ```typescript
+   // In kb3Service.ts - Ensure queue is always array
+   async getQueueStatus(): Promise<any> {
+     await this.ensureInitialized();
+     const queueArray = Array.from(this.processingItems.values());
+     const queue = Array.isArray(queueArray) ? queueArray : [];
+
+     return {
+       isProcessing: this.isQueueProcessing,
+       queue: queue,
+       stats: {
+         pending: queue.filter(i => i?.status === 'pending').length,
+         // ... other stats
+       }
+     };
+   }
+   ```
+
+4. **Error Field String Conversion** (2/2 success):
+   ```typescript
+   // Also ensure error fields are strings
+   if (!result.success) {
+     if (typeof result.error === 'object' && result.error !== null) {
+       item.error = (result.error as any).message || JSON.stringify(result.error);
+     } else {
+       item.error = String(result.error || 'Processing failed');
+     }
+   }
+   ```
+
+#### Evidence/Diagnosis
+- Error stack showed `reconcileChildrenArray` indicating issue with array children
+- Error mentioned complete ProcessingItem object structure
+- `fetchQueue()` was not validating the data structure from backend
+- Missing Array.isArray() checks throughout the data pipeline
+- Queue state could become undefined or non-array during error states
+
+#### Prevention
+- Always validate data is an array before setting state
+- Use Array.isArray() checks at every data transformation point
+- Implement defensive programming with fallback values
+- Add TypeScript interfaces and strict type checking
+- Create integration tests for data flow from backend to frontend
+- Never trust external data without validation
+
+#### Related Issues
+- [JSX001]: Multiple JSX elements without fragment
+- React error boundaries for graceful error handling
+- Type safety in frontend/backend data contracts
 
 ### [JSX001]: Expected ',' got '{' - Multiple JSX Elements Without Fragment
 **First Seen**: 2025-01-29
@@ -305,6 +412,64 @@ Multiple backend server processes attempting to bind to the same port (4000) sim
 - Process cleanup in Node.js applications
 - Frontend/backend communication failures
 
+### [BACKEND002]: Backend Server Stuck - TSX Watcher Restart Loop
+**First Seen**: 2025-09-29
+**Occurrences**: 1
+**Success Rate**: 1/1 (100%)
+**Tags**: #backend #tsx #restart-loop #stuck-process
+
+#### Problem
+- **Symptom**: Frontend shows no URLs, API requests fail with connection refused
+- **Error**: Frontend logs show "Failed to proxy" ECONNREFUSED errors
+- **Context**: TSX watcher tries to restart but shows "Process hasn't exited. Killing process..."
+- **Impact**: Complete backend unavailability, frontend cannot display data
+
+#### Root Cause
+TSX watcher gets stuck in a restart loop where:
+1. File changes trigger restart
+2. Process doesn't exit cleanly in 5 seconds
+3. TSX tries to force kill but process remains stuck
+4. Backend never actually starts listening on port 4000
+
+#### Solution
+1. **Kill stuck processes** (1/1 success):
+   ```bash
+   # Kill the stuck shell
+   pkill -f "tsx watch"
+
+   # Clean up any stuck processes
+   sleep 2
+   ```
+
+2. **Restart backend cleanly** (1/1 success):
+   ```bash
+   cd packages/backend
+   npm run dev
+   ```
+
+3. **Verify backend health** (1/1 success):
+   ```bash
+   curl http://localhost:4000/health
+   # Should return {"status":"healthy",...}
+   ```
+
+#### Evidence/Diagnosis
+- TSX logs show "Process didn't exit in 5s. Force killing..."
+- lsof -i :4000 returns empty (nothing listening)
+- Backend shell output stuck with "Process hasn't exited. Killing process..."
+- Frontend proxy errors accumulate in console
+
+#### Prevention
+- Avoid rapid file saves that trigger multiple restarts
+- Consider using nodemon with proper shutdown hooks
+- Implement graceful shutdown in backend server
+- Add process cleanup in package.json scripts
+
+#### Related Issues
+- [BACKEND001]: Port conflicts
+- TSX watcher configuration
+- Graceful shutdown patterns
+
 ---
 
 ## Processing Errors
@@ -375,7 +540,194 @@ The ProcessingQueue React component was calling store methods that didn't exist.
 
 ---
 
+## URL Management Errors
+
+### [URL001]: URL Deletion Not Working - Frontend/Backend Disconnection
+**First Seen**: 2025-09-29
+**Occurrences**: 1
+**Success Rate**: 1/1 (100%)
+**Tags**: #backend #frontend #api #deletion #persistence
+
+#### Problem
+- **Symptom**: URLs cannot be deleted from table - system signals success but URLs remain
+- **Error**: No visible error - optimistic UI update shows deletion but data persists
+- **Context**: Selecting URLs and deleting shows success toast but URLs reappear on refresh
+- **Impact**: Cannot remove URLs from system, database grows unbounded
+
+#### Root Cause
+Multiple architectural issues:
+1. Frontend using wrong method: `batchUpdateUrls` with status 'skipped' instead of actual deletion
+2. Backend DELETE endpoint was a stub returning success without implementation
+3. Missing `deleteUrl` and `deleteUrls` methods in KB3Service
+4. No batch delete endpoint in the API
+5. Frontend store missing proper `deleteUrls` implementation
+
+#### Solution
+1. **Implement KB3Service deletion methods** (1/1 success):
+   ```typescript
+   // In kb3Service.ts
+   async deleteUrl(id: string): Promise<boolean> {
+     const urlRepository = this.orchestrator.getUrlRepository();
+     const urls = await this.getUrls();
+     const urlObj = urls.find(u => u.id === id || u.url === id);
+
+     if (!urlObj) return false;
+
+     const success = await urlRepository.remove(urlObj.id);
+     if (success) {
+       this.urlStore.delete(id);
+       this.urlStore.delete(urlObj.url);
+       this.emit('url:deleted', { id: urlObj.id, url: urlObj.url });
+       await this.removeUrlParameters(urlObj.url);
+     }
+     return success;
+   }
+   ```
+
+2. **Fix backend DELETE endpoint** (1/1 success):
+   ```typescript
+   router.delete('/:id', async (req, res) => {
+     const { id } = req.params;
+     const success = await kb3Service.deleteUrl(id);
+
+     if (success) {
+       res.json({ success: true, message: 'URL deleted successfully' });
+     } else {
+       res.status(404).json({ success: false, message: 'URL not found' });
+     }
+   });
+   ```
+
+3. **Add batch delete endpoint** (1/1 success):
+   ```typescript
+   router.post('/batch-delete', async (req, res) => {
+     const { urlIds } = req.body;
+     const result = await kb3Service.deleteUrls(urlIds);
+     // Return appropriate status based on success/failure
+   });
+   ```
+
+4. **Fix frontend deletion** (1/1 success):
+   ```typescript
+   // In batch-operations.tsx
+   const handleDeleteUrls = async () => {
+     const urlIds = Array.from(selectedUrls);
+     await deleteUrls(urlIds); // Use proper deletion method
+   }
+   ```
+
+#### Evidence/Diagnosis
+- Frontend calling `batchUpdateUrls` with status 'skipped' in batch-operations.tsx
+- Backend DELETE endpoint returning success without any implementation
+- KB3Service missing deletion methods entirely
+- No batch-delete endpoint in routes/urls.ts
+- Driver tree analysis showed disconnection at multiple layers
+
+#### Prevention
+- Ensure frontend actions map to actual backend implementations
+- Never use workarounds (like status updates) for critical operations
+- Implement complete CRUD operations for all entities
+- Add integration tests for all API endpoints
+- Use TypeScript interfaces to enforce API contracts
+
+#### Related Issues
+- [API001]: Similar frontend/backend mismatch pattern
+- Optimistic UI updates masking backend failures
+- SOLID principle violations in incomplete implementations
+
+### [URL002]: URL Settings Not Persisting - Repository Interface Gap
+**First Seen**: 2025-09-29
+**Occurrences**: 1
+**Success Rate**: 1/1 (100%)
+**Tags**: #backend #persistence #repository #metadata #solid
+
+#### Problem
+- **Symptom**: URL settings (cleaners, scrapers, tags, metadata) not persisted when editing
+- **Error**: No error - changes appear saved but lost on restart
+- **Context**: Editing URL properties shows success but changes don't survive restart
+- **Impact**: Cannot configure URLs properly, settings lost repeatedly
+
+#### Root Cause
+Incomplete persistence layer:
+1. KB3Service `updateUrl` only persisting tags and authority to database
+2. Status and metadata only stored in local cache, not database
+3. IUrlRepository interface missing `updateMetadata` method
+4. SqlUrlRepository lacking metadata update implementation
+5. Violation of SOLID principles - incomplete abstraction
+
+#### Solution
+1. **Enhance repository interface** (1/1 success):
+   ```typescript
+   // In IUrlRepository.ts
+   interface IUrlRepository {
+     // ... existing methods
+     updateMetadata(id: string, metadata: Partial<UrlMetadata>): Promise<boolean>;
+   }
+   ```
+
+2. **Implement in SqlUrlRepository** (1/1 success):
+   ```typescript
+   async updateMetadata(id: string, metadata: Partial<UrlMetadata>): Promise<boolean> {
+     const existing = await this.get('SELECT metadata FROM urls WHERE id = ?', [id]);
+     if (!existing) return false;
+
+     const existingMetadata = JSON.parse(existing.metadata || '{}');
+     const mergedMetadata = { ...existingMetadata, ...metadata };
+
+     await this.run(
+       'UPDATE urls SET metadata = ?, last_checked = ? WHERE id = ?',
+       [JSON.stringify(mergedMetadata), Date.now(), id]
+     );
+     return true;
+   }
+   ```
+
+3. **Fix KB3Service persistence** (1/1 success):
+   ```typescript
+   async updateUrl(id: string, updates: any) {
+     const urlRepository = this.orchestrator.getUrlRepository();
+     const urlObj = urls.find(u => u.id === id || u.url === id);
+
+     // Persist status to database
+     if (updates.status !== undefined) {
+       await urlRepository.updateStatus(urlObj.id, statusMapping[updates.status]);
+     }
+
+     // Persist metadata to database
+     if (updates.metadata !== undefined) {
+       await urlRepository.updateMetadata(urlObj.id, updates.metadata);
+     }
+
+     // Handle scraper/cleaner configuration
+     if (updates.scraperType || updates.cleaners) {
+       await this.setUrlParameters(urlObj.url, {...});
+     }
+   }
+   ```
+
+#### Evidence/Diagnosis
+- Code review showed updateUrl only calling repository for tags/authority
+- Status and metadata updates only using `this.urlStore.set()` (local cache)
+- IUrlRepository interface inspection showed no updateMetadata method
+- SqlUrlRepository had no implementation for metadata updates
+- Changes lost after service restart confirmed cache-only storage
+
+#### Prevention
+- Always persist to database, not just local cache
+- Ensure repository interfaces are complete (SOLID - ISP)
+- Implement all CRUD operations at repository level
+- Add persistence tests that include restart scenarios
+- Follow Open/Closed principle - extend interfaces properly
+
+#### Related Issues
+- SOLID principle compliance
+- Repository pattern completeness
+- Cache vs persistent storage patterns
+
+---
+
 ## Notes
 - Always check this KB first before debugging
 - Update success metrics after each use
 - Add new patterns as they emerge
+- Follow SOLID principles to prevent architectural issues

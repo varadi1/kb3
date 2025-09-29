@@ -19,7 +19,13 @@ class Database {
   get(sql, params, callback) {
     const cb = callback || params;
     if (typeof cb === 'function') {
-      process.nextTick(() => cb(null, { id: 1, data: 'mock' }));
+      // Check if this is a config query
+      if (sql && sql.includes('global_config')) {
+        // Return null to simulate no config found (which is a valid case)
+        process.nextTick(() => cb(null, null));
+      } else {
+        process.nextTick(() => cb(null, { id: 1, data: 'mock', config_data: '{}' }));
+      }
     }
     return this;
   }

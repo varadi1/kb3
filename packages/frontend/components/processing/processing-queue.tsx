@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useKb3Store } from '@/lib/store'
 import { useToast } from '@/components/ui/use-toast'
+import { ProcessingItem } from '@/types/processing'
 import {
   Play,
   Pause,
@@ -14,16 +15,6 @@ import {
   Loader2,
   X,
 } from 'lucide-react'
-
-interface ProcessingItem {
-  id: string
-  url: string
-  status: 'pending' | 'processing' | 'completed' | 'failed'
-  progress?: number
-  error?: string
-  startedAt?: string
-  completedAt?: string
-}
 
 export function ProcessingQueue() {
   const [queue, setQueue] = useState<ProcessingItem[]>([])
@@ -41,10 +32,13 @@ export function ProcessingQueue() {
   const loadQueue = async () => {
     try {
       const items = await fetchQueue()
-      setQueue(items)
-      setIsProcessing(items.some(item => item.status === 'processing'))
+      // Ensure items is an array
+      const validItems = Array.isArray(items) ? items : []
+      setQueue(validItems)
+      setIsProcessing(validItems.some(item => item?.status === 'processing'))
     } catch (error) {
       console.error('Failed to load queue:', error)
+      setQueue([]) // Always set to array on error
     }
   }
 
@@ -192,7 +186,11 @@ export function ProcessingQueue() {
                       {item.url}
                     </div>
                     {item.error && (
-                      <div className="text-xs text-red-500 mt-1">{item.error}</div>
+                      <div className="text-xs text-red-500 mt-1">
+                        {typeof item.error === 'string'
+                          ? item.error
+                          : JSON.stringify(item.error)}
+                      </div>
                     )}
                     {item.startedAt && (
                       <div className="text-xs text-muted-foreground mt-1">

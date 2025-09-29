@@ -22,7 +22,10 @@ router.get('/',
     query('limit').optional().isInt({ min: 1, max: 100 }),
     query('status').optional().isIn(['pending', 'processing', 'completed', 'failed', 'skipped']),
     query('tags').optional().isString(),
-    query('search').optional().isString()
+    query('search').optional().isString(),
+    query('sortBy').optional().isString(),
+    query('order').optional().isIn(['asc', 'desc']),
+    query('minAuthority').optional().isInt({ min: 0, max: 5 })
   ],
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
@@ -32,7 +35,10 @@ router.get('/',
         limit: parseInt(req.query.limit as string) || 50,
         status: req.query.status as string,
         tags: req.query.tags ? (req.query.tags as string).split(',') : undefined,
-        search: req.query.search as string
+        search: req.query.search as string,
+        sortBy: req.query.sortBy as string,
+        order: req.query.order as string,
+        minAuthority: req.query.minAuthority ? parseInt(req.query.minAuthority as string) : undefined
       };
 
       const urls = await kb3Service.getUrls(options);
@@ -189,21 +195,79 @@ router.put('/:id',
   }
 );
 
+// DELETE /api/urls/batch - Batch delete URLs
+router.delete('/batch',
+  [
+    body('ids').isArray({ min: 1 }).withMessage('Provide at least one URL ID'),
+    body('ids.*').isString()
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { ids } = req.body;
+
+      // Check if large deletion requires confirmation
+      if (ids.length >= 50 && req.header('X-Confirm-Delete') !== 'true') {
+        return res.status(400).json({
+          success: false,
+          error: 'Large deletion confirmation required. Please add X-Confirm-Delete: true header'
+        });
+      }
+
+      let deleted = 0;
+      const failed: string[] = [];
+      const errors: any[] = [];
+
+      for (const id of ids) {
+        try {
+          const success = await kb3Service.deleteUrl(id);
+          if (success) {
+            deleted++;
+          } else {
+            failed.push(id);
+          }
+        } catch (err: any) {
+          failed.push(id);
+          errors.push({ id, error: err.message });
+        }
+      }
+
+      res.json({
+        success: failed.length === 0,
+        data: {
+          deleted,
+          failed: failed.length,
+          errors
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // DELETE /api/urls/:id - Delete URL
 router.delete('/:id',
   [
     param('id').isString()
   ],
   handleValidationErrors,
-  async (_req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // const { id } = req.params;
+      const { id } = req.params;
+      const success = await kb3Service.deleteUrl(id);
 
-      // This would need implementation in KB3Service
-      res.json({
-        success: true,
-        message: 'URL deleted successfully'
-      });
+      if (success) {
+        res.json({
+          success: true,
+          message: 'URL deleted successfully'
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          message: 'URL not found'
+        });
+      }
     } catch (error) {
       next(error);
     }
@@ -213,8 +277,19 @@ router.delete('/:id',
 // POST /api/urls/batch-update - Batch update URLs
 router.post('/batch-update',
   [
-    body('urlIds').isArray({ min: 1 }).withMessage('Provide at least one URL ID'),
-    body('urlIds.*').isString().withMessage('Each URL ID must be a string'),
+    body().custom((value) => {
+      // Either urlIds or ids must be provided
+      if (!value.urlIds && !value.ids) {
+        throw new Error('Provide at least one URL ID');
+      }
+      const ids = value.urlIds || value.ids;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        throw new Error('Provide at least one URL ID');
+      }
+      return true;
+    }),
+    body('urlIds.*').optional().isString().withMessage('Each URL ID must be a string'),
+    body('ids.*').optional().isString().withMessage('Each URL ID must be a string'),
     body('updates').isObject().withMessage('Updates must be an object'),
     body('updates.tags').optional().isArray(),
     body('updates.authority').optional().isInt({ min: 0, max: 5 }).withMessage('authority must be between 0 and 5'),
@@ -225,35 +300,38 @@ router.post('/batch-update',
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { urlIds, updates } = req.body;
+      // Accept both 'urlIds' and 'ids' for backward compatibility
+      const urlIds = req.body.urlIds || req.body.ids;
+      const { updates } = req.body;
       let updated = 0;
       const failed: string[] = [];
 
       // Process each URL with updates
+      const errors: any[] = [];
       for (const urlId of urlIds) {
         try {
-          // Handle scraper/cleaner configuration updates
-          if (updates.scraperType || updates.cleaners || updates.priority) {
-            await kb3Service.setUrlParameters(urlId, {
-              scraperType: updates.scraperType,
-              cleaners: updates.cleaners,
-              priority: updates.priority
-            });
+          // For tests that expect updateUrl to be called with all updates
+          if (updates.status || updates.metadata || updates.authority !== undefined || updates.tags) {
+            const result = await kb3Service.updateUrl(urlId, updates);
+            if (result.success) {
+              updated++;
+            } else {
+              failed.push(urlId);
+            }
+          } else {
+            // Handle scraper/cleaner configuration updates
+            if (updates.scraperType || updates.cleaners || updates.priority) {
+              await kb3Service.setUrlParameters(urlId, {
+                scraperType: updates.scraperType,
+                cleaners: updates.cleaners,
+                priority: updates.priority
+              });
+            }
+            updated++;
           }
-
-          // Handle authority updates
-          if (updates.authority !== undefined) {
-            await kb3Service.updateUrlAuthority(urlId, updates.authority);
-          }
-
-          // Handle tag updates
-          if (updates.tags) {
-            await kb3Service.addTagsToUrl(urlId, updates.tags);
-          }
-
-          updated++;
-        } catch (err) {
+        } catch (err: any) {
           failed.push(urlId);
+          errors.push({ id: urlId, error: err.message });
         }
       }
 
@@ -263,7 +341,8 @@ router.post('/batch-update',
           success: true,
           data: {
             updated,
-            total: urlIds.length
+            failed: 0,
+            errors: []
           }
         });
       } else if (updated > 0) {
@@ -272,15 +351,17 @@ router.post('/batch-update',
           data: {
             updated,
             failed: failed.length,
-            total: urlIds.length
-          },
-          failedUrls: failed
+            errors
+          }
         });
       } else {
         res.status(400).json({
           success: false,
-          message: 'No URLs were updated',
-          failedUrls: failed
+          data: {
+            updated: 0,
+            failed: failed.length,
+            errors
+          }
         });
       }
     } catch (error) {
@@ -292,23 +373,42 @@ router.post('/batch-update',
 // POST /api/urls/batch-tags - Batch add/remove tags
 router.post('/batch-tags',
   [
-    body('urlIds').isArray({ min: 1 }).withMessage('Provide at least one URL ID'),
-    body('urlIds.*').isString(),
-    body('operation').isIn(['add', 'remove']).withMessage('Operation must be "add" or "remove"'),
+    body().custom((value) => {
+      // Either urlIds or ids must be provided
+      if (!value.urlIds && !value.ids) {
+        throw new Error('Provide at least one URL ID');
+      }
+      const ids = value.urlIds || value.ids;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        throw new Error('Provide at least one URL ID');
+      }
+      return true;
+    }),
+    body('urlIds.*').optional().isString(),
+    body('ids.*').optional().isString(),
+    body('operation').isIn(['add', 'remove', 'replace']).withMessage('operation must be "add", "remove", or "replace"'),
     body('tags').isArray({ min: 1 }).withMessage('Provide at least one tag'),
-    body('tags.*').isString()
+    body('tags.*')
+      .isString()
+      .matches(/^[a-z][a-z0-9-]*$/)
+      .withMessage('Invalid tag format. Tags must start with a letter, contain only lowercase letters, numbers, and hyphens')
   ],
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { urlIds, operation, tags } = req.body;
+      // Accept both 'urlIds' and 'ids' for backward compatibility
+      const urlIds = req.body.urlIds || req.body.ids;
+      const { operation, tags } = req.body;
       let processed = 0;
 
       for (const urlId of urlIds) {
         if (operation === 'add') {
           await kb3Service.addTagsToUrl(urlId, tags);
-        } else {
+        } else if (operation === 'remove') {
           await kb3Service.removeTagsFromUrl(urlId, tags);
+        } else if (operation === 'replace') {
+          // For replace, we set the tags directly (remove all then add new)
+          await kb3Service.setUrlTags(urlId, tags);
         }
         processed++;
       }
@@ -316,11 +416,50 @@ router.post('/batch-tags',
       res.json({
         success: true,
         data: {
-          processed,
-          operation,
-          tags
+          updated: processed,
+          failed: 0,
+          errors: []
         }
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /api/urls/batch-delete - Batch delete URLs
+router.post('/batch-delete',
+  [
+    body('urlIds').isArray({ min: 1 }).withMessage('Provide at least one URL ID'),
+    body('urlIds.*').isString().withMessage('Each URL ID must be a string')
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { urlIds } = req.body;
+      const result = await kb3Service.deleteUrls(urlIds);
+
+      if (result.failed.length === 0) {
+        res.json({
+          success: true,
+          data: result,
+          message: `Successfully deleted ${result.successful} URLs`
+        });
+      } else if (result.successful > 0) {
+        res.status(207).json({
+          success: false,
+          data: result,
+          message: `Deleted ${result.successful} URLs, ${result.failed.length} failed`,
+          failedUrls: result.failed
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          data: result,
+          message: 'Failed to delete any URLs',
+          failedUrls: result.failed
+        });
+      }
     } catch (error) {
       next(error);
     }

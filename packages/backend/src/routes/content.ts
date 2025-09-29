@@ -34,12 +34,23 @@ router.get('/:id(*)/original',
         });
       }
 
+      // Convert content if it's an object with buffer data
+      let actualContent = content;
+      if (content && typeof content === 'object' && content.content) {
+        actualContent = content.content;
+      }
+
+      // Convert buffer to string if needed
+      if (Buffer.isBuffer(actualContent)) {
+        actualContent = actualContent.toString('utf-8');
+      }
+
       // Set appropriate content type
-      const mimeType = getMimeType(content);
+      const mimeType = content.mimeType || 'text/html';
       res.setHeader('Content-Type', mimeType);
       res.setHeader('Content-Disposition', `inline; filename="original-${id}"`);
 
-      res.send(content);
+      res.send(actualContent);
     } catch (error) {
       next(error);
     }
@@ -65,14 +76,10 @@ router.get('/:id(*)/cleaned',
         });
       }
 
-      res.json({
-        success: true,
-        data: {
-          content,
-          length: content.length,
-          preview: content.substring(0, 500)
-        }
-      });
+      // Return as plain text like original content
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', `inline; filename="cleaned-${id}"`);
+      res.send(content);
     } catch (error) {
       next(error);
     }

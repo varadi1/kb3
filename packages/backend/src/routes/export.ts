@@ -79,9 +79,15 @@ router.post('/',
           throw new Error('Invalid format');
       }
 
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.send(responseData);
+      // Return structured response for API consistency
+      res.json({
+        success: true,
+        data: {
+          content: responseData,
+          count: Array.isArray(data) ? data.length : (data.urls ? data.urls.length : 0),
+          format: options.format
+        }
+      });
     } catch (error) {
       next(error);
     }
@@ -91,46 +97,70 @@ router.post('/',
 // POST /api/export/import - Import data
 router.post('/import',
   upload.single('file'),
+  [
+    body('content').optional().isString(),
+    body('format').optional().isIn(['json', 'csv', 'txt'])
+  ],
+  handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      if (!req.file) {
+      let fileContent: string;
+      let format: 'json' | 'csv' | 'txt';
+
+      // Handle both file upload and direct content
+      if (req.file) {
+        fileContent = req.file.buffer.toString('utf-8');
+        const ext = path.extname(req.file.originalname).toLowerCase();
+
+        switch (ext) {
+          case '.json': format = 'json'; break;
+          case '.csv': format = 'csv'; break;
+          case '.txt': format = 'txt'; break;
+          default: throw new Error('Unsupported file format');
+        }
+      } else if (req.body.content && req.body.format) {
+        // Direct content submission (for testing)
+        fileContent = req.body.content;
+        format = req.body.format;
+      } else {
         return res.status(400).json({
           success: false,
-          message: 'No file uploaded'
+          message: 'No file uploaded or content provided'
         });
       }
 
-      const fileContent = req.file.buffer.toString('utf-8');
-      const ext = path.extname(req.file.originalname).toLowerCase();
+      let data: any[];
 
-      let data: any;
-      let format: 'json' | 'csv' | 'txt';
-
-      switch (ext) {
-        case '.json':
+      // Parse the content based on format
+      switch (format) {
+        case 'json':
           data = JSON.parse(fileContent);
-          format = 'json';
+          if (!Array.isArray(data)) {
+            // Handle case where data is wrapped in object
+            if (data.urls && Array.isArray(data.urls)) {
+              data = data.urls;
+            } else {
+              throw new Error('Invalid JSON format - expected array of URLs');
+            }
+          }
           break;
 
-        case '.csv':
+        case 'csv':
           data = await parseCSV(fileContent);
-          format = 'csv';
           break;
 
-        case '.txt':
+        case 'txt':
           data = parseText(fileContent);
-          format = 'txt';
           break;
 
         default:
-          throw new Error('Unsupported file format');
+          throw new Error('Unsupported format');
       }
 
       const result = await kb3Service.importData(data, format);
 
       res.json({
         success: true,
-        message: 'Data imported successfully',
         data: result
       });
     } catch (error) {
@@ -190,15 +220,23 @@ router.post('/validate',
   upload.single('file'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      if (!req.file) {
+      let fileContent: string;
+      let format: string;
+
+      // Handle both file upload and direct content (like in /import)
+      if (req.file) {
+        fileContent = req.file.buffer.toString('utf-8');
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        format = ext.replace('.', '');
+      } else if (req.body.content) {
+        fileContent = req.body.content;
+        format = req.body.format || 'json';
+      } else {
         return res.status(400).json({
           success: false,
-          message: 'No file uploaded'
+          message: 'No file or content provided'
         });
       }
-
-      const fileContent = req.file.buffer.toString('utf-8');
-      const ext = path.extname(req.file.originalname).toLowerCase();
 
       let validation: any = {
         valid: true,
@@ -208,18 +246,18 @@ router.post('/validate',
       };
 
       try {
-        switch (ext) {
-          case '.json':
+        switch (format) {
+          case 'json':
             const jsonData = JSON.parse(fileContent);
             validation = validateJsonImport(jsonData);
             break;
 
-          case '.csv':
+          case 'csv':
             const csvData = await parseCSV(fileContent);
             validation = validateCsvImport(csvData);
             break;
 
-          case '.txt':
+          case 'txt':
             const textData = parseText(fileContent);
             validation = validateTextImport(textData);
             break;
@@ -245,21 +283,19 @@ router.post('/validate',
 
 // Helper functions
 async function formatAsCSV(data: any): Promise<string> {
-  const headers = ['url', 'status', 'tags', 'scraperType', 'cleaners', 'processedAt'];
+  const headers = ['url', 'tags', 'status', 'authority'];
   const rows = [headers.join(',')];
 
-  // Add data rows
-  if (data.urls && Array.isArray(data.urls)) {
-    data.urls.forEach((item: any) => {
+  // Add data rows - data is now directly an array of URLs
+  if (Array.isArray(data)) {
+    data.forEach((item: any) => {
       const row = [
         item.url,
+        `"${(item.tags || []).join(',')}"`, // Properly escape for CSV
         item.status || '',
-        (item.tags || []).join(';'),
-        item.scraperType || '',
-        (item.cleaners || []).join(';'),
-        item.processedAt || ''
+        (item.authority || 0).toString()
       ];
-      rows.push(row.map(escapeCSV).join(','));
+      rows.push(row.join(','));
     });
   }
 
@@ -269,17 +305,10 @@ async function formatAsCSV(data: any): Promise<string> {
 async function formatAsText(data: any): Promise<string> {
   const lines: string[] = [];
 
-  if (data.urls && Array.isArray(data.urls)) {
-    data.urls.forEach((item: any) => {
-      lines.push(item.url);
-      if (item.tags && item.tags.length > 0) {
-        lines.push(`  Tags: ${item.tags.join(', ')}`);
-      }
-      if (item.scraperType) {
-        lines.push(`  Scraper: ${item.scraperType}`);
-      }
-      lines.push('');
-    });
+  // Data is now directly an array of URLs
+  if (Array.isArray(data)) {
+    // For plain text format, just return the URLs
+    return data.map(item => item.url).join('\n');
   }
 
   return lines.join('\n');

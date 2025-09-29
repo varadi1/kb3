@@ -448,6 +448,40 @@ export class SqlUrlRepository implements IUrlRepository {
     }
   }
 
+  async updateMetadata(id: string, metadata: Partial<UrlMetadata>): Promise<boolean> {
+    await this.initialize();
+
+    try {
+      // Get existing metadata first
+      const existing = await this.get<{ metadata: string }>(
+        'SELECT metadata FROM urls WHERE id = ?',
+        [id]
+      );
+
+      if (!existing) {
+        return false;
+      }
+
+      // Merge existing metadata with new metadata
+      const existingMetadata = JSON.parse(existing.metadata || '{}');
+      const mergedMetadata = { ...existingMetadata, ...metadata };
+
+      // Update metadata in database
+      await this.run(
+        'UPDATE urls SET metadata = ?, last_checked = ? WHERE id = ?',
+        [JSON.stringify(mergedMetadata), Date.now(), id]
+      );
+
+      return true;
+    } catch (error) {
+      throw ErrorHandler.createError(
+        'METADATA_UPDATE_ERROR',
+        'Failed to update URL metadata',
+        { id, metadata, error }
+      );
+    }
+  }
+
   /**
    * Checks if content with given hash already exists
    */
