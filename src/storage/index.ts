@@ -3,19 +3,22 @@
  * Facilitates easy import and dependency injection
  */
 
-// Knowledge stores
+// Base classes
 export { BaseKnowledgeStore } from './BaseKnowledgeStore';
-export { MemoryKnowledgeStore, IndexStats } from './MemoryKnowledgeStore';
-export { FileKnowledgeStore } from './FileKnowledgeStore';
+export { BaseFileStorage } from './BaseFileStorage';
+
+// Test-only storage implementation
+export { MemoryKnowledgeStore } from './MemoryKnowledgeStore';
+
+// SQL-based storage implementations
 export { SqlKnowledgeStore } from './SqlKnowledgeStore';
+export { UnifiedSqlStorage } from './UnifiedSqlStorage';
 
 // File storage
-export { BaseFileStorage } from './BaseFileStorage';
 export { LocalFileStorage } from './LocalFileStorage';
 
 // URL Repository
 export { SqlUrlRepository } from './SqlUrlRepository';
-// SqlUrlRepositoryWithTags is now integrated into SqlUrlRepository
 export { SqlUrlRepository as SqlUrlRepositoryWithTags } from './SqlUrlRepository'; // Backward compatibility
 export { UrlMetadataWithTags, UrlRecordWithTags } from './SqlUrlRepository';
 
@@ -34,20 +37,18 @@ export { SqlProcessedFileRepository } from './SqlProcessedFileRepository';
 export { ProcessedFileStorageWithTracking } from './ProcessedFileStorageWithTracking';
 export { FileStorageWithTracking } from './FileStorageWithTracking';
 
-// Import required classes for the factory functions
-import { BaseKnowledgeStore } from './BaseKnowledgeStore';
-import { MemoryKnowledgeStore } from './MemoryKnowledgeStore';
-import { FileKnowledgeStore } from './FileKnowledgeStore';
-import { LocalFileStorage } from './LocalFileStorage';
+// Import UnifiedSqlStorage for the factory function
+import { UnifiedSqlStorage } from './UnifiedSqlStorage';
 
-// Factory functions for creating default storage implementations
-export function createDefaultKnowledgeStore(storePath?: string): BaseKnowledgeStore {
-  if (storePath) {
-    return new FileKnowledgeStore(storePath);
-  }
-  return new MemoryKnowledgeStore();
+// Factory function for creating default storage implementation
+export function createDefaultKnowledgeStore(storePath?: string): UnifiedSqlStorage {
+  return new UnifiedSqlStorage({
+    dbPath: storePath || ':memory:'
+  });
 }
 
-export function createDefaultFileStorage(basePath: string): LocalFileStorage {
-  return new LocalFileStorage(basePath);
+// Factory function for creating file storage
+import { LocalFileStorage as LocalFileStorageClass } from './LocalFileStorage';
+export function createDefaultFileStorage(basePath: string): LocalFileStorageClass {
+  return new LocalFileStorageClass(basePath);
 }

@@ -173,8 +173,10 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
 export const useSocket = () => {
   const context = useContext(SocketContext)
+  // Return a default value instead of throwing an error during SSR/hydration
+  // This prevents React rendering errors when the context isn't available yet
   if (!context) {
-    throw new Error('useSocket must be used within a SocketProvider')
+    return { socket: null, isConnected: false }
   }
   return context
 }

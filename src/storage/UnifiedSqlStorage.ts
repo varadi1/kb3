@@ -773,6 +773,25 @@ class UrlRepositoryImpl implements IUrlRepositoryWithTags {
     return row.content_hash !== currentHash;
   }
 
+  async updateMetadata(id: string, metadata: Partial<UrlMetadata>): Promise<boolean> {
+    const existing = await this.get<{ metadata: string }>(
+      'SELECT metadata FROM urls WHERE id = ?',
+      [id]
+    );
+
+    if (!existing) return false;
+
+    const currentMetadata = existing.metadata ? JSON.parse(existing.metadata) : {};
+    const updatedMetadata = { ...currentMetadata, ...metadata };
+
+    await this.run(
+      'UPDATE urls SET metadata = ?, last_checked = ? WHERE id = ?',
+      [JSON.stringify(updatedMetadata), Date.now(), id]
+    );
+
+    return true;
+  }
+
   async listUrls(filter?: UrlFilter): Promise<UrlRecord[]> {
     let query = `
       SELECT

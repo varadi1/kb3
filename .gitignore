@@ -12,6 +12,12 @@ dist/
 build/
 out/
 
+# Compiled TypeScript files in src
+src/**/*.d.ts
+src/**/*.js
+src/**/*.js.map
+!src/**/*.config.js
+
 
 # Environment files
 .env
