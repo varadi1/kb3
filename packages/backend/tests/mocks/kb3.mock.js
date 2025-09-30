@@ -57,10 +57,34 @@ const KnowledgeBaseFactory = {
 const createSqlConfiguration = jest.fn((config) => config);
 const createUnifiedConfiguration = jest.fn((config) => config);
 
+class ScraperSystemValidator {
+  constructor() {}
+  validate() {
+    return {
+      isValid: true,
+      errors: [],
+      warnings: [],
+      diagnostics: {
+        registeredScrapers: ['http', 'playwright', 'crawl4ai'],
+        defaultScraper: 'http',
+        totalScrapers: 3
+      }
+    };
+  }
+  getDiagnostics() {
+    return {
+      registeredScrapers: ['http', 'playwright', 'crawl4ai'],
+      defaultScraper: 'http',
+      totalScrapers: 3
+    };
+  }
+}
+
 module.exports = {
   KnowledgeBaseFactory,
   createSqlConfiguration,
   createUnifiedConfiguration,
+  ScraperSystemValidator,
   IKnowledgeBaseOrchestrator: {},
   ProcessingResult: {},
   ITag: {},

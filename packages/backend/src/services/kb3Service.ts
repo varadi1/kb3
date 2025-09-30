@@ -2,7 +2,8 @@ import {
   KnowledgeBaseFactory,
   createSqlConfiguration,
   ProcessingResult,
-  ITag
+  ITag,
+  ScraperSystemValidator
 } from 'kb3';
 import * as path from 'path';
 import { EventEmitter } from 'events';
@@ -36,7 +37,7 @@ export class KB3Service extends EventEmitter {
   private processingQueue: Map<string, ProcessingResult> = new Map();
   private urlStore: Map<string, any> = new Map(); // Local cache for URLs
   private initialized: Promise<void>;
-  private globalConfigPersistence: SqlGlobalConfigPersistence;
+  private globalConfigPersistence!: SqlGlobalConfigPersistence;
   private isQueueProcessing: boolean = false;
   private queueInterval: NodeJS.Timeout | null = null;
   private processingItems: Map<string, any> = new Map(); // Track items being processed
@@ -90,7 +91,7 @@ export class KB3Service extends EventEmitter {
         },
         rateLimiting: {
           enabled: true,
-          requestsPerSecond: 2
+          defaultIntervalMs: 500  // 2 requests per second
         }
       }
     });
@@ -133,7 +134,44 @@ export class KB3Service extends EventEmitter {
 
     // createKnowledgeBase is async, must await it
     this.orchestrator = await KnowledgeBaseFactory.createKnowledgeBase(this.config);
+
+    // Validate scraper system is properly configured
+    this.validateScraperSystem();
+
     this.setupEventHandlers();
+  }
+
+  /**
+   * Validates that the scraper system is properly configured
+   * Ensures SOLID compliance: Dependency Inversion Principle
+   * @throws Error if scraper system is not ready
+   */
+  private validateScraperSystem(): void {
+    try {
+      const validator = new ScraperSystemValidator();
+      const result = validator.validate();
+
+      if (!result.isValid) {
+        console.error('Scraper system validation failed:');
+        console.error(validator.getDiagnostics());
+        throw new Error('Scraper system is not properly configured. Check logs for details.');
+      }
+
+      // Log warnings if any
+      if (result.warnings.length > 0) {
+        console.warn('Scraper system warnings:', result.warnings);
+      }
+
+      // Log successful validation in debug mode
+      if (result.diagnostics.totalScrapers > 0) {
+        console.log(`[KB3Service] Scraper system validated: ${result.diagnostics.totalScrapers} scrapers available`);
+        console.log(`[KB3Service] Default scraper: ${result.diagnostics.defaultScraper}`);
+        console.log(`[KB3Service] Registered scrapers: ${result.diagnostics.registeredScrapers.join(', ')}`);
+      }
+    } catch (error) {
+      // Re-throw with additional context
+      throw new Error(`KB3Service initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   public static getInstance(): KB3Service {
@@ -399,7 +437,10 @@ export class KB3Service extends EventEmitter {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
 
-      this.emit('processing:failed', { url, error });
+      this.emit('processing:failed', {
+        url,
+        error: error instanceof Error ? error.message : String(error || 'Processing failed')
+      });
       throw error;
     }
   }
@@ -588,12 +629,20 @@ export class KB3Service extends EventEmitter {
     return result;
   }
 
-  async updateTag(id: number, updates: Partial<ITag>): Promise<boolean> {
+  async updateTag(id: string, updates: Partial<ITag>): Promise<boolean> {
+    await this.ensureInitialized();
     try {
-      // Note: Orchestrator doesn't provide tag update functionality
-      // This would need to be implemented in the core KB3 system
-      console.warn('Tag update not supported by orchestrator interface');
-      return false;
+      // Get the tag manager from the orchestrator
+      const tagManager = this.orchestrator.getTagManager();
+      if (!tagManager) {
+        console.error('Tag manager not available');
+        return false;
+      }
+
+      // Update the tag using the tag manager
+      await tagManager.updateTag(id, updates);
+      this.emit('tag:updated', { id, updates });
+      return true;
     } catch (error) {
       console.error('Error updating tag:', error);
       return false;
@@ -798,6 +847,14 @@ export class KB3Service extends EventEmitter {
     return true;
   }
 
+  async removeTagsFromUrlById(id: string, tagNames: string[]): Promise<boolean> {
+    const url = await this.getUrlById(id);
+    if (!url) {
+      throw new Error(`URL not found with id: ${id}`);
+    }
+    return this.removeTagsFromUrl(url, tagNames);
+  }
+
   async setUrlTags(url: string, tagNames: string[]): Promise<boolean> {
     await this.ensureInitialized();
     // Replace all existing tags with the new set of tags
@@ -805,6 +862,14 @@ export class KB3Service extends EventEmitter {
     // TODO: Implement in orchestrator
     this.emit('url:tags-replaced', { url, tags: tagNames });
     return true;
+  }
+
+  async setUrlTagsById(id: string, tagNames: string[]): Promise<boolean> {
+    const url = await this.getUrlById(id);
+    if (!url) {
+      throw new Error(`URL not found with id: ${id}`);
+    }
+    return this.setUrlTags(url, tagNames);
   }
 
   async updateUrlAuthority(url: string, authority: number): Promise<boolean> {

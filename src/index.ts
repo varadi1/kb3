@@ -36,7 +36,7 @@ export {
   UnifiedSqlStorage
 } from './storage';
 
-// Scraper parameter management
+// Scraper parameter management and system
 export {
   ScraperParameterManager,
   PlaywrightParameterValidator,
@@ -44,6 +44,8 @@ export {
   DoclingParameterValidator
 } from './scrapers/ScraperParameterManager';
 export { PersistentParameterManager } from './scrapers/PersistentParameterManager';
+export { ScraperSystemValidator } from './scrapers/ScraperSystemValidator';
+export type { ValidationResult } from './scrapers/ScraperSystemValidator';
 
 // Utilities
 export * from './utils';

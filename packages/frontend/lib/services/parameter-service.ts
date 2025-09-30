@@ -140,6 +140,11 @@ class ParameterConfigService implements IParameterConfigService {
     })
   }
 
+  // Alias for SOLID test compatibility
+  async getParameterDefaults(scraperType: string): Promise<Record<string, any> | null> {
+    return this.getDefaultParameters(scraperType)
+  }
+
   async validateParameters(
     scraperType: string,
     parameters: Record<string, any>

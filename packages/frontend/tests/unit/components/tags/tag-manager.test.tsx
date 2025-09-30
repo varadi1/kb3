@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TagManager } from '@/components/tags/tag-manager'
 import { useKb3Store } from '@/lib/store'
@@ -15,8 +15,10 @@ jest.mock('@/components/ui/select', () => ({
     <div>
       <select role="combobox" value={value} onChange={(e) => onValueChange && onValueChange(e.target.value)}>
         <option value="no-parent">No parent</option>
-        <option value="documentation">documentation</option>
-        <option value="tutorials">tutorials</option>
+        <option value="1">documentation</option>
+        <option value="2">api-docs</option>
+        <option value="3">tutorials</option>
+        <option value="4">examples</option>
       </select>
       {children}
     </div>
@@ -46,15 +48,15 @@ const mockUseToast = useToast as jest.MockedFunction<typeof useToast>
 describe('TagManager Component', () => {
   const mockTags = [
     {
-      id: 1,
+      id: '1',
       name: 'documentation',
       created_at: '2025-01-28T10:00:00Z',
       urlCount: 10,
       children: [
         {
-          id: 2,
+          id: '2',
           name: 'api-docs',
-          parent_id: 1,
+          parent_id: '1',
           created_at: '2025-01-28T11:00:00Z',
           urlCount: 5,
           children: []
@@ -62,15 +64,15 @@ describe('TagManager Component', () => {
       ]
     },
     {
-      id: 3,
+      id: '3',
       name: 'tutorials',
       created_at: '2025-01-28T12:00:00Z',
       urlCount: 8,
       children: [
         {
-          id: 4,
+          id: '4',
           name: 'examples',
-          parent_id: 3,
+          parent_id: '3',
           created_at: '2025-01-28T13:00:00Z',
           urlCount: 3,
           children: []
@@ -132,8 +134,10 @@ describe('TagManager Component', () => {
       const input = screen.getByPlaceholderText(/New tag name/i)
       const addButton = screen.getByText('Plus')
 
-      await userEvent.type(input, 'new-tag')
-      await userEvent.click(addButton)
+      await act(async () => {
+        await userEvent.type(input, 'new-tag')
+        await userEvent.click(addButton)
+      })
 
       await waitFor(() => {
         expect(mockStore.createTag).toHaveBeenCalledWith('new-tag', undefined)
@@ -151,12 +155,16 @@ describe('TagManager Component', () => {
       const parentSelect = screen.getByRole('combobox')
       const addButton = screen.getByText('Plus')
 
-      // Select parent
-      fireEvent.change(parentSelect, { target: { value: 'documentation' } })
+      // Select parent (id: 1 = documentation)
+      await act(async () => {
+        fireEvent.change(parentSelect, { target: { value: '1' } })
+      })
 
       // Enter tag name
-      await userEvent.type(input, 'sub-tag')
-      await userEvent.click(addButton)
+      await act(async () => {
+        await userEvent.type(input, 'sub-tag')
+        await userEvent.click(addButton)
+      })
 
       await waitFor(() => {
         expect(mockStore.createTag).toHaveBeenCalledWith('sub-tag', 'documentation')
@@ -167,7 +175,9 @@ describe('TagManager Component', () => {
       render(<TagManager />)
 
       const addButton = screen.getByText('Plus')
-      await userEvent.click(addButton)
+      await act(async () => {
+        await userEvent.click(addButton)
+      })
 
       expect(mockStore.createTag).not.toHaveBeenCalled()
     })
@@ -177,8 +187,10 @@ describe('TagManager Component', () => {
 
       const input = screen.getByPlaceholderText(/New tag name/i) as HTMLInputElement
 
-      await userEvent.type(input, 'test-tag')
-      await userEvent.click(screen.getByText('Plus'))
+      await act(async () => {
+        await userEvent.type(input, 'test-tag')
+        await userEvent.click(screen.getByText('Plus'))
+      })
 
       await waitFor(() => {
         expect(input.value).toBe('')
@@ -191,8 +203,10 @@ describe('TagManager Component', () => {
       render(<TagManager />)
 
       const input = screen.getByPlaceholderText(/New tag name/i)
-      await userEvent.type(input, 'error-tag')
-      await userEvent.click(screen.getByText('Plus'))
+      await act(async () => {
+        await userEvent.type(input, 'error-tag')
+        await userEvent.click(screen.getByText('Plus'))
+      })
 
       await waitFor(() => {
         expect(mockToast).toHaveBeenCalledWith({
@@ -283,7 +297,9 @@ describe('TagManager Component', () => {
       })
 
       const deleteButtons = screen.getAllByText('Trash2')
-      await userEvent.click(deleteButtons[1]) // Delete 'tutorials'
+      await act(async () => {
+        await userEvent.click(deleteButtons[1]) // Delete 'tutorials'
+      })
 
       await waitFor(() => {
         expect(mockStore.deleteTag).toHaveBeenCalledWith('3')

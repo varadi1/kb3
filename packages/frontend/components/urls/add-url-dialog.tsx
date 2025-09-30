@@ -38,6 +38,18 @@ export function AddUrlDialog() {
       return
     }
 
+    // Validate URL format
+    try {
+      new URL(url)
+    } catch {
+      toast({
+        title: 'Error',
+        description: 'Please enter a valid URL (e.g., https://example.com)',
+        variant: 'destructive',
+      })
+      return
+    }
+
     setLoading(true)
     try {
       const tagList = tags.split(',').map(t => t.trim()).filter(Boolean)

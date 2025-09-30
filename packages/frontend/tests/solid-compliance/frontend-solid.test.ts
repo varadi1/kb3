@@ -98,7 +98,7 @@ describe('Frontend SOLID Compliance', () => {
 
     it('services should implement interfaces', () => {
       const services = [
-        { file: 'config-service.ts', interface: 'IConfigService' },
+        { file: 'config-service.ts', interface: 'IConfigExtendedService' },
         { file: 'import-export-service.ts', interface: 'IImportExportService' }
       ]
 

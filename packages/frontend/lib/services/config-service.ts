@@ -1,5 +1,5 @@
 import {
-  IConfigService,
+  IConfigExtendedService,
   ConfigData,
   ConfigTemplate,
   ScraperConfig,
@@ -10,7 +10,7 @@ import {
  * Configuration service implementation
  * Handles all configuration-related operations following SRP
  */
-export class ConfigService implements IConfigService {
+export class ConfigService implements IConfigExtendedService {
   private baseUrl = '/api/config'
 
   async fetchConfig(): Promise<ConfigData> {
@@ -143,12 +143,57 @@ export class ConfigService implements IConfigService {
       throw error
     }
   }
+
+  async getScrapers(): Promise<ScraperConfig[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/scrapers`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch scrapers')
+      }
+      const data = await response.json()
+      return data.data || []
+    } catch (error) {
+      console.error('Failed to fetch scrapers:', error)
+      throw error
+    }
+  }
+
+  async getCleaners(): Promise<CleanerConfig[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/cleaners`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch cleaners')
+      }
+      const data = await response.json()
+      return data.data || []
+    } catch (error) {
+      console.error('Failed to fetch cleaners:', error)
+      throw error
+    }
+  }
+
+  async setUrlScraperConfig(urlId: string, config: ScraperConfig): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseUrl}/url/${urlId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to set URL scraper config')
+      }
+    } catch (error) {
+      console.error('Failed to set URL scraper config:', error)
+      throw error
+    }
+  }
 }
 
 // Singleton instance
 let configServiceInstance: ConfigService | null = null
 
-export function getConfigService(): IConfigService {
+export function getConfigService(): IConfigExtendedService {
   if (!configServiceInstance) {
     configServiceInstance = new ConfigService()
   }

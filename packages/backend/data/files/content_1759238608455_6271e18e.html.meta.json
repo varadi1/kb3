@@ -1,0 +1,18 @@
+{
+  "path": "/Users/varadiimre/DEV/kb3/packages/backend/data/files/content_1759238608455_6271e18e.html",
+  "size": 17567,
+  "createdAt": "2025-09-30T13:23:28.456Z",
+  "updatedAt": "2025-09-30T13:23:28.456Z",
+  "mimeType": "text/html",
+  "checksum": "6271e18e37e08f8ccd599851070e3aa8",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://google.com",
+    "mimeType": "text/html",
+    "originalSize": 17567,
+    "fetchedAt": "2025-09-30T13:23:28.455Z",
+    "headers": {},
+    "scraperUsed": "http"
+  }
+}

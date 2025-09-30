@@ -176,35 +176,31 @@ router.put('/:id',
       console.log(`[DEBUG] Using URL for parameters: ${actualUrlString}`);
 
       // Handle scraper/cleaner configuration
-      // Skip parameter setting for default scraper entirely
-      if (updates.scraperType && updates.scraperType !== 'default' && actualUrlString) {
-        // Only set parameters for non-default scrapers
-        console.log(`[DEBUG] Setting parameters for URL: ${actualUrlString}, scraperType: ${updates.scraperType}, cleaners: ${JSON.stringify(updates.cleaners)}`);
-        await kb3Service.setUrlParameters(actualUrlString, {
-          scraperType: updates.scraperType,
-          cleaners: updates.cleaners,
-          priority: updates.priority,
-          parameters: {} // Provide empty parameters object to avoid validation errors
-        });
-        console.log(`[DEBUG] Parameters set successfully for URL: ${actualUrlString}`);
-      } else if (updates.scraperType === 'default') {
-        // For default scraper, we need to remove any existing parameters
-        // AND we should NOT try to save new parameters
-        try {
-          await kb3Service.removeUrlParameters(actualUrlString);
-        } catch (error) {
-          // It's okay if there are no parameters to remove
-          console.log('No parameters to remove for default scraper');
+      if (actualUrlString) {
+        // Get current parameters to preserve scraperType if not being changed
+        const currentParams = await kb3Service.getUrlParameters(actualUrlString);
+        const scraperType = updates.scraperType !== undefined ? updates.scraperType : (currentParams?.scraperType || 'default');
+        const cleaners = updates.cleaners !== undefined ? updates.cleaners : (currentParams?.cleaners || []);
+
+        if (scraperType !== 'default' || cleaners.length > 0) {
+          // Save parameters for non-default scrapers OR when cleaners are specified
+          console.log(`[DEBUG] Setting parameters for URL: ${actualUrlString}, scraperType: ${scraperType}, cleaners: ${JSON.stringify(cleaners)}`);
+          await kb3Service.setUrlParameters(actualUrlString, {
+            scraperType: scraperType,
+            cleaners: cleaners,
+            priority: updates.priority !== undefined ? updates.priority : (currentParams?.priority || 10),
+            parameters: currentParams?.parameters || {}
+          });
+          console.log(`[DEBUG] Parameters set successfully for URL: ${actualUrlString}`);
+        } else if (updates.scraperType === 'default' && (!updates.cleaners || updates.cleaners.length === 0)) {
+          // Only remove parameters if explicitly set to default AND no cleaners
+          try {
+            await kb3Service.removeUrlParameters(actualUrlString);
+            console.log('Removed parameters for default scraper with no cleaners');
+          } catch (error) {
+            console.log('No parameters to remove for default scraper');
+          }
         }
-      } else if (updates.cleaners && !updates.scraperType) {
-        // If only cleaners are being updated without a scraperType change,
-        // we should not call setUrlParameters at all
-        // TODO: Implement proper cleaner-only configuration storage
-        console.log('Cleaners update without scraperType - skipping parameter validation');
-      } else if (updates.priority !== undefined && !updates.scraperType) {
-        // If only priority is being updated without scraperType,
-        // we cannot save it via setUrlParameters (requires scraperType)
-        console.log('Priority update without scraperType - skipping');
       }
 
       // TODO: Handle metadata and status updates when KB3Service supports them
@@ -449,12 +445,12 @@ router.post('/batch-tags',
 
       for (const urlId of urlIds) {
         if (operation === 'add') {
-          await kb3Service.addTagsToUrl(urlId, tags);
+          await kb3Service.addTagsToUrlById(urlId, tags);
         } else if (operation === 'remove') {
-          await kb3Service.removeTagsFromUrl(urlId, tags);
+          await kb3Service.removeTagsFromUrlById(urlId, tags);
         } else if (operation === 'replace') {
           // For replace, we set the tags directly (remove all then add new)
-          await kb3Service.setUrlTags(urlId, tags);
+          await kb3Service.setUrlTagsById(urlId, tags);
         }
         processed++;
       }

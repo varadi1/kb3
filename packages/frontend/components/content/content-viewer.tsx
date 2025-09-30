@@ -64,6 +64,9 @@ export function ContentViewer({ url, open, onOpenChange }: ContentViewerProps) {
   const { toast } = useToast()
   const fetchUrls = useKb3Store(state => state.fetchUrls)
 
+  // Determine which content to display based on active tab (SRP - display concern)
+  const displayContent = activeTab === 'original' ? originalContent : cleanedContent
+
   useEffect(() => {
     if (open && url) {
       fetchContent()

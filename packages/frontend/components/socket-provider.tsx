@@ -90,30 +90,81 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     })
 
     socketInstance.on('processing:failed', (data) => {
-      // Ensure we have a valid URL string and error message
-      const url = typeof data.url === 'string' ? data.url : 'Unknown URL'
-      const errorMessage = typeof data.error?.message === 'string' ? data.error.message : 'Processing failed'
+      // Ensure we have a valid URL string
+      const url = typeof data?.url === 'string' ? data.url : 'Unknown URL'
+
+      // Ultra-defensive error extraction to prevent objects from reaching React
+      let errorMessage: string = 'Processing failed'
+
+      try {
+        if (data?.error) {
+          if (typeof data.error === 'string') {
+            errorMessage = data.error
+          } else if (typeof data.error === 'number' || typeof data.error === 'boolean') {
+            errorMessage = String(data.error)
+          } else if (data.error && typeof data.error === 'object' && !Array.isArray(data.error)) {
+            // Handle error objects safely
+            if (data.error.message && typeof data.error.message === 'string') {
+              errorMessage = data.error.message
+            } else if (data.error.error && typeof data.error.error === 'string') {
+              errorMessage = data.error.error
+            } else if (data.error.toString && typeof data.error.toString === 'function') {
+              try {
+                const str = data.error.toString()
+                if (typeof str === 'string' && str !== '[object Object]') {
+                  errorMessage = str
+                }
+              } catch {
+                // Ignore toString errors
+              }
+            }
+            // Check for nested ProcessingItem that might have been sent by mistake
+            if ('id' in data.error && 'url' in data.error && 'status' in data.error) {
+              console.error('WARNING: ProcessingItem object sent as error!', data.error)
+              errorMessage = 'Processing failed with invalid error object'
+            }
+          }
+        }
+
+        // CRITICAL FIX: Check if the entire data object is accidentally a ProcessingItem
+        if (!data?.error && data && typeof data === 'object' && 'id' in data && 'status' in data && 'startedAt' in data) {
+          console.error('CRITICAL: ProcessingItem passed as error data!', data)
+          errorMessage = `Processing failed for URL: ${data.url || 'Unknown'}`
+        }
+      } catch (e) {
+        console.error('Error extracting error message:', e)
+        errorMessage = 'Processing failed'
+      }
+
+      // Triple-check: ensure errorMessage is ALWAYS a string primitive
+      const safeErrorMessage = String(errorMessage || 'Processing failed')
 
       updateProcessingTask({
         id: url,
         url: url,
         status: 'failed',
         progress: 0,
-        message: errorMessage
+        message: safeErrorMessage
       })
 
       toast({
         title: 'Processing Failed',
-        description: errorMessage || `Failed to process: ${url}`,
+        description: safeErrorMessage,
         variant: 'destructive',
       })
     })
 
     // Handle batch events
     socketInstance.on('batch:completed', (data) => {
+      // Safely handle batch completion data
+      const count = typeof data?.count === 'number' ? data.count : 0
+      const results = Array.isArray(data?.results) ? data.results : []
+      const successCount = results.filter((r: any) => r?.success === true).length
+      const failedCount = results.length - successCount
+
       toast({
         title: 'Batch Processing Completed',
-        description: `Processed ${data.count} URLs. Success: ${data.results.filter((r: any) => r.success).length}, Failed: ${data.results.filter((r: any) => !r.success).length}`,
+        description: `Processed ${count} URLs. Success: ${successCount}, Failed: ${failedCount}`,
       })
 
       fetchUrls()
@@ -125,18 +176,20 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     })
 
     socketInstance.on('urls:added', (data) => {
+      const count = typeof data?.count === 'number' ? data.count : 0
       toast({
         title: 'URLs Added',
-        description: `Added ${data.count} URLs to the knowledge base`,
+        description: `Added ${count} URLs to the knowledge base`,
       })
       fetchUrls()
     })
 
     // Handle tag events
     socketInstance.on('tag:created', (data) => {
+      const tagName = typeof data?.name === 'string' ? data.name : 'Unknown tag'
       toast({
         title: 'Tag Created',
-        description: `Tag "${data.name}" has been created`,
+        description: `Tag "${tagName}" has been created`,
       })
     })
 

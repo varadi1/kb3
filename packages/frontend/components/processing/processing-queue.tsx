@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { useKb3Store } from '@/lib/store'
 import { useToast } from '@/components/ui/use-toast'
@@ -16,12 +16,59 @@ import {
   X,
 } from 'lucide-react'
 
+// Helper function to safely count items by status
+function safeCountByStatus(items: unknown, status: string): number {
+  try {
+    // Ensure items is an array
+    if (!Array.isArray(items)) {
+      console.warn('safeCountByStatus: items is not an array', typeof items)
+      return 0
+    }
+
+    // Filter and count with extra safety checks
+    const filtered = items.filter((item) => {
+      // Ensure item is an object and not null
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return false
+      }
+      // Check status property
+      return item.status === status
+    })
+
+    // Ensure we have a valid array with a numeric length
+    const count = filtered?.length ?? 0
+
+    // Extra safety: ensure count is a number
+    if (typeof count !== 'number' || isNaN(count)) {
+      console.warn('safeCountByStatus: count is not a valid number', count)
+      return 0
+    }
+
+    return count
+  } catch (error) {
+    console.error('safeCountByStatus error:', error)
+    return 0
+  }
+}
+
 export function ProcessingQueue() {
   const [queue, setQueue] = useState<ProcessingItem[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
 
   const { fetchQueue, startProcessing, stopProcessing, retryItem, clearCompleted } = useKb3Store()
   const { toast } = useToast()
+
+  // Memoize queue statistics to prevent unnecessary recalculations
+  const queueStats = useMemo(() => {
+    // Extra safety check
+    const safeQueue = Array.isArray(queue) ? queue : []
+    return {
+      pending: safeCountByStatus(safeQueue, 'pending'),
+      processing: safeCountByStatus(safeQueue, 'processing'),
+      completed: safeCountByStatus(safeQueue, 'completed'),
+      failed: safeCountByStatus(safeQueue, 'failed'),
+    }
+  }, [queue])
 
   useEffect(() => {
     loadQueue()
@@ -32,8 +79,16 @@ export function ProcessingQueue() {
   const loadQueue = async () => {
     try {
       const items = await fetchQueue()
-      // Ensure items is an array
-      const validItems = Array.isArray(items) ? items : []
+      // Ensure items is an array and filter out any non-object items
+      const validItems = Array.isArray(items)
+        ? items.filter(item =>
+            item &&
+            typeof item === 'object' &&
+            !Array.isArray(item) &&
+            typeof item.id === 'string' &&
+            typeof item.url === 'string'
+          )
+        : []
       setQueue(validItems)
       setIsProcessing(validItems.some(item => item?.status === 'processing'))
     } catch (error) {
@@ -120,6 +175,8 @@ export function ProcessingQueue() {
         return <CheckCircle className="h-4 w-4 text-green-500" />
       case 'failed':
         return <AlertCircle className="h-4 w-4 text-red-500" />
+      default:
+        return null // Always return something, never undefined
     }
   }
 
@@ -153,17 +210,17 @@ export function ProcessingQueue() {
           <Button
             onClick={handleClearCompleted}
             variant="outline"
-            disabled={!queue.some(item => item.status === 'completed')}
+            disabled={queueStats.completed === 0}
           >
             Clear Completed
           </Button>
         </div>
 
         <div className="text-sm text-muted-foreground">
-          {queue.filter(item => item.status === 'pending').length} pending,{' '}
-          {queue.filter(item => item.status === 'processing').length} processing,{' '}
-          {queue.filter(item => item.status === 'completed').length} completed,{' '}
-          {queue.filter(item => item.status === 'failed').length} failed
+          {String(queueStats.pending)} pending,{' '}
+          {String(queueStats.processing)} processing,{' '}
+          {String(queueStats.completed)} completed,{' '}
+          {String(queueStats.failed)} failed
         </div>
       </div>
 
@@ -174,7 +231,12 @@ export function ProcessingQueue() {
           </div>
         ) : (
           <div className="divide-y">
-            {queue.map((item) => (
+            {queue.map((item) => {
+              // Ensure item is valid before rendering
+              if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                return null
+              }
+              return (
               <div
                 key={item.id}
                 className="p-4 flex items-center justify-between hover:bg-accent/50"
@@ -189,17 +251,15 @@ export function ProcessingQueue() {
                       <div className="text-xs text-red-500 mt-1">
                         {typeof item.error === 'string'
                           ? item.error
-                          : typeof item.error === 'object' && item.error !== null
-                          ? JSON.stringify(item.error)
                           : 'Processing failed'}
                       </div>
                     )}
                     {item.startedAt && (
                       <div className="text-xs text-muted-foreground mt-1">
                         {item.status === 'processing'
-                          ? `Processing for ${formatDuration(item.startedAt)}`
+                          ? `Processing for ${String(formatDuration(item.startedAt))}`
                           : item.completedAt
-                          ? `Completed in ${formatDuration(item.startedAt, item.completedAt)}`
+                          ? `Completed in ${String(formatDuration(item.startedAt, item.completedAt))}`
                           : ''}
                       </div>
                     )}
@@ -229,7 +289,8 @@ export function ProcessingQueue() {
                   )}
                 </div>
               </div>
-            ))}
+            )
+            })}
           </div>
         )}
       </div>

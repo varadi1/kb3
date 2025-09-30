@@ -214,7 +214,10 @@ describe('ConfigService', () => {
         'fetchTemplates',
         'saveTemplate',
         'deleteTemplate',
-        'applyTemplate'
+        'applyTemplate',
+        'getScrapers',
+        'getCleaners',
+        'setUrlScraperConfig'
       ]
 
       const actualMethods = Object.getOwnPropertyNames(

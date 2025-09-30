@@ -36,11 +36,11 @@ export function BatchAddUrlsDialog() {
   const { addUrls, fetchUrls } = useKb3Store()
   const { toast } = useToast()
 
-  const parseUrls = (text: string) => {
+  const parseUrls = (text: string, globalTagsStr: string = globalTags) => {
     const lines = text.split('\n').filter(line => line.trim())
     const valid: Array<{ url: string; tags: string[] }> = []
     const invalid: string[] = []
-    const globalTagList = globalTags.split(',').map(t => t.trim()).filter(Boolean)
+    const globalTagList = globalTagsStr.split(',').map(t => t.trim()).filter(Boolean)
 
     lines.forEach(line => {
       const trimmedLine = line.trim()
@@ -81,14 +81,21 @@ export function BatchAddUrlsDialog() {
   const handleTextChange = (text: string) => {
     setUrlsText(text)
     if (text.trim()) {
-      parseUrls(text)
+      parseUrls(text, globalTags)
     } else {
       setParseResult({ valid: [], invalid: [] })
     }
   }
 
+  const handleGlobalTagsChange = (tags: string) => {
+    setGlobalTags(tags)
+    if (urlsText.trim()) {
+      parseUrls(urlsText, tags)
+    }
+  }
+
   const handleSubmit = async () => {
-    const { valid, invalid } = parseUrls(urlsText)
+    const { valid, invalid } = parseUrls(urlsText, globalTags)
 
     if (valid.length === 0) {
       toast({
@@ -164,7 +171,7 @@ www.example.com/page5 [reference]`
             <Textarea
               id="global-tags"
               value={globalTags}
-              onChange={(e) => setGlobalTags(e.target.value)}
+              onChange={(e) => handleGlobalTagsChange(e.target.value)}
               placeholder="tag1, tag2, tag3"
               rows={2}
               className="font-mono text-sm"

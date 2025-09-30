@@ -51,16 +51,25 @@ export class ScraperAwareContentFetcher implements IContentFetcher {
     // Select appropriate scraper
     const scraper = this.scraperSelector.selectScraper(url);
 
-    if (scraper) {
-      // Apply URL-specific parameters if configured
-      this.applyUrlParameters(scraper, url);
+    if (!scraper) {
+      // No scraper could handle this URL
+      // Get diagnostic information for error message
+      const registeredScrapers = this.scraperRegistry.getNames();
+      const defaultScraper = this.scraperRegistry.getDefault();
 
-      // Use selected scraper with rate limiting and error collection
-      return this.fetchWithScraper(scraper, url, options);
+      throw new Error(
+        `No scraper available to handle URL: ${url}\n` +
+        `Registered scrapers: ${registeredScrapers.length > 0 ? registeredScrapers.join(', ') : 'NONE'}\n` +
+        `Default scraper: ${defaultScraper ? defaultScraper.getName() : 'NONE'}\n` +
+        `This indicates a system configuration issue. Ensure at least HttpScraper is registered.`
+      );
     }
 
-    // Fallback to original fetcher
-    return this.fallbackFetcher.fetch(url, options);
+    // Apply URL-specific parameters if configured
+    this.applyUrlParameters(scraper, url);
+
+    // Use selected scraper with rate limiting and error collection
+    return this.fetchWithScraper(scraper, url, options);
   }
 
   async fetchBatch(urls: string[], options?: FetchOptions): Promise<FetchedContent[]> {
@@ -331,11 +340,32 @@ export class ScraperAwareContentFetcher implements IContentFetcher {
     return base;
   }
 
+  /**
+   * Ensures a default scraper is available (HttpScraper)
+   * Follows Single Responsibility: Only ensures basic scraping capability
+   * Critical for system stability - HttpScraper must always be available
+   */
   private ensureDefaultScraper(): void {
+    // Always ensure HttpScraper is registered
     if (!this.scraperRegistry.has('http')) {
-      const httpScraper = new HttpScraper(this.fallbackFetcher);
-      this.scraperRegistry.register('http', httpScraper);
-      this.scraperRegistry.setDefault('http');
+      try {
+        const httpScraper = new HttpScraper(this.fallbackFetcher);
+        this.scraperRegistry.register('http', httpScraper);
+      } catch (error) {
+        console.error('CRITICAL: Failed to register HttpScraper:', error);
+        throw new Error('Cannot initialize scraper system: HttpScraper registration failed');
+      }
+    }
+
+    // Ensure a default scraper is set
+    const defaultScraper = this.scraperRegistry.getDefault();
+    if (!defaultScraper) {
+      // Set HttpScraper as default if no default is configured
+      if (this.scraperRegistry.has('http')) {
+        this.scraperRegistry.setDefault('http');
+      } else {
+        throw new Error('CRITICAL: No default scraper available and HttpScraper registration failed');
+      }
     }
   }
 }

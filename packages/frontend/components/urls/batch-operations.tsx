@@ -49,7 +49,8 @@ export function BatchOperationsPanel() {
     batchUpdateUrls,
     processUrls,
     deleteUrls,
-    deselectAllUrls
+    deselectAllUrls,
+    setBatchParameterConfig
   } = useKb3Store()
 
   const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -239,23 +240,8 @@ export function BatchOperationsPanel() {
     try {
       const urlIds = Array.from(selectedUrls)
 
-      const response = await fetch('/api/config/batch/parameters', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          urls: urlIds,
-          scraperType: selectedScraperType,
-          parameters: parameters,
-          priority: 15,
-          enabled: true
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to save batch parameters')
-      }
-
-      const data = await response.json()
+      // Use store method instead of direct fetch - follows SOLID principles
+      await setBatchParameterConfig(urlIds, selectedScraperType, parameters, 15)
 
       toast({
         title: 'Success',
@@ -304,10 +290,27 @@ export function BatchOperationsPanel() {
             Assign Tags
           </Label>
           <div className="flex gap-2">
+            <Select value="" onValueChange={(value) => {
+              if (value && !selectedTags.includes(value)) {
+                setSelectedTags([...selectedTags, value])
+              }
+            }}>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Select existing tag..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availableTags.filter(tag => !selectedTags.includes(tag.name)).map((tag) => (
+                  <SelectItem key={tag.id} value={tag.name}>
+                    {tag.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               value={newTag}
               onChange={(e) => setNewTag(e.target.value)}
-              placeholder="Enter tag name"
+              placeholder="Or type new tag name"
+              className="flex-1"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
@@ -320,26 +323,31 @@ export function BatchOperationsPanel() {
               onClick={handleAddTag}
               disabled={!newTag.trim()}
             >
-              Add Tag
-            </Button>
-            <Button
-              onClick={handleAssignTags}
-              disabled={selectedTags.length === 0 || isProcessing}
-            >
-              Assign Tags
+              Add
             </Button>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {selectedTags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="gap-1">
-                {tag}
-                <X
-                  className="h-3 w-3 cursor-pointer hover:text-destructive"
-                  onClick={() => handleRemoveTag(tag)}
-                />
-              </Badge>
-            ))}
-          </div>
+          {selectedTags.length > 0 && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {selectedTags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="gap-1">
+                    {tag}
+                    <X
+                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                      onClick={() => handleRemoveTag(tag)}
+                    />
+                  </Badge>
+                ))}
+              </div>
+              <Button
+                onClick={handleAssignTags}
+                disabled={isProcessing}
+                className="w-full"
+              >
+                Assign {selectedTags.length} Tag{selectedTags.length !== 1 ? 's' : ''} to {selectedCount} URL{selectedCount !== 1 ? 's' : ''}
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Authority Update */}

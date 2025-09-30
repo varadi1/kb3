@@ -14,6 +14,8 @@ export * from './IUrlRepository';
 export * from './IOriginalFileRepository';
 export * from './IProcessedFileRepository';
 export * from './IConfigurationPersistence';
+export * from './ITag';
+export * from './ITagManager';
 
 // Scraper interfaces
 export * from './IScraper';

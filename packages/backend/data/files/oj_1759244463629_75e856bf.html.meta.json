@@ -1,0 +1,18 @@
+{
+  "path": "/Users/varadiimre/DEV/kb3/packages/backend/data/files/oj_1759244463629_75e856bf.html",
+  "size": 404032,
+  "createdAt": "2025-09-30T15:01:03.630Z",
+  "updatedAt": "2025-09-30T15:01:03.630Z",
+  "mimeType": "text/html",
+  "checksum": "75e856bf0488de57b3e7c07bb2b995c3",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://eur-lex.europa.eu/eli/dir/1993/42/oj",
+    "mimeType": "text/html",
+    "originalSize": 404032,
+    "fetchedAt": "2025-09-30T15:01:03.629Z",
+    "headers": {},
+    "scraperUsed": "http"
+  }
+}

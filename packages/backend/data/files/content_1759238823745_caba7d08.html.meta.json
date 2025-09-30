@@ -1,0 +1,18 @@
+{
+  "path": "/Users/varadiimre/DEV/kb3/packages/backend/data/files/content_1759238823745_caba7d08.html",
+  "size": 17582,
+  "createdAt": "2025-09-30T13:27:03.746Z",
+  "updatedAt": "2025-09-30T13:27:03.746Z",
+  "mimeType": "text/html",
+  "checksum": "caba7d08125c97da621989288ecdc381",
+  "isCompressed": false,
+  "isEncrypted": false,
+  "metadata": {
+    "url": "https://google.com",
+    "mimeType": "text/html",
+    "originalSize": 17582,
+    "fetchedAt": "2025-09-30T13:27:03.745Z",
+    "headers": {},
+    "scraperUsed": "http"
+  }
+}

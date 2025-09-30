@@ -207,7 +207,12 @@ describe('Service Layer Integration', () => {
           })
         })
         .mockResolvedValueOnce({
-          // Fetch URLs after import
+          // Fetch URLs after import (internal call from importUrls)
+          ok: true,
+          json: async () => ({ success: true, data: importData })
+        })
+        .mockResolvedValueOnce({
+          // Fetch URLs after import (manual call in test)
           ok: true,
           json: async () => ({ success: true, data: importData })
         })

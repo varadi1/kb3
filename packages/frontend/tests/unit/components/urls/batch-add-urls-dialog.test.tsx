@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BatchAddUrlsDialog } from '@/components/urls/batch-add-urls-dialog'
 import { useKb3Store } from '@/lib/store'
@@ -71,7 +71,9 @@ describe('BatchAddUrlsDialog', () => {
     render(<BatchAddUrlsDialog />)
 
     const button = screen.getByText('Batch Add URLs')
-    await userEvent.click(button)
+    await act(async () => {
+      await userEvent.click(button)
+    })
 
     expect(screen.getByText('Batch Add URLs', { selector: 'h2' })).toBeInTheDocument()
     expect(screen.getByText(/Add multiple URLs at once/)).toBeInTheDocument()
@@ -81,10 +83,14 @@ describe('BatchAddUrlsDialog', () => {
     render(<BatchAddUrlsDialog />)
 
     const button = screen.getByText('Batch Add URLs')
-    await userEvent.click(button)
+    await act(async () => {
+      await userEvent.click(button)
+    })
 
     const textarea = screen.getByPlaceholderText(/https:\/\/example.com\/page1/)
-    await userEvent.type(textarea, 'https://example.com {[}tag1, tag2{]}')
+    await act(async () => {
+      fireEvent.change(textarea, { target: { value: 'https://example.com [tag1, tag2]' } })
+    })
 
     // Wait for parsing to complete
     await waitFor(() => {
@@ -115,10 +121,14 @@ describe('BatchAddUrlsDialog', () => {
     render(<BatchAddUrlsDialog />)
 
     const button = screen.getByText('Batch Add URLs')
-    await userEvent.click(button)
+    await act(async () => {
+      await userEvent.click(button)
+    })
 
     const textarea = screen.getByPlaceholderText(/https:\/\/example.com\/page1/)
-    await userEvent.type(textarea, 'example.com')
+    await act(async () => {
+      await userEvent.type(textarea, 'example.com')
+    })
 
     await waitFor(() => {
       expect(screen.getByText('1 valid URL(s)')).toBeInTheDocument()
@@ -129,16 +139,24 @@ describe('BatchAddUrlsDialog', () => {
     render(<BatchAddUrlsDialog />)
 
     const button = screen.getByText('Batch Add URLs')
-    await userEvent.click(button)
+    await act(async () => {
+      await userEvent.click(button)
+    })
 
     const globalTagsInput = screen.getByPlaceholderText('tag1, tag2, tag3')
-    await userEvent.type(globalTagsInput, 'global1, global2')
+    await act(async () => {
+      await userEvent.type(globalTagsInput, 'global1, global2')
+    })
 
     const urlsTextarea = screen.getByPlaceholderText(/https:\/\/example.com\/page1/)
-    await userEvent.type(urlsTextarea, 'https://example.com\nhttps://example2.com')
+    await act(async () => {
+      await userEvent.type(urlsTextarea, 'https://example.com\nhttps://example2.com')
+    })
 
     const submitButton = screen.getByText(/Add 2 URL/)
-    await userEvent.click(submitButton)
+    await act(async () => {
+      await userEvent.click(submitButton)
+    })
 
     await waitFor(() => {
       expect(mockAddUrls).toHaveBeenCalledWith([
@@ -152,16 +170,24 @@ describe('BatchAddUrlsDialog', () => {
     render(<BatchAddUrlsDialog />)
 
     const button = screen.getByText('Batch Add URLs')
-    await userEvent.click(button)
+    await act(async () => {
+      await userEvent.click(button)
+    })
 
     const globalTagsInput = screen.getByPlaceholderText('tag1, tag2, tag3')
-    await userEvent.type(globalTagsInput, 'global')
+    await act(async () => {
+      await userEvent.type(globalTagsInput, 'global')
+    })
 
     const urlsTextarea = screen.getByPlaceholderText(/https:\/\/example.com\/page1/)
-    await userEvent.type(urlsTextarea, 'https://example.com {[}specific{]}')
+    await act(async () => {
+      fireEvent.change(urlsTextarea, { target: { value: 'https://example.com [specific]' } })
+    })
 
     const submitButton = screen.getByText(/Add 1 URL/)
-    await userEvent.click(submitButton)
+    await act(async () => {
+      await userEvent.click(submitButton)
+    })
 
     await waitFor(() => {
       expect(mockAddUrls).toHaveBeenCalledWith([
@@ -174,16 +200,24 @@ describe('BatchAddUrlsDialog', () => {
     render(<BatchAddUrlsDialog />)
 
     const button = screen.getByText('Batch Add URLs')
-    await userEvent.click(button)
+    await act(async () => {
+      await userEvent.click(button)
+    })
 
     const globalTagsInput = screen.getByPlaceholderText('tag1, tag2, tag3')
-    await userEvent.type(globalTagsInput, 'tag1, tag1')
+    await act(async () => {
+      await userEvent.type(globalTagsInput, 'tag1, tag1')
+    })
 
     const urlsTextarea = screen.getByPlaceholderText(/https:\/\/example.com\/page1/)
-    await userEvent.type(urlsTextarea, 'https://example.com {[}tag1, tag2{]}')
+    await act(async () => {
+      fireEvent.change(urlsTextarea, { target: { value: 'https://example.com [tag1, tag2]' } })
+    })
 
     const submitButton = screen.getByText(/Add 1 URL/)
-    await userEvent.click(submitButton)
+    await act(async () => {
+      await userEvent.click(submitButton)
+    })
 
     await waitFor(() => {
       expect(mockAddUrls).toHaveBeenCalledWith([
@@ -251,13 +285,19 @@ describe('BatchAddUrlsDialog', () => {
     render(<BatchAddUrlsDialog />)
 
     const button = screen.getByText('Batch Add URLs')
-    await userEvent.click(button)
+    await act(async () => {
+      await userEvent.click(button)
+    })
 
     const urlsTextarea = screen.getByPlaceholderText(/https:\/\/example.com\/page1/)
-    await userEvent.type(urlsTextarea, 'https://example.com')
+    await act(async () => {
+      await userEvent.type(urlsTextarea, 'https://example.com')
+    })
 
     const submitButton = screen.getByText(/Add 1 URL/)
-    await userEvent.click(submitButton)
+    await act(async () => {
+      await userEvent.click(submitButton)
+    })
 
     await waitFor(() => {
       expect(mockAddUrls).toHaveBeenCalled()
@@ -274,18 +314,24 @@ describe('BatchAddUrlsDialog', () => {
     render(<BatchAddUrlsDialog />)
 
     const button = screen.getByText('Batch Add URLs')
-    await userEvent.click(button)
+    await act(async () => {
+      await userEvent.click(button)
+    })
 
     const urlsTextarea = screen.getByPlaceholderText(/https:\/\/example.com\/page1/)
-    const urlsToType = `https://example1.com\nhttps://example2.com {[}tag1{]}\nhttps://example3.com {[}tag2, tag3{]}`
-    await userEvent.type(urlsTextarea, urlsToType)
+    const urlsToType = `https://example1.com\nhttps://example2.com [tag1]\nhttps://example3.com [tag2, tag3]`
+    await act(async () => {
+      fireEvent.change(urlsTextarea, { target: { value: urlsToType } })
+    })
 
     await waitFor(() => {
       expect(screen.getByText('3 valid URL(s)')).toBeInTheDocument()
     })
 
     const submitButton = screen.getByText(/Add 3 URL/)
-    await userEvent.click(submitButton)
+    await act(async () => {
+      await userEvent.click(submitButton)
+    })
 
     await waitFor(() => {
       expect(mockAddUrls).toHaveBeenCalledWith([
@@ -300,11 +346,15 @@ describe('BatchAddUrlsDialog', () => {
     render(<BatchAddUrlsDialog />)
 
     const button = screen.getByText('Batch Add URLs')
-    await userEvent.click(button)
+    await act(async () => {
+      await userEvent.click(button)
+    })
 
     const urlsTextarea = screen.getByPlaceholderText(/https:\/\/example.com\/page1/)
     const urlsWithEmptyLines = `https://example1.com\n\n\nhttps://example2.com`
-    await userEvent.type(urlsTextarea, urlsWithEmptyLines)
+    await act(async () => {
+      await userEvent.type(urlsTextarea, urlsWithEmptyLines)
+    })
 
     await waitFor(() => {
       expect(screen.getByText('2 valid URL(s)')).toBeInTheDocument()
@@ -315,11 +365,15 @@ describe('BatchAddUrlsDialog', () => {
     render(<BatchAddUrlsDialog />)
 
     const button = screen.getByText('Batch Add URLs')
-    await userEvent.click(button)
+    await act(async () => {
+      await userEvent.click(button)
+    })
 
     const urlsTextarea = screen.getByPlaceholderText(/https:\/\/example.com\/page1/)
-    const urlsToType = `https://example1.com {[}tag1, tag2{]}\nhttps://example2.com {[}tag2, tag3{]}`
-    await userEvent.type(urlsTextarea, urlsToType)
+    const urlsToType = `https://example1.com [tag1, tag2]\nhttps://example2.com [tag2, tag3]`
+    await act(async () => {
+      fireEvent.change(urlsTextarea, { target: { value: urlsToType } })
+    })
 
     await waitFor(() => {
       expect(screen.getByText('tag1')).toBeInTheDocument()

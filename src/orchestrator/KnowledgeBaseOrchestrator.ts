@@ -564,13 +564,24 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
   private async fetchContent(url: string, _operationId: string): Promise<FetchedContent> {
     try {
       if (!this.contentFetcher.canFetch(url)) {
-        throw new Error(`Content fetcher cannot handle URL: ${url}`);
+        throw new Error(
+          `Content fetcher cannot handle URL: ${url}\n` +
+          `This may indicate no scraper is available for this URL type.`
+        );
       }
 
       return await this.contentFetcher.fetch(url);
     } catch (error) {
+      // Enhance error message with additional context
       const errorCode = this.mapFetchErrorToCode(error);
-      throw this.enhanceError(error, errorCode, ProcessingStage.FETCHING);
+      const enhancedError = this.enhanceError(error, errorCode, ProcessingStage.FETCHING);
+
+      // Add URL to error message for better debugging
+      if (enhancedError.message && !enhancedError.message.includes(url)) {
+        enhancedError.message = `[URL: ${url}] ${enhancedError.message}`;
+      }
+
+      throw enhancedError;
     }
   }
 

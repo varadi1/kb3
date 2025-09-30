@@ -31,13 +31,15 @@ export class ScraperFactory {
     const registry = ScraperRegistry.getInstance();
     const selector = new ScraperSelector(registry);
 
-    // Clear existing registrations
-    registry.clear();
-
-    // Register enabled scrapers
+    // Idempotent registration: only register if not already present
+    // This avoids clearing the registry and maintains SOLID principles (OCP)
     const enabledScrapers = config.scraping?.enabledScrapers || ['http'];
 
     for (const scraperName of enabledScrapers) {
+      // Skip if already registered (idempotent)
+      if (registry.has(scraperName)) {
+        continue;
+      }
 
       switch (scraperName) {
         case 'http':
@@ -58,10 +60,13 @@ export class ScraperFactory {
       }
     }
 
-    // Set default scraper
+    // Set default scraper (idempotent - safe to call multiple times)
     const defaultScraper = config.scraping?.defaultScraper || 'http';
     if (registry.has(defaultScraper)) {
       registry.setDefault(defaultScraper);
+    } else if (enabledScrapers.length > 0 && registry.has(enabledScrapers[0])) {
+      // Fallback: use first enabled scraper if configured default not available
+      registry.setDefault(enabledScrapers[0]);
     }
 
     // Configure scraper rules

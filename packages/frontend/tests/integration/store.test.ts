@@ -29,6 +29,7 @@ describe('KB3 Store Integration Tests', () => {
       ]
 
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
         json: async () => ({ success: true, data: mockUrls })
       })
 

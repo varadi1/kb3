@@ -1,0 +1,109 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - link "KB3" [ref=e6] [cursor=pointer]:
+            - /url: /
+            - img [ref=e7] [cursor=pointer]
+            - generic [ref=e11] [cursor=pointer]: KB3
+          - navigation [ref=e12]:
+            - link "Dashboard" [ref=e13] [cursor=pointer]:
+              - /url: /
+              - img [ref=e14] [cursor=pointer]
+              - generic [ref=e18] [cursor=pointer]: Dashboard
+            - link "URLs" [ref=e19] [cursor=pointer]:
+              - /url: /urls
+              - img [ref=e20] [cursor=pointer]
+              - generic [ref=e23] [cursor=pointer]: URLs
+            - link "Tags" [ref=e24] [cursor=pointer]:
+              - /url: /tags
+              - img [ref=e25] [cursor=pointer]
+              - generic [ref=e29] [cursor=pointer]: Tags
+            - link "Processing" [ref=e30] [cursor=pointer]:
+              - /url: /processing
+              - img [ref=e31] [cursor=pointer]
+              - generic [ref=e33] [cursor=pointer]: Processing
+            - link "Configuration" [ref=e34] [cursor=pointer]:
+              - /url: /config
+              - img [ref=e35] [cursor=pointer]
+              - generic [ref=e38] [cursor=pointer]: Configuration
+        - navigation [ref=e40]:
+          - generic [ref=e41]:
+            - generic [ref=e42]:
+              - img [ref=e43]
+              - generic [ref=e51]: Disconnected
+            - button "Toggle theme" [ref=e52]:
+              - img [ref=e53]
+              - img [ref=e63]
+              - generic [ref=e65]: Toggle theme
+    - main [ref=e66]:
+      - generic [ref=e67]:
+        - generic [ref=e68]:
+          - generic [ref=e69]:
+            - generic [ref=e70]:
+              - heading "Total URLs" [level=3] [ref=e71]
+              - img [ref=e72]
+            - generic [ref=e75]:
+              - generic [ref=e76]: "0"
+              - paragraph [ref=e77]: 0 processed
+          - generic [ref=e78]:
+            - generic [ref=e79]:
+              - heading "Processing" [level=3] [ref=e80]
+              - img [ref=e81]
+            - generic [ref=e83]:
+              - generic [ref=e84]: "0"
+              - paragraph [ref=e85]: 0 in queue
+          - generic [ref=e86]:
+            - generic [ref=e87]:
+              - heading "Failed" [level=3] [ref=e88]
+              - img [ref=e89]
+            - generic [ref=e94]:
+              - generic [ref=e95]: "0"
+              - paragraph [ref=e96]: Requires attention
+          - generic [ref=e97]:
+            - generic [ref=e98]:
+              - heading "Tags" [level=3] [ref=e99]
+              - img [ref=e100]
+            - generic [ref=e104]:
+              - generic [ref=e105]: "0"
+              - paragraph [ref=e106]: Categories created
+        - generic [ref=e107]:
+          - generic [ref=e108]:
+            - tablist [ref=e109]:
+              - tab "URLs" [selected] [ref=e110]:
+                - img [ref=e111]
+                - text: URLs
+              - tab "Tags" [active] [ref=e114]:
+                - img [ref=e115]
+                - text: Tags
+              - tab "Processing" [ref=e119]:
+                - img [ref=e120]
+                - text: Processing
+              - tab "Configuration" [ref=e122]:
+                - img [ref=e123]
+                - text: Configuration
+              - tab "Import/Export" [ref=e126]:
+                - img [ref=e127]
+                - text: Import/Export
+            - generic [ref=e131]:
+              - button "Add URL" [ref=e132]:
+                - img [ref=e133]
+                - text: Add URL
+              - button "Batch Add URLs" [ref=e136]:
+                - img [ref=e137]
+                - text: Batch Add URLs
+          - tabpanel "URLs" [ref=e140]:
+            - generic [ref=e141]:
+              - generic [ref=e142]:
+                - heading "URL Management" [level=3] [ref=e143]
+                - paragraph [ref=e144]: Manage your knowledge base URLs, assign tags, and configure processing settings
+              - generic [ref=e146]:
+                - paragraph [ref=e147]: No URLs found in the knowledge base
+                - paragraph [ref=e148]: Add some URLs to get started
+  - region "Notifications (F8)":
+    - list
+```

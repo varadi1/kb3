@@ -92,8 +92,8 @@ describe('BatchOperationsPanel', () => {
     it('should allow adding tags', () => {
       render(<BatchOperationsPanel />)
 
-      const tagInput = screen.getByPlaceholderText('Enter tag name')
-      const addButton = screen.getByText('Add Tag')
+      const tagInput = screen.getByPlaceholderText('Or type new tag name')
+      const addButton = screen.getByRole('button', { name: 'Add' })
 
       fireEvent.change(tagInput, { target: { value: 'newtag' } })
       fireEvent.click(addButton)
@@ -104,7 +104,7 @@ describe('BatchOperationsPanel', () => {
     it('should handle Enter key for adding tags', () => {
       render(<BatchOperationsPanel />)
 
-      const tagInput = screen.getByPlaceholderText('Enter tag name')
+      const tagInput = screen.getByPlaceholderText('Or type new tag name')
 
       fireEvent.change(tagInput, { target: { value: 'entertag' } })
       fireEvent.keyDown(tagInput, { key: 'Enter', code: 'Enter' })
@@ -115,7 +115,7 @@ describe('BatchOperationsPanel', () => {
     it('should allow removing tags', () => {
       render(<BatchOperationsPanel />)
 
-      const tagInput = screen.getByPlaceholderText('Enter tag name')
+      const tagInput = screen.getByPlaceholderText('Or type new tag name')
       fireEvent.change(tagInput, { target: { value: 'removeme' } })
       fireEvent.keyDown(tagInput, { key: 'Enter', code: 'Enter' })
 
@@ -130,11 +130,11 @@ describe('BatchOperationsPanel', () => {
 
       render(<BatchOperationsPanel />)
 
-      const tagInput = screen.getByPlaceholderText('Enter tag name')
+      const tagInput = screen.getByPlaceholderText('Or type new tag name')
       fireEvent.change(tagInput, { target: { value: 'newtag' } })
       fireEvent.keyDown(tagInput, { key: 'Enter', code: 'Enter' })
 
-      const assignButton = screen.getByRole('button', { name: 'Assign Tags' })
+      const assignButton = screen.getByRole('button', { name: /Assign 1 Tag to 3 URLs/i })
       fireEvent.click(assignButton)
 
       await waitFor(() => {
@@ -150,19 +150,18 @@ describe('BatchOperationsPanel', () => {
       })
     })
 
-    it('should disable assign button when no tags selected', () => {
+    it('should show assign button only when tags are selected', () => {
       render(<BatchOperationsPanel />)
 
-      const assignButton = screen.getByRole('button', { name: 'Assign Tags' })
+      // The button should not exist when no tags are selected
+      expect(screen.queryByRole('button', { name: /Assign.*Tag.*to.*URL/i })).not.toBeInTheDocument()
 
-      // The button should be disabled when no tags are selected
-      expect(assignButton).toBeDisabled()
-
-      // After adding a tag, the button should be enabled
-      const tagInput = screen.getByPlaceholderText('Enter tag name')
+      // After adding a tag, the button should appear
+      const tagInput = screen.getByPlaceholderText('Or type new tag name')
       fireEvent.change(tagInput, { target: { value: 'testtag' } })
       fireEvent.keyDown(tagInput, { key: 'Enter', code: 'Enter' })
 
+      const assignButton = screen.getByRole('button', { name: /Assign 1 Tag to 3 URLs/i })
       expect(assignButton).toBeEnabled()
     })
   })
@@ -321,11 +320,11 @@ describe('BatchOperationsPanel', () => {
 
       render(<BatchOperationsPanel />)
 
-      const tagInput = screen.getByPlaceholderText('Enter tag name')
+      const tagInput = screen.getByPlaceholderText('Or type new tag name')
       fireEvent.change(tagInput, { target: { value: 'tag' } })
       fireEvent.keyDown(tagInput, { key: 'Enter', code: 'Enter' })
 
-      const assignButton = screen.getByRole('button', { name: 'Assign Tags' })
+      const assignButton = screen.getByRole('button', { name: /Assign 1 Tag to 3 URLs/i })
       fireEvent.click(assignButton)
 
       await waitFor(() => {
@@ -342,11 +341,11 @@ describe('BatchOperationsPanel', () => {
 
       render(<BatchOperationsPanel />)
 
-      const tagInput = screen.getByPlaceholderText('Enter tag name')
+      const tagInput = screen.getByPlaceholderText('Or type new tag name')
       fireEvent.change(tagInput, { target: { value: 'tag' } })
       fireEvent.keyDown(tagInput, { key: 'Enter', code: 'Enter' })
 
-      const assignButton = screen.getByRole('button', { name: 'Assign Tags' })
+      const assignButton = screen.getByRole('button', { name: /Assign 1 Tag to 3 URLs/i })
       fireEvent.click(assignButton)
 
       await waitFor(() => {
@@ -365,13 +364,12 @@ describe('BatchOperationsPanel', () => {
 
       // Should contain batch operation elements
       expect(screen.getByText('Batch Operations')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Assign Tags' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Update Authority' })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Update Status' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Clear Selection' })).toBeInTheDocument()
 
       // Should NOT contain single URL operations
       expect(screen.queryByText('Edit URL')).not.toBeInTheDocument()
-      expect(screen.queryByText('Add URL')).not.toBeInTheDocument()
       expect(screen.queryByLabelText('URL')).not.toBeInTheDocument()
     })
   })

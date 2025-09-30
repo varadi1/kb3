@@ -22,9 +22,9 @@ export interface Url {
 }
 
 export interface Tag {
-  id: number
+  id: string
   name: string
-  parent_id?: number
+  parent_id?: string
   description?: string
   color?: string
   children?: Tag[]
@@ -158,13 +158,23 @@ export const useKb3Store = create<Kb3State>()(
         try {
           const queryParams = new URLSearchParams(params).toString()
           const response = await fetch(`/api/urls?${queryParams}`)
+
+          if (!response.ok) {
+            console.error('Failed to fetch URLs: HTTP', response.status)
+            set({ urls: [], urlsLoading: false })
+            return
+          }
+
           const data = await response.json()
-          if (data.success) {
+          if (data.success && Array.isArray(data.data)) {
             set({ urls: data.data, urlsLoading: false })
+          } else {
+            console.error('Invalid response format:', data)
+            set({ urls: [], urlsLoading: false })
           }
         } catch (error) {
           console.error('Failed to fetch URLs:', error)
-          set({ urlsLoading: false })
+          set({ urls: [], urlsLoading: false })
         }
       },
 
@@ -730,25 +740,94 @@ export const useKb3Store = create<Kb3State>()(
         }
       },
 
-      // Queue Management Actions
+      // Queue Management Actions - Enhanced with multiple validation layers
       fetchQueue: async () => {
         try {
           const response = await fetch('/api/process/queue')
+
+          // Validate response
+          if (!response.ok) {
+            console.error('Queue fetch failed with status:', response.status)
+            return []
+          }
+
           const data = await response.json()
 
-          // Ensure we always return an array
-          if (data.success && data.data?.queue) {
-            // Validate it's actually an array
-            if (Array.isArray(data.data.queue)) {
-              return data.data.queue
-            } else {
-              console.warn('Queue is not an array:', typeof data.data.queue, JSON.stringify(data.data.queue))
-              return []
-            }
+          // Multiple layers of validation
+          if (!data || typeof data !== 'object') {
+            console.warn('Invalid response data from queue endpoint:', data)
+            return []
           }
-          return []
+
+          if (!data.success || !data.data?.queue) {
+            console.warn('Missing queue in response:', data)
+            return []
+          }
+
+          const rawQueue = data.data.queue
+
+          // Critical: Validate it's actually an array
+          if (!Array.isArray(rawQueue)) {
+            console.error('Queue is not an array! Type:', typeof rawQueue, 'Value:', rawQueue)
+            return []
+          }
+
+          // Deep validation: ensure all items are valid ProcessingItem objects
+          const validQueue = rawQueue.filter((item: any) => {
+            // Skip null/undefined items
+            if (!item) {
+              console.warn('Null/undefined item in queue')
+              return false
+            }
+
+            // Must be an object, not an array
+            if (typeof item !== 'object' || Array.isArray(item)) {
+              console.warn('Invalid queue item type:', typeof item, item)
+              return false
+            }
+
+            // Validate required ProcessingItem fields
+            if (typeof item.id !== 'string' || typeof item.url !== 'string') {
+              console.warn('Queue item missing required id/url fields:', item)
+              return false
+            }
+
+            // Validate status field if present
+            if (item.status && typeof item.status !== 'string') {
+              console.warn('Queue item has invalid status type:', item)
+              return false
+            }
+
+            // Ensure no nested objects that could cause React errors
+            if (item.error && typeof item.error === 'object') {
+              console.warn('Queue item has object error field, converting to string:', item.error)
+              item.error = String(item.error.message || item.error)
+            }
+
+            return true
+          })
+
+          // Final safety check - ensure we're returning a real array
+          if (!Array.isArray(validQueue)) {
+            console.error('Validation produced non-array result:', validQueue)
+            return []
+          }
+
+          // Extra paranoia: verify each item one more time
+          const finalQueue = validQueue.map((item: any) => ({
+            ...item,
+            // Ensure all displayed fields are primitives
+            id: String(item.id),
+            url: String(item.url),
+            status: String(item.status || 'pending'),
+            error: item.error ? String(item.error) : undefined,
+            progress: typeof item.progress === 'number' ? item.progress : 0
+          }))
+
+          return finalQueue
         } catch (error) {
-          console.error('Failed to fetch queue:', error)
+          console.error('Failed to fetch queue - returning safe empty array:', error)
+          // ALWAYS return an array, never throw or return undefined
           return []
         }
       },

@@ -20,10 +20,10 @@ export function TagManager() {
   const [tags, setTags] = useState<Tag[]>([])
   const [newTagName, setNewTagName] = useState('')
   const [newTagParent, setNewTagParent] = useState<string>(NO_PARENT)
-  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const [editingParent, setEditingParent] = useState<string>(NO_PARENT)
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   const { fetchTags, createTag, updateTag, deleteTag } = useKb3Store()
   const { toast } = useToast()
@@ -45,11 +45,32 @@ export function TagManager() {
     }
   }
 
+  // Helper function to find tag by ID recursively
+  const findTagById = (tagList: Tag[], id: string): Tag | null => {
+    for (const tag of tagList) {
+      if (tag.id === id) return tag
+      if (tag.children) {
+        const found = findTagById(tag.children, id)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
   const handleCreateTag = async () => {
     if (!newTagName.trim()) return
 
     try {
-      await createTag(newTagName, newTagParent === NO_PARENT ? undefined : newTagParent)
+      // Convert parent ID to parent name for the API
+      let parentName: string | undefined
+      if (newTagParent !== NO_PARENT) {
+        const parentTag = findTagById(tags, newTagParent)
+        if (parentTag) {
+          parentName = parentTag.name
+        }
+      }
+
+      await createTag(newTagName, parentName)
       await loadTags()
       setNewTagName('')
       setNewTagParent(NO_PARENT)
@@ -66,13 +87,13 @@ export function TagManager() {
     }
   }
 
-  const handleUpdateTag = async (id: number) => {
+  const handleUpdateTag = async (id: string) => {
     if (!editingName.trim()) return
 
     try {
-      await updateTag(String(id), {
+      await updateTag(id, {
         name: editingName,
-        parent_id: editingParent === NO_PARENT ? undefined : parseInt(editingParent)
+        parent_id: editingParent === NO_PARENT ? undefined : editingParent
       })
       await loadTags()
       setEditingId(null)
@@ -90,9 +111,9 @@ export function TagManager() {
     }
   }
 
-  const handleDeleteTag = async (id: number) => {
+  const handleDeleteTag = async (id: string) => {
     try {
-      await deleteTag(String(id))
+      await deleteTag(id)
       await loadTags()
       toast({
         title: 'Success',
@@ -107,7 +128,7 @@ export function TagManager() {
     }
   }
 
-  const toggleExpand = (id: number) => {
+  const toggleExpand = (id: string) => {
     const newExpanded = new Set(expandedIds)
     if (newExpanded.has(id)) {
       newExpanded.delete(id)
@@ -118,14 +139,14 @@ export function TagManager() {
   }
 
   // Flatten tags for dropdown selection
-  const flattenTags = (tagList: Tag[], exclude?: number, prefix = ''): Array<{ value: string; label: string; id: number }> => {
-    const result: Array<{ value: string; label: string; id: number }> = []
+  const flattenTags = (tagList: Tag[], exclude?: string, prefix = ''): Array<{ value: string; label: string; id: string }> => {
+    const result: Array<{ value: string; label: string; id: string }> = []
 
     const addTags = (tags: Tag[], level = 0, parentPrefix = '') => {
       tags.forEach(tag => {
         if (tag.id !== exclude) {
           const label = parentPrefix ? `${parentPrefix} › ${tag.name}` : tag.name
-          result.push({ value: String(tag.id), label, id: tag.id })
+          result.push({ value: tag.id, label, id: tag.id })
 
           if (tag.children && tag.children.length > 0) {
             addTags(tag.children, level + 1, label)
@@ -235,7 +256,7 @@ export function TagManager() {
                   onClick={() => {
                     setEditingId(tag.id)
                     setEditingName(tag.name)
-                    setEditingParent(tag.parent_id ? String(tag.parent_id) : NO_PARENT)
+                    setEditingParent(tag.parent_id || NO_PARENT)
                   }}
                 >
                   <Edit2 className="h-4 w-4" />

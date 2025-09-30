@@ -42,6 +42,12 @@ export interface IConfigService {
   applyTemplate(templateId: string, urlIds?: string[]): Promise<void>
 }
 
+export interface IConfigExtendedService extends IConfigService {
+  getScrapers(): Promise<ScraperConfig[]>
+  getCleaners(): Promise<CleanerConfig[]>
+  setUrlScraperConfig(urlId: string, config: ScraperConfig): Promise<void>
+}
+
 export interface ImportResult {
   count: number
   successful: number
@@ -89,4 +95,18 @@ export interface IBatchOperationsService {
   batchUpdateMetadata(urlIds: string[], metadata: Record<string, any>): Promise<void>
   batchProcess(urlIds: string[], options?: any): Promise<void>
   batchDelete(urlIds: string[]): Promise<void>
+}
+
+export interface ParameterSchema {
+  [key: string]: any
+}
+
+export interface ParameterDefaults {
+  [key: string]: any
+}
+
+export interface IParameterService {
+  getParameterSchema(scraperType: string): Promise<ParameterSchema>
+  validateParameters(scraperType: string, parameters: Record<string, any>): Promise<{ valid: boolean; errors?: string[] }>
+  getParameterDefaults(scraperType: string): Promise<ParameterDefaults>
 }
