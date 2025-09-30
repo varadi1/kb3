@@ -3,24 +3,27 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { useKb3Store } from '@/lib/store'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useKb3Store, type Tag } from '@/lib/store'
 import { useToast } from '@/components/ui/use-toast'
-import { Plus, Trash2, Edit2, Check, X, ChevronRight, ChevronDown } from 'lucide-react'
+import { Plus, Trash2, Edit2, Check, X, ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react'
 
-interface Tag {
-  id: string
-  name: string
-  parentId?: string
-  children?: Tag[]
-  urlCount: number
-}
+const NO_PARENT = 'no-parent' // Sentinel value for no parent selection
 
 export function TagManager() {
   const [tags, setTags] = useState<Tag[]>([])
   const [newTagName, setNewTagName] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [newTagParent, setNewTagParent] = useState<string>(NO_PARENT)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [editingName, setEditingName] = useState('')
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [editingParent, setEditingParent] = useState<string>(NO_PARENT)
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
 
   const { fetchTags, createTag, updateTag, deleteTag } = useKb3Store()
   const { toast } = useToast()
@@ -46,9 +49,10 @@ export function TagManager() {
     if (!newTagName.trim()) return
 
     try {
-      await createTag(newTagName)
+      await createTag(newTagName, newTagParent === NO_PARENT ? undefined : newTagParent)
       await loadTags()
       setNewTagName('')
+      setNewTagParent(NO_PARENT)
       toast({
         title: 'Success',
         description: 'Tag created successfully',
@@ -62,13 +66,17 @@ export function TagManager() {
     }
   }
 
-  const handleUpdateTag = async (id: string) => {
+  const handleUpdateTag = async (id: number) => {
     if (!editingName.trim()) return
 
     try {
-      await updateTag(id, editingName)
+      await updateTag(String(id), {
+        name: editingName,
+        parent_id: editingParent === NO_PARENT ? undefined : parseInt(editingParent)
+      })
       await loadTags()
       setEditingId(null)
+      setEditingParent(NO_PARENT)
       toast({
         title: 'Success',
         description: 'Tag updated successfully',
@@ -82,9 +90,9 @@ export function TagManager() {
     }
   }
 
-  const handleDeleteTag = async (id: string) => {
+  const handleDeleteTag = async (id: number) => {
     try {
-      await deleteTag(id)
+      await deleteTag(String(id))
       await loadTags()
       toast({
         title: 'Success',
@@ -99,7 +107,7 @@ export function TagManager() {
     }
   }
 
-  const toggleExpand = (id: string) => {
+  const toggleExpand = (id: number) => {
     const newExpanded = new Set(expandedIds)
     if (newExpanded.has(id)) {
       newExpanded.delete(id)
@@ -107,6 +115,27 @@ export function TagManager() {
       newExpanded.add(id)
     }
     setExpandedIds(newExpanded)
+  }
+
+  // Flatten tags for dropdown selection
+  const flattenTags = (tagList: Tag[], exclude?: number, prefix = ''): Array<{ value: string; label: string; id: number }> => {
+    const result: Array<{ value: string; label: string; id: number }> = []
+
+    const addTags = (tags: Tag[], level = 0, parentPrefix = '') => {
+      tags.forEach(tag => {
+        if (tag.id !== exclude) {
+          const label = parentPrefix ? `${parentPrefix} › ${tag.name}` : tag.name
+          result.push({ value: String(tag.id), label, id: tag.id })
+
+          if (tag.children && tag.children.length > 0) {
+            addTags(tag.children, level + 1, label)
+          }
+        }
+      })
+    }
+
+    addTags(tagList)
+    return result
   }
 
   const renderTag = (tag: Tag, level = 0) => {
@@ -138,20 +167,43 @@ export function TagManager() {
             {!hasChildren && <div className="w-6" />}
 
             {isEditing ? (
-              <Input
-                value={editingName}
-                onChange={(e) => setEditingName(e.target.value)}
-                className="flex-1 h-8"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleUpdateTag(tag.id)
-                  if (e.key === 'Escape') setEditingId(null)
-                }}
-              />
+              <div className="flex-1 flex gap-2">
+                <Input
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  className="flex-1 h-8"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleUpdateTag(tag.id)
+                    if (e.key === 'Escape') {
+                      setEditingId(null)
+                      setEditingParent(NO_PARENT)
+                    }
+                  }}
+                />
+                <Select value={editingParent} onValueChange={setEditingParent}>
+                  <SelectTrigger className="w-[150px] h-8">
+                    <SelectValue placeholder="Parent" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_PARENT}>No parent</SelectItem>
+                    {flattenTags(tags, tag.id).map(t => (
+                      <SelectItem key={t.id} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             ) : (
-              <div className="flex-1">
+              <div className="flex-1 flex items-center gap-2">
+                {hasChildren ? (
+                  <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Folder className="h-4 w-4 text-muted-foreground" />
+                )}
                 <span className="font-medium">{tag.name}</span>
-                <span className="text-sm text-muted-foreground ml-2">
-                  ({tag.urlCount} URLs)
+                <span className="text-sm text-muted-foreground">
+                  ({tag.urlCount || 0} URLs)
                 </span>
               </div>
             )}
@@ -183,6 +235,7 @@ export function TagManager() {
                   onClick={() => {
                     setEditingId(tag.id)
                     setEditingName(tag.name)
+                    setEditingParent(tag.parent_id ? String(tag.parent_id) : NO_PARENT)
                   }}
                 >
                   <Edit2 className="h-4 w-4" />
@@ -210,19 +263,35 @@ export function TagManager() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <Input
-          placeholder="New tag name"
-          value={newTagName}
-          onChange={(e) => setNewTagName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleCreateTag()
-          }}
-        />
-        <Button onClick={handleCreateTag}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Tag
-        </Button>
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <Input
+            placeholder="New tag name"
+            value={newTagName}
+            onChange={(e) => setNewTagName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleCreateTag()
+            }}
+            className="flex-1"
+          />
+          <Select value={newTagParent} onValueChange={setNewTagParent}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Parent (optional)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_PARENT}>No parent</SelectItem>
+              {flattenTags(tags).map(tag => (
+                <SelectItem key={tag.id} value={tag.value}>
+                  {tag.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={handleCreateTag}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Tag
+          </Button>
+        </div>
       </div>
 
       <div className="border rounded-md">
