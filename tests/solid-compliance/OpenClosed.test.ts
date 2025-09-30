@@ -6,7 +6,7 @@
 import { UrlDetectorRegistry, ExtensionBasedDetector } from '../../src/detectors';
 import { FetcherRegistry, HttpFetcher } from '../../src/fetchers';
 import { ProcessorRegistry, TextProcessor } from '../../src/processors';
-import { MemoryKnowledgeStore } from '../../src/storage/MemoryKnowledgeStore';
+import { MemoryKnowledgeStore } from '../../src/storage';
 import { ContentType } from '../../src/interfaces/IUrlDetector';
 
 // Mock implementations for testing extensibility
@@ -134,6 +134,7 @@ describe('Open/Closed Principle Compliance', () => {
 
   describe('Knowledge Store Extension', () => {
     test('should allow custom indexing without modifying base class', () => {
+      // Use MemoryKnowledgeStore which extends BaseKnowledgeStore and has indexing methods
       const store = new MemoryKnowledgeStore();
 
       // Extend indexing behavior

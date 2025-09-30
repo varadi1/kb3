@@ -109,8 +109,14 @@ describe('ConfigService', () => {
       }
 
       mockFetch
-        .mockResolvedValueOnce({ ok: true } as Response)
-        .mockResolvedValueOnce({ ok: true } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ success: true })
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ success: true })
+        } as Response)
 
       await service.updateConfig(config)
 

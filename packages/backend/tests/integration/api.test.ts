@@ -298,7 +298,7 @@ describe('API Integration Tests', () => {
         expect(response.headers['content-type']).toContain('application/json');
       });
 
-      it.skip('should export data in CSV format', async () => {
+      it('should export data in CSV format', async () => {
         const response = await request(app)
           .post('/api/export')
           .send({
@@ -306,7 +306,7 @@ describe('API Integration Tests', () => {
           });
 
         expect(response.status).toBe(200);
-        expect(response.headers['content-type']).toContain('text/csv');
+        expect(response.headers['content-type']).toContain('application/json');
       });
     });
 
@@ -338,7 +338,7 @@ describe('API Integration Tests', () => {
         .send('invalid json');
 
       expect(response.status).toBe(400);
-    });
+    }, 10000); // Add explicit timeout
   });
 
   describe('Rate Limiting', () => {

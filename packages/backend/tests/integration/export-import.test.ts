@@ -6,9 +6,18 @@ jest.mock('../../src/services/kb3Service');
 
 describe('Export/Import and Content Routes Integration Tests', () => {
   let kb3Service: jest.Mocked<KB3Service>;
+  let originalAddUrl: any;
+  let originalUpdateUrl: any;
+  let originalExportData: any;
+  let originalImportData: any;
 
   beforeAll(() => {
     kb3Service = KB3Service.getInstance() as jest.Mocked<KB3Service>;
+    // Store original implementations
+    originalAddUrl = kb3Service.addUrl;
+    originalUpdateUrl = kb3Service.updateUrl;
+    originalExportData = kb3Service.exportData;
+    originalImportData = kb3Service.importData;
   });
 
   afterAll(async () => {
@@ -19,6 +28,12 @@ describe('Export/Import and Content Routes Integration Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
+    // Restore original implementations
+    kb3Service.addUrl = originalAddUrl;
+    kb3Service.updateUrl = originalUpdateUrl;
+    kb3Service.exportData = originalExportData;
+    kb3Service.importData = originalImportData;
   });
 
   describe('POST /api/export', () => {
@@ -44,7 +59,7 @@ describe('Export/Import and Content Routes Integration Tests', () => {
     ];
 
     it('should export data in JSON format', async () => {
-      kb3Service.exportData = jest.fn().mockResolvedValue(mockUrls);
+      jest.spyOn(kb3Service, 'exportData').mockResolvedValue(mockUrls);
 
       const response = await request(app)
         .post('/api/export')
@@ -63,7 +78,7 @@ describe('Export/Import and Content Routes Integration Tests', () => {
     });
 
     it('should export data in CSV format', async () => {
-      kb3Service.exportData = jest.fn().mockResolvedValue(mockUrls);
+      jest.spyOn(kb3Service, 'exportData').mockResolvedValue(mockUrls);
 
       const response = await request(app)
         .post('/api/export')
@@ -76,7 +91,7 @@ describe('Export/Import and Content Routes Integration Tests', () => {
     });
 
     it('should export data in plain text format', async () => {
-      kb3Service.exportData = jest.fn().mockResolvedValue(mockUrls);
+      jest.spyOn(kb3Service, 'exportData').mockResolvedValue(mockUrls);
 
       const response = await request(app)
         .post('/api/export')
@@ -259,14 +274,14 @@ https://txt4.com`;
       expect(kb3Service.importData).toHaveBeenCalled();
     });
 
-    it.skip('should handle import with authority preservation', async () => {
+    it('should handle import with authority preservation', async () => {
       const importData = JSON.stringify([
         { url: 'https://high-priority.com', authority: 5 },
         { url: 'https://low-priority.com', authority: 1 }
       ]);
 
-      kb3Service.addUrl = jest.fn().mockResolvedValue({ id: 'imported' });
-      kb3Service.updateUrl = jest.fn().mockResolvedValue({ success: true });
+      jest.spyOn(kb3Service, 'addUrl').mockResolvedValue({ id: 'imported' });
+      jest.spyOn(kb3Service, 'updateUrl').mockResolvedValue({ success: true });
 
       const response = await request(app)
         .post('/api/export/import')
@@ -287,16 +302,17 @@ https://txt4.com`;
       );
     });
 
-    it.skip('should validate imported URLs', async () => {
+    it('should validate imported URLs', async () => {
       const invalidData = JSON.stringify([
         { url: 'not-a-url' },
         { url: 'https://valid.com' },
         { url: '' }
       ]);
 
-      kb3Service.addUrl = jest.fn()
-        .mockRejectedValueOnce(new Error('Invalid URL'))
-        .mockResolvedValue({ id: 'valid-id' });
+      jest.spyOn(kb3Service, 'addUrl')
+        .mockRejectedValueOnce(new Error('Invalid URL'))  // for 'not-a-url'
+        .mockResolvedValueOnce({ id: 'valid-id' })        // for 'https://valid.com'
+        .mockRejectedValueOnce(new Error('Invalid URL')); // for ''
 
       const response = await request(app)
         .post('/api/export/import')
@@ -312,13 +328,13 @@ https://txt4.com`;
       expect(response.body.data.errors).toHaveLength(2);
     });
 
-    it.skip('should handle duplicate URLs', async () => {
+    it('should handle duplicate URLs', async () => {
       const duplicateData = JSON.stringify([
         { url: 'https://existing.com' },
         { url: 'https://existing.com' }
       ]);
 
-      kb3Service.addUrl = jest.fn()
+      jest.spyOn(kb3Service, 'addUrl')
         .mockResolvedValueOnce({ id: 'first' })
         .mockRejectedValueOnce(new Error('URL already exists'));
 
@@ -330,14 +346,14 @@ https://txt4.com`;
           skipDuplicates: true
         });
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(207); // Status 207 when there are failures
       expect(response.body.data.successful).toBe(1);
       expect(response.body.data.failed).toBe(1);
     });
   });
 
   describe('POST /api/export/validate', () => {
-    it.skip('should validate JSON format', async () => {
+    it('should validate JSON format', async () => {
       const validJson = JSON.stringify([
         { url: 'https://valid.com', tags: [] }
       ]);
@@ -365,7 +381,7 @@ https://txt4.com`;
       });
     });
 
-    it.skip('should detect invalid JSON', async () => {
+    it('should detect invalid JSON', async () => {
       const invalidJson = '{ invalid json [}';
 
       const response = await request(app)
@@ -380,7 +396,7 @@ https://txt4.com`;
       expect(response.body.data.errors).toContain('Invalid JSON format');
     });
 
-    it.skip('should validate CSV headers', async () => {
+    it('should validate CSV headers', async () => {
       const csvWithWrongHeaders = `wrongheader,anotherwrong
 https://example.com,value`;
 
@@ -399,7 +415,7 @@ https://example.com,value`;
 
   describe('Content Routes', () => {
     describe('GET /api/content/:id/original', () => {
-      it.skip('should return original content', async () => {
+      it('should return original content', async () => {
         const mockContent = 'Original HTML content with <script>alert("xss")</script>';
 
         kb3Service.getOriginalContent = jest.fn().mockResolvedValue({
@@ -413,22 +429,22 @@ https://example.com,value`;
 
         expect(response.status).toBe(200);
         expect(response.text).toBe(mockContent);
-        expect(response.headers['content-type']).toBe('text/html');
+        expect(response.headers['content-type']).toContain('text/html');
       });
 
-      it.skip('should handle missing content', async () => {
+      it('should handle missing content', async () => {
         kb3Service.getOriginalContent = jest.fn().mockResolvedValue(null);
 
         const response = await request(app)
           .get('/api/content/non-existent/original');
 
         expect(response.status).toBe(404);
-        expect(response.body).toHaveProperty('error', 'Content not found');
+        expect(response.body).toHaveProperty('message', 'Original content not found');
       });
     });
 
     describe('GET /api/content/:id/cleaned', () => {
-      it.skip('should return cleaned content', async () => {
+      it('should return cleaned content', async () => {
         const mockCleaned = 'Sanitized and cleaned text content';
 
         kb3Service.getCleanedContent = jest.fn().mockResolvedValue({
@@ -446,7 +462,7 @@ https://example.com,value`;
     });
 
     describe('GET /api/content/:id/metadata', () => {
-      it.skip('should return processing metadata', async () => {
+      it('should return processing metadata', async () => {
         const mockMetadata = {
           scraperUsed: 'playwright',
           cleanersUsed: ['sanitize-html', 'xss'],
@@ -475,7 +491,7 @@ https://example.com,value`;
     });
 
     describe('POST /api/content/:id/reprocess', () => {
-      it.skip('should reprocess content with new settings', async () => {
+      it('should reprocess content with new settings', async () => {
         const reprocessOptions = {
           scraperType: 'crawl4ai',
           cleaners: ['readability', 'voca'],
@@ -502,7 +518,7 @@ https://example.com,value`;
     });
 
     describe('GET /api/content/:id/download', () => {
-      it.skip('should download content as file', async () => {
+      it('should download content as file', async () => {
         const mockContent = 'Downloadable content';
 
         kb3Service.getCleanedContent = jest.fn().mockResolvedValue({
@@ -519,7 +535,7 @@ https://example.com,value`;
         expect(response.text).toBe(mockContent);
       });
 
-      it.skip('should download original content when specified', async () => {
+      it('should download original content when specified', async () => {
         const mockOriginal = '<html><body>Original HTML</body></html>';
 
         kb3Service.getOriginalContent = jest.fn().mockResolvedValue({
@@ -536,7 +552,7 @@ https://example.com,value`;
     });
 
     describe('POST /api/content/:id/compare', () => {
-      it.skip('should compare original and cleaned content', async () => {
+      it('should compare original and cleaned content', async () => {
         kb3Service.getOriginalContent = jest.fn().mockResolvedValue({
           content: Buffer.from('<html>Original with <script>bad</script></html>')
         });
@@ -559,7 +575,7 @@ https://example.com,value`;
   });
 
   describe('GET /api/export/templates', () => {
-    it.skip('should provide export format templates', async () => {
+    it('should provide export format templates', async () => {
       const response = await request(app)
         .get('/api/export/templates');
 
@@ -594,14 +610,14 @@ https://example.com,value`;
       expect(response.body.data.count).toBe(10000);
     });
 
-    it.skip('should handle large imports in chunks', async () => {
+    it('should handle large imports in chunks', async () => {
       const largeImport = Array.from({ length: 1000 }, (_, i) => ({
         url: `https://import${i}.com`,
         tags: [],
         authority: 0
       }));
 
-      kb3Service.addUrl = jest.fn().mockResolvedValue({ id: 'imported' });
+      jest.spyOn(kb3Service, 'addUrl').mockResolvedValue({ id: 'imported' });
 
       const response = await request(app)
         .post('/api/export/import')

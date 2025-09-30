@@ -85,6 +85,15 @@ class MockUrlRepository implements IUrlRepository {
     }
     return false;
   }
+
+  async updateMetadata(id: string, metadata: Partial<UrlMetadata>): Promise<boolean> {
+    const record = this.urls.get(id);
+    if (record) {
+      record.metadata = { ...record.metadata, ...metadata };
+      return true;
+    }
+    return false;
+  }
 }
 
 describe('SqlConfigurationPersistence', () => {

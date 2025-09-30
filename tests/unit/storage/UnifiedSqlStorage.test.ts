@@ -83,7 +83,8 @@ describe('UnifiedSqlStorage', () => {
       });
 
       // Store a knowledge entry for that URL
-      await repositories.knowledgeStore.store({
+      const entryId = await repositories.knowledgeStore.store({
+        id: 'test-entry-1',
         url: 'https://example.com',
         title: 'Test Page',
         contentType: 'text/html',
@@ -95,10 +96,10 @@ describe('UnifiedSqlStorage', () => {
         processingStatus: ProcessingStatus.COMPLETED
       });
 
-      // Verify entry was stored
-      const entry = await repositories.knowledgeStore.retrieve('https://example.com');
+      // Verify entry was stored - retrieve by ID
+      const entry = await repositories.knowledgeStore.retrieve(entryId);
       expect(entry).toBeDefined();
-      expect(entry.title).toBe('Test Page');
+      expect(entry!.title).toBe('Test Page');
     });
 
     it('should fail to store knowledge entry without corresponding URL', async () => {
@@ -285,7 +286,7 @@ describe('UnifiedSqlStorage', () => {
         createdAt: new Date(),
         updatedAt: new Date()
       };
-      await repositories.knowledgeStore.store(testEntry);
+      const storedId = await repositories.knowledgeStore.store(testEntry);
 
       // Record original file
       await repositories.originalFileRepository.recordOriginalFile({
@@ -299,7 +300,7 @@ describe('UnifiedSqlStorage', () => {
 
       // Verify all data is consistent
       const urlInfo = await repositories.urlRepository.getUrlInfo('https://example.com/article');
-      const knowledge = await repositories.knowledgeStore.retrieve('https://example.com/article');
+      const knowledge = await repositories.knowledgeStore.retrieve(storedId);
       const files = await repositories.originalFileRepository.getOriginalFilesByUrl('https://example.com/article');
 
       expect(urlInfo).toBeDefined();

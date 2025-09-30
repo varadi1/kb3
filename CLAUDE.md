@@ -242,6 +242,7 @@ The KB3 system includes a full-featured web interface with:
 1. **URL Management Dashboard** ✅
    - Table view with sorting, filtering, pagination
    - Multi-select operations with checkboxes
+   - **Batch URL adding dialog** ✅ (NEW - 2025-01-29)
    - Edit dialog for single URL metadata editing
    - Status indicators with color coding
    - Authority level management (0-5 scale)
@@ -251,9 +252,11 @@ The KB3 system includes a full-featured web interface with:
 2. **Tag Management** ✅
    - Hierarchical tag tree with expand/collapse
    - Create, edit, delete tags
+   - **Parent tag selection UI** ✅ (NEW - 2025-01-29)
    - URL count per tag
    - Tag assignment in URL edit dialog
    - Batch tag assignment for multiple URLs
+   - Folder icons for parent/child distinction
 
 3. **Batch Operations Panel** ✅ (NEW)
    - Bulk tag assignment/removal
@@ -264,9 +267,11 @@ The KB3 system includes a full-featured web interface with:
    - Bulk delete operations
    - Clear selection feature
 
-4. **Content Viewer** ✅ (NEW)
+4. **Content Viewer** ✅ (ENHANCED - 2025-01-29)
    - View original and cleaned content
    - Side-by-side comparison
+   - **Enhanced comparison mode with visual indicators** ✅ (NEW)
+   - **Integrated Content Reprocessor** ✅ (NEW)
    - Content statistics (words, lines, characters)
    - Reduction percentage calculation
    - Copy to clipboard functionality
@@ -314,6 +319,15 @@ The KB3 system includes a full-featured web interface with:
    - Default values and reset functionality
    - Parameter statistics and monitoring
 
+10. **Iterative Content Cleaning** ✅ (NEW - 2025-01-29)
+   - **Content Reprocessor dialog** for testing different cleaner configurations
+   - Real-time preview of cleaning results
+   - Reorder cleaners with drag-and-drop UI
+   - Processing history tracking
+   - Apply successful configurations to URLs
+   - Side-by-side before/after comparison
+   - Reduction metrics and statistics
+
 ### Running the Web Interface
 
 ```bash
@@ -340,12 +354,14 @@ packages/frontend/
 │   ├── urls/
 │   │   ├── urls-table.tsx         # URL table with multi-select
 │   │   ├── add-url-dialog.tsx     # Add single URL dialog
+│   │   ├── batch-add-urls-dialog.tsx # ✅ NEW: Batch URL adding (2025-01-29)
 │   │   ├── edit-url-dialog.tsx    # ✅ NEW: Edit URL properties
 │   │   └── batch-operations.tsx   # ✅ NEW: Batch operations panel
 │   ├── content/
-│   │   └── content-viewer.tsx     # ✅ NEW: View/compare content
+│   │   ├── content-viewer.tsx     # ✅ ENHANCED: View/compare content
+│   │   └── content-reprocessor.tsx # ✅ NEW: Iterative cleaning (2025-01-29)
 │   ├── tags/
-│   │   └── tag-manager.tsx        # Hierarchical tag management
+│   │   └── tag-manager.tsx        # ✅ ENHANCED: Parent management (2025-01-29)
 │   ├── config/
 │   │   └── config-panel.tsx       # Scraper/cleaner configuration
 │   ├── import-export/

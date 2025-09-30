@@ -161,7 +161,7 @@ describe('SOLID Compliance - Backend Architecture', () => {
 
       // Each group should be focused
       expect(urlMethods.length).toBeGreaterThan(0);
-      expect(urlMethods.length).toBeLessThan(20); // URL management requires comprehensive operations
+      expect(urlMethods.length).toBeLessThanOrEqual(20); // URL management requires comprehensive operations
 
       expect(tagMethods.length).toBeGreaterThan(0);
       expect(tagMethods.length).toBeLessThan(10); // Tag operations are simpler

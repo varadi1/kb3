@@ -20,7 +20,8 @@ describe('ContentChangeDetector', () => {
       getByHash: jest.fn(),
       list: jest.fn(),
       remove: jest.fn(),
-      updateHash: jest.fn()
+      updateHash: jest.fn(),
+      updateMetadata: jest.fn()
     } as jest.Mocked<IUrlRepository>;
 
     detector = new ContentChangeDetector(mockUrlRepository);
@@ -298,7 +299,8 @@ describe('ContentChangeDetector', () => {
         getByHash: jest.fn().mockResolvedValue(null),
         list: jest.fn().mockResolvedValue([]),
         remove: jest.fn().mockResolvedValue(true),
-        updateHash: jest.fn().mockResolvedValue(true)
+        updateHash: jest.fn().mockResolvedValue(true),
+        updateMetadata: jest.fn().mockResolvedValue(true)
       };
 
       const alternativeDetector = new ContentChangeDetector(alternativeMock);

@@ -87,7 +87,7 @@ describe('Configuration Routes Integration Tests', () => {
   });
 
   describe('POST /api/config/url/:id', () => {
-    it.skip('should update URL-specific configuration', async () => {
+    it('should update URL-specific configuration', async () => {
       const urlId = 'test-url-123';
       const config = {
         scraperConfig: {
@@ -128,7 +128,7 @@ describe('Configuration Routes Integration Tests', () => {
       );
     });
 
-    it.skip('should validate URL ID format', async () => {
+    it('should validate URL ID format', async () => {
       const response = await request(app)
         .post('/api/config/url/invalid..path')
         .send({});
@@ -137,7 +137,7 @@ describe('Configuration Routes Integration Tests', () => {
       expect(response.body).toHaveProperty('errors');
     });
 
-    it.skip('should handle partial updates', async () => {
+    it('should handle partial updates', async () => {
       const urlId = 'test-url-456';
       const config = {
         scraperConfig: {
@@ -161,7 +161,7 @@ describe('Configuration Routes Integration Tests', () => {
   });
 
   describe('GET /api/config/templates', () => {
-    it.skip('should return configuration templates', async () => {
+    it('should return configuration templates', async () => {
       const mockTemplates = [
         {
           id: 'template-1',
@@ -200,7 +200,7 @@ describe('Configuration Routes Integration Tests', () => {
   });
 
   describe('POST /api/config/templates', () => {
-    it.skip('should create a new template', async () => {
+    it('should create a new template', async () => {
       const newTemplate = {
         name: 'Custom Template',
         description: 'My custom configuration',
@@ -245,19 +245,20 @@ describe('Configuration Routes Integration Tests', () => {
   });
 
   describe('POST /api/config/test', () => {
-    it.skip('should test configuration on a URL', async () => {
+    it('should test configuration on a URL', async () => {
       const testConfig = {
         url: 'https://example.com',
         scraperConfig: {
           type: 'http',
           parameters: {}
         },
-        cleanerConfigs: [
-          { type: 'sanitize-html', parameters: {} }
-        ]
+        cleaners: ['sanitize-html'],
+        cleanerConfigs: {
+          'sanitize-html': { parameters: {} }
+        }
       };
 
-      kb3Service.testConfiguration = jest.fn().mockResolvedValue({
+      kb3Service.processUrl = jest.fn().mockResolvedValue({
         success: true,
         scraperResult: {
           content: 'Sample content',
@@ -284,13 +285,13 @@ describe('Configuration Routes Integration Tests', () => {
       expect(response.body.data).toHaveProperty('processingTime');
     });
 
-    it.skip('should handle test failures', async () => {
+    it('should handle test failures', async () => {
       const testConfig = {
         url: 'https://invalid-site.example',
         scraperConfig: { type: 'http', parameters: {} }
       };
 
-      kb3Service.testConfiguration = jest.fn().mockRejectedValue(
+      kb3Service.processUrl = jest.fn().mockRejectedValue(
         new Error('Failed to fetch URL')
       );
 

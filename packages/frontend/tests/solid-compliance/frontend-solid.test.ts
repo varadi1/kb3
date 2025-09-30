@@ -306,8 +306,13 @@ describe('Frontend SOLID Compliance', () => {
         expect(interfaceContent).toContain(`export interface ${interfaceName}`)
 
         // Implementation should exist
-        const implPath = path.join(__dirname, '../../lib/services',
-          `${implementation.toLowerCase().replace('service', '-service')}.ts`)
+        // Convert CamelCase to kebab-case properly
+        const kebabCase = implementation
+          .replace(/([A-Z])/g, '-$1')
+          .toLowerCase()
+          .replace(/^-/, '') // Remove leading dash
+          .replace(/-service/, '') + '-service' // Ensure single -service suffix
+        const implPath = path.join(__dirname, '../../lib/services', `${kebabCase}.ts`)
         expect(fs.existsSync(implPath)).toBeTruthy()
       })
     })

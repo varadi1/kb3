@@ -11,8 +11,21 @@
     "test": "jest",
     "test:unit": "jest --testPathPattern=unit",
     "test:integration": "jest --testPathPattern=integration",
+    "test:smoke": "jest --testPathPattern=smoke",
+    "test:solid": "jest --testPathPattern=solid-compliance",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "test:e2e:firefox": "playwright test --project=firefox",
+    "test:e2e:webkit": "playwright test --project=webkit",
     "test:coverage": "jest --coverage",
-    "test:watch": "jest --watch"
+    "test:coverage:unit": "jest --testPathPattern=unit --coverage",
+    "test:coverage:integration": "jest --testPathPattern=integration --coverage",
+    "test:watch": "jest --watch",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:smoke && npm run test:solid",
+    "test:ci": "npm run test:all && npm run test:e2e",
+    "test:report": "jest --coverage --coverageReporters=html --coverageReporters=lcov --coverageReporters=text"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.2",

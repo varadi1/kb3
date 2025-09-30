@@ -14,7 +14,7 @@ import {
 import { ExtensionBasedDetector } from '../../src/detectors/ExtensionBasedDetector';
 import { HttpFetcher } from '../../src/fetchers/HttpFetcher';
 import { TextProcessor } from '../../src/processors/TextProcessor';
-import { MemoryKnowledgeStore } from '../../src/storage/MemoryKnowledgeStore';
+import { UnifiedSqlStorage } from '../../src/storage/UnifiedSqlStorage';
 import { LocalFileStorage } from '../../src/storage/LocalFileStorage';
 import { KnowledgeBaseOrchestrator } from '../../src/orchestrator/KnowledgeBaseOrchestrator';
 
@@ -63,8 +63,12 @@ describe('Interface Segregation Principle Compliance', () => {
       expect((processor as any).search).toBeUndefined();
     });
 
-    test('IKnowledgeStore should have focused, minimal interface', () => {
-      const store = new MemoryKnowledgeStore();
+    test('IKnowledgeStore should have focused, minimal interface', async () => {
+      const storage = new UnifiedSqlStorage({
+        dbPath: ':memory:'
+      });
+      await storage.initialize();
+      const store = storage.getRepositories().knowledgeStore;
 
       // Should only have storage/retrieval methods
       expect(typeof store.store).toBe('function');
@@ -78,6 +82,8 @@ describe('Interface Segregation Principle Compliance', () => {
       expect((store as any).detect).toBeUndefined();
       expect((store as any).fetch).toBeUndefined();
       expect((store as any).process).toBeUndefined();
+
+      await storage.close();
     });
 
     test('IFileStorage should have focused, minimal interface', () => {
@@ -185,12 +191,16 @@ describe('Interface Segregation Principle Compliance', () => {
   });
 
   describe('Interface Composition', () => {
-    test('complex components should compose multiple focused interfaces', () => {
+    test('complex components should compose multiple focused interfaces', async () => {
       // The orchestrator should compose all interfaces without violating ISP
       const detector = new ExtensionBasedDetector();
       const fetcher = new HttpFetcher();
       const processor = new TextProcessor();
-      const knowledgeStore = new MemoryKnowledgeStore();
+      const unifiedStorage = new UnifiedSqlStorage({
+        dbPath: ':memory:'
+      });
+      await unifiedStorage.initialize();
+      const knowledgeStore = unifiedStorage.getRepositories().knowledgeStore;
       const fileStorage = new LocalFileStorage('./test-storage');
 
       const orchestrator = new KnowledgeBaseOrchestrator(
@@ -211,6 +221,8 @@ describe('Interface Segregation Principle Compliance', () => {
       expect((orchestrator as any).fetch).toBeUndefined();
       expect((orchestrator as any).process).toBeUndefined();
       expect((orchestrator as any).store).toBeUndefined();
+
+      await unifiedStorage.close();
     });
   });
 
@@ -302,7 +314,11 @@ describe('Interface Segregation Principle Compliance', () => {
         // It only needs read operations from IKnowledgeStore
       }
 
-      const store = new MemoryKnowledgeStore();
+      const unifiedStorage = new UnifiedSqlStorage({
+        dbPath: ':memory:'
+      });
+      await unifiedStorage.initialize();
+      const store = unifiedStorage.getRepositories().knowledgeStore;
       const searchClient = new SearchOnlyClient(store);
 
       // Client should work with just search functionality
@@ -316,6 +332,8 @@ describe('Interface Segregation Principle Compliance', () => {
       expect((searchClient as any).storeEntry).toBeUndefined();
       expect((searchClient as any).update).toBeUndefined();
       expect((searchClient as any).delete).toBeUndefined();
+
+      await unifiedStorage.close();
     });
   });
 

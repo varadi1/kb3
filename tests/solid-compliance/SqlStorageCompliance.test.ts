@@ -90,7 +90,8 @@ describe('SQL Storage SOLID Compliance', () => {
           method.includes('WithTags') ||  // Tag-related URL operations
           method === 'areTagsEnabled' ||  // Tag feature flag check
           method === 'getTagManager' ||  // Tag manager accessor
-          method === 'getUrlTagRepository'  // URL-tag relationship accessor
+          method === 'getUrlTagRepository' ||  // URL-tag relationship accessor
+          method === 'updateMetadata'  // URL metadata update method
         );
         expect(isUrlRelated).toBe(true);
       });
@@ -286,7 +287,8 @@ describe('SQL Storage SOLID Compliance', () => {
         getByHash: jest.fn().mockResolvedValue(null),
         list: jest.fn().mockResolvedValue([]),
         remove: jest.fn().mockResolvedValue(true),
-        updateHash: jest.fn().mockResolvedValue(true)
+        updateHash: jest.fn().mockResolvedValue(true),
+        updateMetadata: jest.fn().mockResolvedValue(true)
       };
 
       // Should be able to use any IUrlRepository implementation

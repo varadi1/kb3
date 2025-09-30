@@ -511,7 +511,7 @@ describe('Batch Operations Integration Tests', () => {
       );
     });
 
-    it.skip('should process high-authority URLs first', async () => {
+    it('should process high-authority URLs first', async () => {
       const processRequest = {
         urls: ['low-url', 'high-url', 'medium-url']
       };

@@ -24,7 +24,7 @@ import {
   ProcessorRegistry
 } from '../../src/processors';
 
-import { MemoryKnowledgeStore } from '../../src/storage';
+import { UnifiedSqlStorage } from '../../src/storage';
 import { ContentType } from '../../src/interfaces/IUrlDetector';
 
 describe('Liskov Substitution Principle Compliance', () => {
@@ -220,13 +220,20 @@ describe('Liskov Substitution Principle Compliance', () => {
   describe('Knowledge Stores', () => {
     test('knowledge store implementations should be substitutable', async () => {
       // Create stores with same configuration
+      const unifiedStorage = new UnifiedSqlStorage({
+        dbPath: ':memory:'
+      });
+      await unifiedStorage.initialize();
+      const repositories = unifiedStorage.getRepositories();
+      const store = repositories.knowledgeStore;
+
       const stores = [
-        new MemoryKnowledgeStore(['url', 'title']),
+        store
         // FileKnowledgeStore would require setup, tested separately
       ];
 
       const testEntry = {
-        id: 'test-1',
+        id: `test-${Date.now()}`,
         url: 'https://example.com/test',
         title: 'Test Document',
         contentType: ContentType.TXT,
@@ -239,6 +246,9 @@ describe('Liskov Substitution Principle Compliance', () => {
         checksum: 'abc123',
         processingStatus: 'completed' as any
       };
+
+      // Register the URL first in the unified storage
+      await repositories.urlRepository.register(testEntry.url);
 
       for (const store of stores) {
         // All stores should support same operations
@@ -259,6 +269,8 @@ describe('Liskov Substitution Principle Compliance', () => {
         const deleted = await store.delete(entryId);
         expect(deleted).toBe(true);
       }
+
+      await unifiedStorage.close();
     });
   });
 
