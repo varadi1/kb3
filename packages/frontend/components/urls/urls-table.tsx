@@ -55,7 +55,7 @@ export function UrlsTable() {
 
   useEffect(() => {
     fetchUrls()
-  }, [fetchUrls])
+  }, []) // Empty dependency array - run only once on mount
 
   const handleSelectAll = () => {
     if (selectedUrls.size === urls.length) {

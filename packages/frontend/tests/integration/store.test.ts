@@ -45,6 +45,7 @@ describe('KB3 Store Integration Tests', () => {
 
     it('adds a single URL', async () => {
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
         json: async () => ({ success: true })
       })
 
@@ -231,6 +232,7 @@ describe('KB3 Store Integration Tests', () => {
 
     it('updates a tag', async () => {
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
         json: async () => ({ success: true })
       })
 
@@ -249,6 +251,7 @@ describe('KB3 Store Integration Tests', () => {
 
     it('deletes a tag', async () => {
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
         json: async () => ({ success: true })
       })
 
@@ -392,14 +395,18 @@ describe('KB3 Store Integration Tests', () => {
 
     it('handles API errors', async () => {
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
         json: async () => ({ success: false, error: 'Invalid request' })
       })
 
       const { result } = renderHook(() => useKb3Store())
 
-      await act(async () => {
-        await result.current.addUrl('invalid-url')
-      })
+      // Expect the error to be thrown
+      await expect(
+        act(async () => {
+          await result.current.addUrl('invalid-url')
+        })
+      ).rejects.toThrow('Invalid request')
 
       // fetchUrls should not be called after failed add
       expect(global.fetch).toHaveBeenCalledTimes(1)

@@ -155,6 +155,44 @@ export class KB3Service extends EventEmitter {
     // This would emit events for real-time updates
   }
 
+  // Helper method to enrich a URL with its parameters
+  private async enrichUrlWithParameters(url: any): Promise<any> {
+    try {
+      // Get parameters for this URL
+      console.log(`[DEBUG] Enriching URL: ${url.url} (id: ${url.id})`);
+      const params = await this.getUrlParameters(url.url);
+      console.log(`[DEBUG] Retrieved parameters:`, params);
+
+      // Merge parameters with URL data
+      if (params) {
+        const enriched = {
+          ...url,
+          scraperType: params.scraperType || 'default',
+          cleaners: params.cleaners || [],
+          scraperParameters: params.parameters || {}
+        };
+        console.log(`[DEBUG] Enriched URL with scraper: ${enriched.scraperType}, cleaners: ${enriched.cleaners.join(', ') || 'none'}`);
+        return enriched;
+      }
+
+      // Return URL with default values if no parameters
+      console.log(`[DEBUG] No parameters found, using defaults`);
+      return {
+        ...url,
+        scraperType: url.scraperType || 'default',
+        cleaners: url.cleaners || []
+      };
+    } catch (error) {
+      console.error(`Error enriching URL ${url.url} with parameters:`, error);
+      // Return URL with defaults on error
+      return {
+        ...url,
+        scraperType: url.scraperType || 'default',
+        cleaners: url.cleaners || []
+      };
+    }
+  }
+
   // URL Management
   async getUrls(options?: {
     offset?: number;
@@ -181,11 +219,17 @@ export class KB3Service extends EventEmitter {
       // Get URLs from database
       const urls = await urlRepository.list(filter);
 
-      // Ensure all URLs have tags array initialized
-      const urlsWithTags = urls.map(u => ({
-        ...u,
-        tags: u.tags || []
-      }));
+      // Ensure all URLs have tags array initialized and enrich with parameters
+      const urlsWithTags = await Promise.all(
+        urls.map(async u => {
+          const urlWithTags = {
+            ...u,
+            tags: u.tags || []
+          };
+          // Enrich with scraper/cleaner parameters
+          return await this.enrichUrlWithParameters(urlWithTags);
+        })
+      );
 
       // Apply additional filters that repository might not support
       let filtered = urlsWithTags;
@@ -389,14 +433,58 @@ export class KB3Service extends EventEmitter {
   async setUrlParameters(url: string, parameters: UrlParameters): Promise<void> {
     await this.ensureInitialized();
 
-    // Get the content fetcher from the orchestrator, not the config
-    const fetcher = (this.orchestrator as any).contentFetcher;
-    if (!fetcher || !('setUrlParameters' in fetcher)) {
-      throw new Error('URL parameters configuration not available');
-    }
+    // Save directly to database
+    const sqlite3 = require('sqlite3');
+    const path = require('path');
+    const dbPath = path.join(__dirname, '..', '..', '..', '..', 'data', 'unified.db');
+    const db = new sqlite3.Database(dbPath);
 
-    // Set parameters in fetcher (which now persists via PersistentParameterManager)
-    await (fetcher as any).setUrlParameters(url, parameters);
+    await new Promise<void>((resolve, reject) => {
+      // First, delete any existing parameters for this URL
+      db.run('DELETE FROM url_parameters WHERE url = ?', [url], (deleteErr: any) => {
+        if (deleteErr) {
+          db.close();
+          reject(deleteErr);
+          return;
+        }
+
+        // Now insert the new parameters
+        const cleanersJson = JSON.stringify(parameters.cleaners || []);
+        const parametersJson = JSON.stringify(parameters.parameters || {});
+
+        db.run(
+          `INSERT INTO url_parameters (url, scraper_type, cleaners, priority, parameters, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+          [
+            url,
+            parameters.scraperType || 'default',
+            cleanersJson,
+            parameters.priority || 10,
+            parametersJson
+          ],
+          (insertErr: any) => {
+            db.close();
+            if (insertErr) {
+              reject(insertErr);
+            } else {
+              console.log(`[DEBUG] Saved parameters to DB for URL: ${url}`);
+              resolve();
+            }
+          }
+        );
+      });
+    });
+
+    // Also set in fetcher for immediate use (if available)
+    try {
+      const fetcher = (this.orchestrator as any).contentFetcher;
+      if (fetcher && 'setUrlParameters' in fetcher) {
+        await (fetcher as any).setUrlParameters(url, parameters);
+      }
+    } catch (error) {
+      // Fetcher update failed, but DB save succeeded
+      console.warn('Failed to update fetcher, but DB save succeeded:', error);
+    }
 
     this.emit('config:updated', { url, parameters });
   }
@@ -404,26 +492,65 @@ export class KB3Service extends EventEmitter {
   async getUrlParameters(url: string): Promise<UrlParameters | null> {
     await this.ensureInitialized();
 
-    // Get the content fetcher from the orchestrator, not the config
-    const fetcher = (this.orchestrator as any).contentFetcher;
-    if (!fetcher || !('getParameters' in fetcher)) {
+    try {
+      // Read directly from the database
+      const sqlite3 = require('sqlite3');
+      const path = require('path');
+      // Backend runs from packages/backend, so need to go up 2 directories
+      const dbPath = path.join(__dirname, '..', '..', '..', '..', 'data', 'unified.db');
+      console.log(`[DEBUG] Using database path: ${dbPath}`);
+      const db = new sqlite3.Database(dbPath);
+
+      return new Promise((resolve) => {
+        db.get(
+          'SELECT * FROM url_parameters WHERE url = ?',
+          [url],
+          (err: any, row: any) => {
+            db.close();
+
+            if (err) {
+              console.error(`[DEBUG] Database error for URL ${url}:`, err);
+              resolve(null);
+              return;
+            }
+
+            if (!row) {
+              console.log(`[DEBUG] No parameters found in DB for URL: ${url}`);
+              resolve(null);
+              return;
+            }
+
+            console.log(`[DEBUG] Found parameters in DB for URL ${url}:`, row);
+
+            // Parse cleaners if it's a JSON string
+            let cleaners = [];
+            try {
+              cleaners = typeof row.cleaners === 'string' ? JSON.parse(row.cleaners) : row.cleaners || [];
+            } catch (e) {
+              cleaners = [];
+            }
+
+            // Parse parameters if it's a JSON string
+            let parameters = {};
+            try {
+              parameters = typeof row.parameters === 'string' ? JSON.parse(row.parameters) : row.parameters || {};
+            } catch (e) {
+              parameters = {};
+            }
+
+            resolve({
+              scraperType: row.scraper_type || 'http',
+              cleaners: cleaners,
+              parameters: parameters,
+              priority: row.priority || 10
+            });
+          }
+        );
+      });
+    } catch (error) {
+      console.error('Error reading parameters from database:', error);
       return null;
     }
-
-    const parameterManager = (fetcher as any).parameterManager;
-    if (parameterManager && 'getParameters' in parameterManager) {
-      const config = await parameterManager.getParameters(url);
-      if (config) {
-        return {
-          scraperType: config.scraperType,
-          parameters: config.parameters,
-          cleaners: config.cleaners,
-          priority: config.priority
-        };
-      }
-    }
-
-    return null;
   }
 
   async removeUrlParameters(url: string): Promise<void> {

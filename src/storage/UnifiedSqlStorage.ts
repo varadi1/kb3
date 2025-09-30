@@ -359,10 +359,10 @@ class KnowledgeStoreImpl implements IKnowledgeStore {
     return id;
   }
 
-  async retrieve(url: string): Promise<KnowledgeEntry | null> {
+  async retrieve(id: string): Promise<KnowledgeEntry | null> {
     const row = await this.get<any>(
-      'SELECT * FROM knowledge_entries WHERE url = ?',
-      [url]
+      'SELECT * FROM knowledge_entries WHERE id = ?',
+      [id]
     );
 
     if (!row) return null;

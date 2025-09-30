@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { UrlsTable } from '@/components/urls/urls-table'
 import { AddUrlDialog } from '@/components/urls/add-url-dialog'
+import { BatchAddUrlsDialog } from '@/components/urls/batch-add-urls-dialog'
 import { BatchOperationsPanel } from '@/components/urls/batch-operations'
 import { TagManager } from '@/components/tags/tag-manager'
 import { ProcessingQueue } from '@/components/processing/processing-queue'
@@ -115,7 +116,12 @@ export default function Dashboard() {
             </TabsTrigger>
           </TabsList>
 
-          {activeTab === 'urls' && <AddUrlDialog />}
+          {activeTab === 'urls' && (
+            <div className="flex gap-2">
+              <AddUrlDialog />
+              <BatchAddUrlsDialog />
+            </div>
+          )}
         </div>
 
         <TabsContent value="urls" className="space-y-4">

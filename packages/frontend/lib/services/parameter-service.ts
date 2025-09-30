@@ -4,7 +4,7 @@
  * Interface Segregation: Implements focused interface for parameter management
  */
 
-import { ScraperConfiguration } from '../services/interfaces'
+import { ScraperConfig } from '../services/interfaces'
 
 export interface ParameterSchema {
   name: string
@@ -53,7 +53,7 @@ export interface IParameterConfigService {
   validateParameters(scraperType: string, parameters: Record<string, any>): Promise<ParameterValidationResult>
 
   // URL-specific parameters
-  getUrlParameters(urlId: string): Promise<ScraperConfiguration | null>
+  getUrlParameters(urlId: string): Promise<ScraperConfig | null>
   setUrlParameters(urlId: string, scraperType: string, parameters: Record<string, any>, priority?: number): Promise<void>
   deleteUrlParameters(urlId: string): Promise<void>
 
@@ -162,7 +162,7 @@ class ParameterConfigService implements IParameterConfigService {
     }
   }
 
-  async getUrlParameters(urlId: string): Promise<ScraperConfiguration | null> {
+  async getUrlParameters(urlId: string): Promise<ScraperConfig | null> {
     try {
       const response = await fetch(`${this.baseUrl}/url/${encodeURIComponent(urlId)}/parameters`)
       const result = await response.json()
@@ -172,7 +172,7 @@ class ParameterConfigService implements IParameterConfigService {
       }
 
       return {
-        scraperType: result.data.scraperType,
+        type: result.data.scraperType || result.data.type,
         parameters: result.data.parameters || {},
         priority: result.data.priority,
         enabled: result.data.enabled !== false
@@ -298,11 +298,11 @@ class ParameterConfigService implements IParameterConfigService {
 
   private clearUrlCache(urlId: string): void {
     // Clear any cached data related to this URL
-    for (const [key] of this.cache) {
+    Array.from(this.cache.keys()).forEach(key => {
       if (key.includes(urlId)) {
         this.cache.delete(key)
       }
-    }
+    })
   }
 
   clearAllCache(): void {

@@ -64,7 +64,7 @@ export function BatchOperationsPanel() {
   const { toast } = useToast()
 
   useEffect(() => {
-    fetchTags().catch(console.error)
+    fetchTags().catch(err => console.error('Failed to fetch tags:', err?.message || String(err)))
   }, [fetchTags])
 
   const selectedCount = selectedUrls.size

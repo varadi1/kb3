@@ -134,39 +134,40 @@ router.get('/url/:id',
 );
 
 // POST /api/config/url/:id - Set URL-specific configuration
-router.post('/url/:id',
+router.post('/url/:id(*)',
   [
-    param('id').isString(),
-    body('scraperType').optional().isString(),
+    param('id').isString().custom((value) => {
+      // Validate URL ID format - no consecutive dots or invalid characters
+      if (value.includes('..') || /[<>:"\|?*]/.test(value)) {
+        throw new Error('Invalid URL ID format');
+      }
+      return true;
+    }),
     body('scraperConfig').optional().isObject(),
-    body('cleaners').optional().isArray(),
-    body('cleanerConfigs').optional().isObject(),
-    body('priority').optional().isInt({ min: 0, max: 100 })
+    body('cleanerConfigs').optional().isArray()
   ],
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
-      const { scraperType, scraperConfig, cleaners, cleanerConfigs, priority } = req.body;
+      const { scraperConfig, cleanerConfigs } = req.body;
 
-      await kb3Service.setUrlParameters(id, {
-        scraperType,
-        parameters: scraperConfig,
-        cleaners,
-        priority
-      });
+      // Set URL parameters if scraperConfig is provided
+      if (scraperConfig) {
+        await kb3Service.setUrlParameters(id, {
+          scraperType: scraperConfig.type,
+          parameters: scraperConfig.parameters || scraperConfig
+        });
+      }
+
+      // Set cleaners if provided
+      if (cleanerConfigs) {
+        await kb3Service.setUrlCleaners(id, cleanerConfigs);
+      }
 
       res.json({
         success: true,
-        message: 'Configuration updated successfully',
-        data: {
-          url: id,
-          scraperType,
-          scraperConfig,
-          cleaners,
-          cleanerConfigs,
-          priority
-        }
+        message: 'URL configuration updated'
       });
     } catch (error) {
       next(error);
@@ -198,7 +199,7 @@ router.delete('/url/:id',
 // GET /api/config/templates - Get configuration templates
 router.get('/templates', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const templates = getConfigTemplates();
+    const templates = await kb3Service.getConfigTemplates();
 
     res.json({
       success: true,
@@ -214,21 +215,19 @@ router.post('/templates',
   [
     body('name').isString().trim().notEmpty(),
     body('description').optional().isString(),
-    body('scraperType').isString(),
-    body('scraperConfig').optional().isObject(),
-    body('cleaners').isArray(),
-    body('cleanerConfigs').optional().isObject()
+    body('scraperConfigs').isArray(),
+    body('cleanerConfigs').isArray()
   ],
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const template = req.body;
+      const result = await kb3Service.saveConfigTemplate(template);
 
-      // This would need persistent storage implementation
-      res.json({
+      res.status(201).json({
         success: true,
         message: 'Template saved successfully',
-        data: template
+        data: result
       });
     } catch (error) {
       next(error);
@@ -511,9 +510,9 @@ router.get('/parameters/stats', async (req: Request, res: Response, next: NextFu
 router.post('/test',
   [
     body('url').isURL(),
-    body('scraperType').isString(),
+    body('scraperType').optional().isString(),
     body('scraperConfig').optional().isObject(),
-    body('cleaners').isArray(),
+    body('cleaners').optional().isArray(),
     body('cleanerConfigs').optional().isObject()
   ],
   handleValidationErrors,
@@ -521,18 +520,15 @@ router.post('/test',
     try {
       const { url, scraperType, scraperConfig, cleaners, cleanerConfigs } = req.body;
 
-      // Set temporary configuration
-      await kb3Service.setUrlParameters(url, {
-        scraperType,
-        parameters: scraperConfig,
-        cleaners
-      });
+      // Build configuration from request
+      const config = {
+        scraperType: scraperType || scraperConfig?.type || 'http',
+        scraperConfig: scraperConfig || {},
+        cleaners: cleaners || ['sanitizehtml']
+      };
 
       // Process the URL with the test configuration
-      const result = await kb3Service.processUrl(url, {
-        scraperType,
-        cleaners
-      });
+      const result = await kb3Service.processUrl(url, config);
 
       res.json({
         success: true,

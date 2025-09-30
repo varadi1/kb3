@@ -1257,7 +1257,9 @@ export class ParameterService implements IParameterService {
   }
 
   getParameterSchema(scraperType: string): ScraperParameterSchema | null {
-    return this.schemas.get(scraperType) || null;
+    // Handle 'default' as an alias for 'http'
+    const effectiveScraperType = scraperType === 'default' ? 'http' : scraperType;
+    return this.schemas.get(effectiveScraperType) || null;
   }
 
   getAllParameterSchemas(): ScraperParameterSchema[] {
@@ -1266,8 +1268,11 @@ export class ParameterService implements IParameterService {
 
   validateParameters(scraperType: string, parameters: any): ParameterValidationResult {
     try {
+      // Handle 'default' as an alias for 'http'
+      const effectiveScraperType = scraperType === 'default' ? 'http' : scraperType;
+
       // Simple validation based on schema
-      const schema = this.getParameterSchema(scraperType);
+      const schema = this.getParameterSchema(effectiveScraperType);
       if (!schema) {
         return {
           valid: false,
@@ -1279,7 +1284,7 @@ export class ParameterService implements IParameterService {
       const normalizedParams: any = {};
 
     // Basic validation for known scrapers
-    if (scraperType === 'playwright') {
+    if (effectiveScraperType === 'playwright') {
       if (parameters.timeout !== undefined && typeof parameters.timeout !== 'number') {
         errors.push('timeout must be a number');
       }
@@ -1287,12 +1292,12 @@ export class ParameterService implements IParameterService {
         errors.push('headless must be a boolean');
       }
       Object.assign(normalizedParams, parameters);
-    } else if (scraperType === 'crawl4ai') {
+    } else if (effectiveScraperType === 'crawl4ai') {
       if (parameters.maxDepth !== undefined && typeof parameters.maxDepth !== 'number') {
         errors.push('maxDepth must be a number');
       }
       Object.assign(normalizedParams, parameters);
-    } else if (scraperType === 'docling') {
+    } else if (effectiveScraperType === 'docling') {
       if (parameters.maxPages !== undefined && typeof parameters.maxPages !== 'number') {
         errors.push('maxPages must be a number');
       }

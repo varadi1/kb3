@@ -27,13 +27,13 @@ export * from './detectors';
 export * from './fetchers';
 export * from './processors';
 export {
-  BaseFileStorage,
   BaseKnowledgeStore,
-  FileKnowledgeStore,
+  BaseFileStorage,
   LocalFileStorage,
   SqlKnowledgeStore,
   SqlUrlRepository,
-  SqlConfigurationPersistence
+  SqlConfigurationPersistence,
+  UnifiedSqlStorage
 } from './storage';
 
 // Scraper parameter management

@@ -85,7 +85,9 @@ router.post('/',
         data: {
           content: responseData,
           count: Array.isArray(data) ? data.length : (data.urls ? data.urls.length : 0),
-          format: options.format
+          format: options.format,
+          contentType: contentType,
+          filename: filename
         }
       });
     } catch (error) {
@@ -159,10 +161,18 @@ router.post('/import',
 
       const result = await kb3Service.importData(data, format);
 
-      res.json({
-        success: true,
-        data: result
-      });
+      // Check for errors, duplicates, or partial failures - return 207 Multi-Status
+      if ((result.failed && result.failed > 0) || (result.duplicates && result.duplicates > 0)) {
+        res.status(207).json({
+          success: true,
+          data: result
+        });
+      } else {
+        res.json({
+          success: true,
+          data: result
+        });
+      }
     } catch (error) {
       next(error);
     }
@@ -177,8 +187,22 @@ router.get('/templates',
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const format = req.query.format as string || 'json';
+      const format = req.query.format as string;
 
+      // If no format specified, return all templates
+      if (!format) {
+        res.json({
+          success: true,
+          data: {
+            json: JSON.stringify(getJsonTemplate(), null, 2),
+            csv: getCsvTemplate(),
+            txt: getTextTemplate()
+          }
+        });
+        return;
+      }
+
+      // Otherwise, download specific template
       let template: string;
       let contentType: string;
       let filename: string;
@@ -268,7 +292,12 @@ router.post('/validate',
         }
       } catch (error: any) {
         validation.valid = false;
-        validation.errors.push(`Parse error: ${error.message}`);
+        // Check if the error message is about invalid JSON
+        if (error.message.includes('JSON')) {
+          validation.errors.push('Invalid JSON format');
+        } else {
+          validation.errors.push(`Parse error: ${error.message}`);
+        }
       }
 
       res.json({
@@ -326,6 +355,12 @@ async function parseCSV(content: string): Promise<any[]> {
   if (lines.length < 2) return [];
 
   const headers = lines[0].split(',').map(h => h.trim());
+
+  // Check if required header 'url' exists
+  if (!headers.includes('url')) {
+    throw new Error('Missing required header: url');
+  }
+
   const data: any[] = [];
 
   for (let i = 1; i < lines.length; i++) {
@@ -339,6 +374,11 @@ async function parseCSV(content: string): Promise<any[]> {
         row[header] = values[index];
       }
     });
+
+    // Ensure each row has a url
+    if (!row.url) {
+      throw new Error(`Missing URL at index ${i - 1}`);
+    }
 
     data.push(row);
   }
@@ -375,6 +415,7 @@ function getJsonTemplate(): any {
       {
         url: 'https://example.com',
         tags: ['documentation', 'api'],
+        authority: 5,
         scraperType: 'http',
         cleaners: ['sanitizehtml', 'readability']
       }
@@ -383,8 +424,8 @@ function getJsonTemplate(): any {
 }
 
 function getCsvTemplate(): string {
-  return 'url,tags,scraperType,cleaners\n' +
-         'https://example.com,"documentation;api",http,"sanitizehtml;readability"';
+  return 'url,tags,authority,scraperType,cleaners\n' +
+         'https://example.com,"documentation;api",5,http,"sanitizehtml;readability"';
 }
 
 function getTextTemplate(): string {
@@ -403,32 +444,38 @@ function validateJsonImport(data: any): any {
     valid: true,
     errors: [] as string[],
     warnings: [] as string[],
-    summary: {
-      urlCount: 0,
+    stats: {
+      totalUrls: 0,
       validUrls: 0,
       invalidUrls: 0
     }
   };
 
-  if (!data.urls || !Array.isArray(data.urls)) {
+  // Handle both direct array and wrapped in object
+  let urls = data;
+  if (data && data.urls) {
+    urls = data.urls;
+  }
+
+  if (!Array.isArray(urls)) {
     validation.valid = false;
     validation.errors.push('Missing or invalid "urls" array');
     return validation;
   }
 
-  validation.summary.urlCount = data.urls.length;
+  validation.stats.totalUrls = urls.length;
 
-  data.urls.forEach((item: any, index: number) => {
+  urls.forEach((item: any, index: number) => {
     if (!item.url) {
       validation.errors.push(`Missing URL at index ${index}`);
-      validation.summary.invalidUrls++;
+      validation.stats.invalidUrls++;
     } else {
       try {
         new URL(item.url);
-        validation.summary.validUrls++;
+        validation.stats.validUrls++;
       } catch {
         validation.errors.push(`Invalid URL at index ${index}: ${item.url}`);
-        validation.summary.invalidUrls++;
+        validation.stats.invalidUrls++;
       }
     }
   });
@@ -438,7 +485,33 @@ function validateJsonImport(data: any): any {
 }
 
 function validateCsvImport(data: any[]): any {
-  return validateJsonImport({ urls: data });
+  const validation = {
+    valid: true,
+    errors: [] as string[],
+    warnings: [] as string[],
+    stats: {
+      totalUrls: 0,
+      validUrls: 0,
+      invalidUrls: 0
+    }
+  };
+
+  // CSV validation should check if we even have data
+  if (!data || data.length === 0) {
+    validation.valid = false;
+    validation.errors.push('No data found in CSV');
+    return validation;
+  }
+
+  // Check for missing URLs
+  data.forEach((item, index) => {
+    if (!item.url) {
+      validation.errors.push(`Missing URL at index ${index}`);
+      validation.valid = false;
+    }
+  });
+
+  return validation;
 }
 
 function validateTextImport(data: any[]): any {

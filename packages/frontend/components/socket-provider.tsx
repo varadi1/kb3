@@ -40,9 +40,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     // Handle processing events
     socketInstance.on('processing:started', (data) => {
+      // Ensure we have a valid URL string
+      const url = typeof data.url === 'string' ? data.url : 'Unknown URL'
+
       updateProcessingTask({
-        id: data.url,
-        url: data.url,
+        id: url,
+        url: url,
         status: 'processing',
         progress: 0,
         startedAt: new Date().toISOString()
@@ -50,7 +53,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
       toast({
         title: 'Processing Started',
-        description: `Processing URL: ${data.url}`,
+        description: `Processing URL: ${url}`,
       })
     })
 
@@ -65,9 +68,13 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     })
 
     socketInstance.on('processing:completed', (data) => {
+      // Ensure we have a valid URL string
+      const url = typeof data.url === 'string' ? data.url :
+                  (data.result && typeof data.result.url === 'string' ? data.result.url : 'Unknown URL')
+
       updateProcessingTask({
-        id: data.url,
-        url: data.url,
+        id: url,
+        url: url,
         status: 'completed',
         progress: 100,
         completedAt: new Date().toISOString()
@@ -75,7 +82,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
       toast({
         title: 'Processing Completed',
-        description: `Successfully processed: ${data.url}`,
+        description: `Successfully processed: ${url}`,
       })
 
       // Refresh URLs list
@@ -83,17 +90,21 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     })
 
     socketInstance.on('processing:failed', (data) => {
+      // Ensure we have a valid URL string and error message
+      const url = typeof data.url === 'string' ? data.url : 'Unknown URL'
+      const errorMessage = typeof data.error?.message === 'string' ? data.error.message : 'Processing failed'
+
       updateProcessingTask({
-        id: data.url,
-        url: data.url,
+        id: url,
+        url: url,
         status: 'failed',
         progress: 0,
-        message: data.error?.message || 'Processing failed'
+        message: errorMessage
       })
 
       toast({
         title: 'Processing Failed',
-        description: data.error?.message || `Failed to process: ${data.url}`,
+        description: errorMessage || `Failed to process: ${url}`,
         variant: 'destructive',
       })
     })
@@ -150,9 +161,14 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     // Handle errors
     socketInstance.on('error', (error) => {
+      // Ensure error message is a string
+      const errorMessage = typeof error?.message === 'string' ? error.message :
+                          typeof error === 'string' ? error :
+                          'An error occurred'
+
       toast({
         title: 'Error',
-        description: error.message,
+        description: errorMessage,
         variant: 'destructive',
       })
     })
@@ -160,6 +176,16 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     setSocket(socketInstance)
 
     return () => {
+      // CRITICAL: Remove all event listeners to prevent memory leak
+      socketInstance.off('connect')
+      socketInstance.off('disconnect')
+      socketInstance.off('processing:started')
+      socketInstance.off('processing:progress')
+      socketInstance.off('processing:completed')
+      socketInstance.off('processing:failed')
+      socketInstance.off('url:added')
+      socketInstance.off('urls:batch-added')
+      socketInstance.off('stats:updated')
       socketInstance.disconnect()
     }
   }, [toast, updateProcessingTask, fetchUrls, fetchStats])

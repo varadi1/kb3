@@ -5,6 +5,7 @@ import { getImportExportService } from './services/import-export-service'
 import { getParameterService } from './services/parameter-service'
 import type { ConfigData, ImportResult, ExportData, ScraperConfig, CleanerConfig } from './services/interfaces'
 import type { ScraperParameterSchema, ParameterValidationResult } from './services/parameter-service'
+import type { ProcessingItem } from '@/types/processing'
 
 export interface Url {
   id: string
@@ -28,6 +29,7 @@ export interface Tag {
   color?: string
   children?: Tag[]
   created_at: string
+  urlCount?: number
 }
 
 export interface ProcessingTask {
@@ -118,6 +120,13 @@ interface Kb3State {
   updateProcessingTask: (task: ProcessingTask) => void
   removeProcessingTask: (id: string) => void
 
+  // Queue Management
+  fetchQueue: () => Promise<ProcessingItem[]>
+  startProcessing: () => Promise<any>
+  stopProcessing: () => Promise<any>
+  retryItem: (id: string) => Promise<any>
+  clearCompleted: () => Promise<any>
+
   // Actions - Advanced Parameters
   getParameterSchema: (scraperType: string) => Promise<ScraperParameterSchema | null>
   getAllParameterSchemas: () => Promise<ScraperParameterSchema[]>
@@ -202,7 +211,15 @@ export const useKb3Store = create<Kb3State>()(
             body: JSON.stringify(updates)
           })
           const data = await response.json()
-          if (data.success) {
+          if (data.success && data.data) {
+            // Use the complete URL returned from the server
+            set((state) => ({
+              urls: state.urls.map(u =>
+                u.id === id ? data.data : u
+              )
+            }))
+          } else if (data.success) {
+            // Fallback to optimistic update if server doesn't return complete data
             set((state) => ({
               urls: state.urls.map(u =>
                 u.id === id ? { ...u, ...updates } : u
@@ -211,6 +228,7 @@ export const useKb3Store = create<Kb3State>()(
           }
         } catch (error) {
           console.error('Failed to update URL:', error)
+          throw error // Re-throw to allow caller to handle
         }
       },
 
@@ -223,7 +241,7 @@ export const useKb3Store = create<Kb3State>()(
           if (data.success) {
             set((state) => ({
               urls: state.urls.filter(u => u.id !== id),
-              selectedUrls: new Set([...state.selectedUrls].filter(uid => uid !== id))
+              selectedUrls: new Set(Array.from(state.selectedUrls).filter(uid => uid !== id))
             }))
           }
         } catch (error) {
@@ -248,7 +266,7 @@ export const useKb3Store = create<Kb3State>()(
 
             set((state) => ({
               urls: state.urls.filter(u => !deletedIds.includes(u.id)),
-              selectedUrls: new Set([...state.selectedUrls].filter(uid => !deletedIds.includes(uid)))
+              selectedUrls: new Set(Array.from(state.selectedUrls).filter(uid => !deletedIds.includes(uid)))
             }))
 
             // Refresh to ensure consistency
@@ -267,7 +285,7 @@ export const useKb3Store = create<Kb3State>()(
 
       selectUrl: (id) => {
         set((state) => ({
-          selectedUrls: new Set([...state.selectedUrls, id])
+          selectedUrls: new Set(Array.from(state.selectedUrls).concat(id))
         }))
       },
 
@@ -648,7 +666,7 @@ export const useKb3Store = create<Kb3State>()(
             set((state) => ({
               urls: state.urls.map(u =>
                 ids.includes(u.id)
-                  ? { ...u, tags: [...new Set([...u.tags, ...tags])] }
+                  ? { ...u, tags: Array.from(new Set(u.tags.concat(tags))) }
                   : u
               )
             }))
@@ -724,7 +742,7 @@ export const useKb3Store = create<Kb3State>()(
             if (Array.isArray(data.data.queue)) {
               return data.data.queue
             } else {
-              console.warn('Queue is not an array:', typeof data.data.queue, data.data.queue)
+              console.warn('Queue is not an array:', typeof data.data.queue, JSON.stringify(data.data.queue))
               return []
             }
           }

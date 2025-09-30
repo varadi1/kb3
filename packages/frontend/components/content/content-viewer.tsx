@@ -33,9 +33,12 @@ import {
   Eye,
   EyeOff,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Sparkles,
+  GitCompare
 } from 'lucide-react'
-import type { Url } from '@/lib/store'
+import { useKb3Store, type Url } from '@/lib/store'
+import { ContentReprocessor } from './content-reprocessor'
 
 interface ContentViewerProps {
   url: Url
@@ -55,8 +58,11 @@ export function ContentViewer({ url, open, onOpenChange }: ContentViewerProps) {
   const [loading, setLoading] = useState(false)
   const [showDiff, setShowDiff] = useState(false)
   const [activeTab, setActiveTab] = useState('cleaned')
+  const [reprocessorOpen, setReprocessorOpen] = useState(false)
+  const [comparisonMode, setComparisonMode] = useState(false)
 
   const { toast } = useToast()
+  const fetchUrls = useKb3Store(state => state.fetchUrls)
 
   useEffect(() => {
     if (open && url) {
@@ -105,19 +111,25 @@ export function ContentViewer({ url, open, onOpenChange }: ContentViewerProps) {
         title: 'Copied',
         description: 'Content copied to clipboard',
       })
+    }).catch((error) => {
+      toast({
+        title: 'Error',
+        description: 'Failed to copy to clipboard',
+        variant: 'destructive'
+      })
     })
   }
 
   const downloadContent = (content: string, type: string) => {
     const blob = new Blob([content], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
+    const blobUrl = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url
+    a.href = blobUrl
     a.download = `${url.id}-${type}.txt`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    URL.revokeObjectURL(blobUrl)
   }
 
   const getContentStats = (content: string) => ({
@@ -135,8 +147,9 @@ export function ContentViewer({ url, open, onOpenChange }: ContentViewerProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] max-h-[90vh]">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Content Viewer</DialogTitle>
           <DialogDescription>
@@ -171,6 +184,22 @@ export function ContentViewer({ url, open, onOpenChange }: ContentViewerProps) {
               </TabsList>
 
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setReprocessorOpen(true)}
+                  disabled={!originalContent}
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Reprocess
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setComparisonMode(!comparisonMode)}
+                >
+                  <GitCompare className="h-4 w-4" />
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -218,6 +247,15 @@ export function ContentViewer({ url, open, onOpenChange }: ContentViewerProps) {
                     >
                       <Download className="mr-2 h-4 w-4" />
                       Download
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setReprocessorOpen(true)}
+                      disabled={!originalContent}
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Reprocess
                     </Button>
                   </div>
                   <ScrollArea className="h-[400px] w-full border rounded-md p-4">
@@ -293,24 +331,85 @@ export function ContentViewer({ url, open, onOpenChange }: ContentViewerProps) {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <h4 className="font-semibold mb-2 text-sm">Original</h4>
-                      <ScrollArea className="h-[400px] w-full border rounded-md p-4">
-                        <pre className="text-xs whitespace-pre-wrap font-mono">
-                          {originalContent || 'No original content'}
-                        </pre>
-                      </ScrollArea>
+                  {comparisonMode ? (
+                    // Enhanced comparison view with diff highlighting
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div className="text-center p-2 border rounded">
+                          <div className="text-muted-foreground">Original</div>
+                          <div className="font-bold">{originalStats.characters.toLocaleString()}</div>
+                          <div className="text-xs">characters</div>
+                        </div>
+                        <div className="text-center p-2 border rounded bg-green-50 dark:bg-green-950">
+                          <div className="text-muted-foreground">Reduction</div>
+                          <div className="font-bold text-green-600">
+                            {calculateReduction()}%
+                          </div>
+                          <div className="text-xs">
+                            ({(originalStats.characters - cleanedStats.characters).toLocaleString()} chars)
+                          </div>
+                        </div>
+                        <div className="text-center p-2 border rounded">
+                          <div className="text-muted-foreground">Cleaned</div>
+                          <div className="font-bold">{cleanedStats.characters.toLocaleString()}</div>
+                          <div className="text-xs">characters</div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="flex justify-between items-center mb-2">
+                            <h4 className="font-semibold text-sm">Original</h4>
+                            <div className="flex gap-2 text-xs text-muted-foreground">
+                              <span>{originalStats.words} words</span>
+                              <span>•</span>
+                              <span>{originalStats.lines} lines</span>
+                            </div>
+                          </div>
+                          <ScrollArea className="h-[400px] w-full border rounded-md p-4 bg-red-50/50 dark:bg-red-950/20">
+                            <pre className="text-xs whitespace-pre-wrap font-mono">
+                              {originalContent || 'No original content'}
+                            </pre>
+                          </ScrollArea>
+                        </div>
+                        <div>
+                          <div className="flex justify-between items-center mb-2">
+                            <h4 className="font-semibold text-sm">Cleaned</h4>
+                            <div className="flex gap-2 text-xs text-muted-foreground">
+                              <span>{cleanedStats.words} words</span>
+                              <span>•</span>
+                              <span>{cleanedStats.lines} lines</span>
+                            </div>
+                          </div>
+                          <ScrollArea className="h-[400px] w-full border rounded-md p-4 bg-green-50/50 dark:bg-green-950/20">
+                            <pre className="text-xs whitespace-pre-wrap font-mono">
+                              {cleanedContent || 'No cleaned content'}
+                            </pre>
+                          </ScrollArea>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold mb-2 text-sm">Cleaned</h4>
-                      <ScrollArea className="h-[400px] w-full border rounded-md p-4">
-                        <pre className="text-xs whitespace-pre-wrap font-mono">
-                          {cleanedContent || 'No cleaned content'}
-                        </pre>
-                      </ScrollArea>
+                  ) : (
+                    // Simple side-by-side view
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="font-semibold mb-2 text-sm">Original</h4>
+                        <ScrollArea className="h-[400px] w-full border rounded-md p-4">
+                          <pre className="text-xs whitespace-pre-wrap font-mono">
+                            {originalContent || 'No original content'}
+                          </pre>
+                        </ScrollArea>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold mb-2 text-sm">Cleaned</h4>
+                        <ScrollArea className="h-[400px] w-full border rounded-md p-4">
+                          <pre className="text-xs whitespace-pre-wrap font-mono">
+                            {cleanedContent || 'No cleaned content'}
+                          </pre>
+                        </ScrollArea>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -385,5 +484,22 @@ export function ContentViewer({ url, open, onOpenChange }: ContentViewerProps) {
         )}
       </DialogContent>
     </Dialog>
+
+    {/* Content Reprocessor Dialog */}
+    <ContentReprocessor
+      url={url}
+      open={reprocessorOpen}
+      onOpenChange={setReprocessorOpen}
+      originalContent={originalContent}
+      currentCleanedContent={cleanedContent}
+      onReprocess={(newContent) => {
+        setCleanedContent(newContent)
+        toast({
+          title: 'Content Updated',
+          description: 'The cleaned content has been updated with your new configuration',
+        })
+      }}
+    />
+    </>
   )
 }

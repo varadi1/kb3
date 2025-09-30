@@ -189,7 +189,9 @@ export function ProcessingQueue() {
                       <div className="text-xs text-red-500 mt-1">
                         {typeof item.error === 'string'
                           ? item.error
-                          : JSON.stringify(item.error)}
+                          : typeof item.error === 'object' && item.error !== null
+                          ? JSON.stringify(item.error)
+                          : 'Processing failed'}
                       </div>
                     )}
                     {item.startedAt && (

@@ -22,6 +22,8 @@ describe('BatchOperationsPanel', () => {
   const mockProcessUrls = jest.fn()
   const mockDeselectAllUrls = jest.fn()
   const mockFetchTags = jest.fn()
+  const mockDeleteUrls = jest.fn()
+  const mockExportData = jest.fn()
   const mockToast = jest.fn()
 
   const defaultMockStore = {
@@ -35,18 +37,26 @@ describe('BatchOperationsPanel', () => {
       { id: 1, name: 'docs', created_at: '2024-01-01' },
       { id: 2, name: 'api', created_at: '2024-01-01' }
     ],
-    fetchTags: mockFetchTags,
+    fetchTags: mockFetchTags.mockResolvedValue([]),
     batchAssignTags: mockBatchAssignTags,
     batchUpdateAuthority: mockBatchUpdateAuthority,
     batchUpdateUrls: mockBatchUpdateUrls,
     processUrls: mockProcessUrls,
-    deselectAllUrls: mockDeselectAllUrls
+    deleteUrls: mockDeleteUrls,
+    deselectAllUrls: mockDeselectAllUrls,
+    exportData: mockExportData
   }
 
   beforeEach(() => {
-    (useKb3Store as unknown as jest.Mock).mockReturnValue(defaultMockStore);
-    (useToast as jest.Mock).mockReturnValue({ toast: mockToast })
     jest.clearAllMocks()
+    mockFetchTags.mockResolvedValue([])
+    mockExportData.mockResolvedValue({
+      content: '[]',
+      mimeType: 'application/json'
+    });
+    (useKb3Store as unknown as jest.Mock).mockReturnValue(defaultMockStore);
+    (useKb3Store as any).getState = jest.fn(() => defaultMockStore);
+    (useToast as jest.Mock).mockReturnValue({ toast: mockToast })
   })
 
   describe('Rendering', () => {
@@ -124,7 +134,7 @@ describe('BatchOperationsPanel', () => {
       fireEvent.change(tagInput, { target: { value: 'newtag' } })
       fireEvent.keyDown(tagInput, { key: 'Enter', code: 'Enter' })
 
-      const assignButton = screen.getByText('Assign Tags')
+      const assignButton = screen.getByRole('button', { name: 'Assign Tags' })
       fireEvent.click(assignButton)
 
       await waitFor(() => {
@@ -140,17 +150,20 @@ describe('BatchOperationsPanel', () => {
       })
     })
 
-    it('should show error if no tags selected', () => {
+    it('should disable assign button when no tags selected', () => {
       render(<BatchOperationsPanel />)
 
-      const assignButton = screen.getByText('Assign Tags')
-      fireEvent.click(assignButton)
+      const assignButton = screen.getByRole('button', { name: 'Assign Tags' })
 
-      expect(mockToast).toHaveBeenCalledWith({
-        title: 'Error',
-        description: 'Please select at least one tag',
-        variant: 'destructive'
-      })
+      // The button should be disabled when no tags are selected
+      expect(assignButton).toBeDisabled()
+
+      // After adding a tag, the button should be enabled
+      const tagInput = screen.getByPlaceholderText('Enter tag name')
+      fireEvent.change(tagInput, { target: { value: 'testtag' } })
+      fireEvent.keyDown(tagInput, { key: 'Enter', code: 'Enter' })
+
+      expect(assignButton).toBeEnabled()
     })
   })
 
@@ -159,7 +172,7 @@ describe('BatchOperationsPanel', () => {
       render(<BatchOperationsPanel />)
 
       expect(screen.getByText('None (0)')).toBeInTheDocument()
-      expect(screen.getByText('Update Authority')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Update Authority' })).toBeInTheDocument()
     })
 
     it('should call batchUpdateAuthority on update', async () => {
@@ -171,7 +184,7 @@ describe('BatchOperationsPanel', () => {
       fireEvent.click(authoritySelect)
       fireEvent.click(screen.getByText('High (3)'))
 
-      const updateButton = screen.getByText('Update Authority')
+      const updateButton = screen.getByRole('button', { name: 'Update Authority' })
       fireEvent.click(updateButton)
 
       await waitFor(() => {
@@ -209,7 +222,7 @@ describe('BatchOperationsPanel', () => {
       fireEvent.click(statusSelect)
       fireEvent.click(screen.getByText('Completed'))
 
-      const updateButton = screen.getByText('Update Status')
+      const updateButton = screen.getByRole('button', { name: 'Update Status' })
       fireEvent.click(updateButton)
 
       await waitFor(() => {
@@ -225,17 +238,20 @@ describe('BatchOperationsPanel', () => {
       })
     })
 
-    it('should show error if no status selected', () => {
+    it('should disable update button when no status selected', () => {
       render(<BatchOperationsPanel />)
 
-      const updateButton = screen.getByText('Update Status')
-      fireEvent.click(updateButton)
+      const updateButton = screen.getByRole('button', { name: 'Update Status' })
 
-      expect(mockToast).toHaveBeenCalledWith({
-        title: 'Error',
-        description: 'Please select a status',
-        variant: 'destructive'
-      })
+      // The button should be disabled when no status is selected
+      expect(updateButton).toBeDisabled()
+
+      // After selecting a status, the button should be enabled
+      const statusSelect = screen.getByText('Select status')
+      fireEvent.click(statusSelect)
+      fireEvent.click(screen.getByText('Completed'))
+
+      expect(updateButton).toBeEnabled()
     })
   })
 
@@ -245,7 +261,7 @@ describe('BatchOperationsPanel', () => {
 
       render(<BatchOperationsPanel />)
 
-      const processButton = screen.getByText('Process Selected')
+      const processButton = screen.getByRole('button', { name: /Process Selected/ })
       fireEvent.click(processButton)
 
       await waitFor(() => {
@@ -260,17 +276,17 @@ describe('BatchOperationsPanel', () => {
 
     it('should confirm before deleting', async () => {
       const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
-      mockBatchUpdateUrls.mockResolvedValue(undefined)
+      mockDeleteUrls.mockResolvedValue(undefined)
 
       render(<BatchOperationsPanel />)
 
-      const deleteButton = screen.getByText('Delete Selected')
+      const deleteButton = screen.getByRole('button', { name: /Delete Selected/ })
       fireEvent.click(deleteButton)
 
       expect(confirmSpy).toHaveBeenCalledWith('Are you sure you want to delete 3 URLs?')
 
       await waitFor(() => {
-        expect(mockBatchUpdateUrls).toHaveBeenCalled()
+        expect(mockDeleteUrls).toHaveBeenCalled()
       })
 
       confirmSpy.mockRestore()
@@ -281,10 +297,10 @@ describe('BatchOperationsPanel', () => {
 
       render(<BatchOperationsPanel />)
 
-      const deleteButton = screen.getByText('Delete Selected')
+      const deleteButton = screen.getByRole('button', { name: /Delete Selected/ })
       fireEvent.click(deleteButton)
 
-      expect(mockBatchUpdateUrls).not.toHaveBeenCalled()
+      expect(mockDeleteUrls).not.toHaveBeenCalled()
 
       confirmSpy.mockRestore()
     })
@@ -292,7 +308,7 @@ describe('BatchOperationsPanel', () => {
     it('should clear selection', () => {
       render(<BatchOperationsPanel />)
 
-      const clearButton = screen.getByText('Clear Selection')
+      const clearButton = screen.getByRole('button', { name: 'Clear Selection' })
       fireEvent.click(clearButton)
 
       expect(mockDeselectAllUrls).toHaveBeenCalled()
@@ -309,13 +325,13 @@ describe('BatchOperationsPanel', () => {
       fireEvent.change(tagInput, { target: { value: 'tag' } })
       fireEvent.keyDown(tagInput, { key: 'Enter', code: 'Enter' })
 
-      const assignButton = screen.getByText('Assign Tags')
+      const assignButton = screen.getByRole('button', { name: 'Assign Tags' })
       fireEvent.click(assignButton)
 
       await waitFor(() => {
-        expect(screen.getByText('Process Selected')).toBeDisabled()
-        expect(screen.getByText('Export Selected')).toBeDisabled()
-        expect(screen.getByText('Delete Selected')).toBeDisabled()
+        expect(screen.getByRole('button', { name: /Process Selected/ })).toBeDisabled()
+        expect(screen.getByRole('button', { name: /Export Selected/ })).toBeDisabled()
+        expect(screen.getByRole('button', { name: /Delete Selected/ })).toBeDisabled()
       })
     })
   })
@@ -330,7 +346,7 @@ describe('BatchOperationsPanel', () => {
       fireEvent.change(tagInput, { target: { value: 'tag' } })
       fireEvent.keyDown(tagInput, { key: 'Enter', code: 'Enter' })
 
-      const assignButton = screen.getByText('Assign Tags')
+      const assignButton = screen.getByRole('button', { name: 'Assign Tags' })
       fireEvent.click(assignButton)
 
       await waitFor(() => {
@@ -349,9 +365,9 @@ describe('BatchOperationsPanel', () => {
 
       // Should contain batch operation elements
       expect(screen.getByText('Batch Operations')).toBeInTheDocument()
-      expect(screen.getByText('Assign Tags')).toBeInTheDocument()
-      expect(screen.getByText('Update Authority')).toBeInTheDocument()
-      expect(screen.getByText('Update Status')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Assign Tags' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Update Authority' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Update Status' })).toBeInTheDocument()
 
       // Should NOT contain single URL operations
       expect(screen.queryByText('Edit URL')).not.toBeInTheDocument()

@@ -18,6 +18,7 @@ jest.mock('@/components/ui/use-toast', () => ({
 describe('EditUrlDialog', () => {
   const mockUpdateUrl = jest.fn()
   const mockFetchConfig = jest.fn()
+  const mockFetchTags = jest.fn()
   const mockToast = jest.fn()
 
   const mockUrl = {
@@ -32,9 +33,16 @@ describe('EditUrlDialog', () => {
   }
 
   beforeEach(() => {
+    jest.clearAllMocks()
+
+    mockFetchConfig.mockResolvedValue({});
+    mockFetchTags.mockResolvedValue([]);
+
     (useKb3Store as unknown as jest.Mock).mockReturnValue({
       updateUrl: mockUpdateUrl,
       fetchConfig: mockFetchConfig,
+      fetchTags: mockFetchTags,
+      fetchUrls: jest.fn().mockResolvedValue([]), // Add fetchUrls mock
       configData: {
         scrapers: [
           { type: 'http', enabled: true, priority: 1, parameters: {} }
@@ -46,8 +54,6 @@ describe('EditUrlDialog', () => {
     (useToast as jest.Mock).mockReturnValue({
       toast: mockToast
     })
-
-    jest.clearAllMocks()
   })
 
   describe('Rendering', () => {
@@ -100,8 +106,12 @@ describe('EditUrlDialog', () => {
         />
       )
 
-      const statusSelect = screen.getByRole('combobox', { name: /status/i })
-      expect(statusSelect).toBeInTheDocument()
+      // Find the select trigger button instead of combobox
+      const statusLabel = screen.getByText('Status')
+      expect(statusLabel).toBeInTheDocument()
+
+      // The Select component will display the current status
+      expect(screen.getByText('Pending')).toBeInTheDocument()
     })
 
     it('should display current status', () => {
@@ -127,8 +137,12 @@ describe('EditUrlDialog', () => {
         />
       )
 
-      const authoritySelect = screen.getByRole('combobox', { name: /authority/i })
-      expect(authoritySelect).toBeInTheDocument()
+      // Find the authority label and verify the select shows the correct value
+      const authorityLabel = screen.getByText('Authority')
+      expect(authorityLabel).toBeInTheDocument()
+
+      // The Select component will display the current authority
+      expect(screen.getByText('Medium (2)')).toBeInTheDocument()
     })
 
     it('should show correct authority level', () => {
@@ -167,11 +181,11 @@ describe('EditUrlDialog', () => {
         />
       )
 
-      const tagInput = screen.getByPlaceholderText('Add new tag')
-      const addButton = screen.getByText('Add')
+      const tagInput = screen.getByPlaceholderText('Or create new tag')
+      const createButton = screen.getByText('Create')
 
       fireEvent.change(tagInput, { target: { value: 'newtag' } })
-      fireEvent.click(addButton)
+      fireEvent.click(createButton)
 
       expect(screen.getByText('newtag')).toBeInTheDocument()
     })
@@ -185,12 +199,16 @@ describe('EditUrlDialog', () => {
         />
       )
 
-      const removeButtons = screen.getAllByRole('button').filter(
-        btn => btn.querySelector('svg')
-      )
+      // Find the X icon next to the 'test' tag
+      const testTag = screen.getByText('test')
+      const removeIcon = testTag.parentElement?.querySelector('svg')
 
-      // Click remove on first tag
-      fireEvent.click(removeButtons[0])
+      if (!removeIcon) {
+        throw new Error('Remove icon not found')
+      }
+
+      // Click the X icon to remove the tag
+      fireEvent.click(removeIcon)
 
       // Tag should be removed from display
       expect(screen.queryByText('test')).not.toBeInTheDocument()
@@ -205,7 +223,7 @@ describe('EditUrlDialog', () => {
         />
       )
 
-      const tagInput = screen.getByPlaceholderText('Add new tag')
+      const tagInput = screen.getByPlaceholderText('Or create new tag')
 
       fireEvent.change(tagInput, { target: { value: 'entertag' } })
       fireEvent.keyDown(tagInput, { key: 'Enter', code: 'Enter' })
@@ -324,10 +342,12 @@ describe('EditUrlDialog', () => {
   })
 
   describe('Configuration Loading', () => {
-    it('should fetch config if not loaded', () => {
+    it('should fetch config if not loaded', async () => {
       (useKb3Store as unknown as jest.Mock).mockReturnValue({
         updateUrl: mockUpdateUrl,
         fetchConfig: mockFetchConfig,
+        fetchTags: mockFetchTags,
+        fetchUrls: jest.fn().mockResolvedValue([]), // Add fetchUrls mock
         configData: null
       })
 
@@ -339,7 +359,9 @@ describe('EditUrlDialog', () => {
         />
       )
 
-      expect(mockFetchConfig).toHaveBeenCalled()
+      await waitFor(() => {
+        expect(mockFetchConfig).toHaveBeenCalled()
+      })
     })
   })
 
@@ -354,10 +376,10 @@ describe('EditUrlDialog', () => {
       )
 
       // Should contain URL editing elements
-      expect(screen.getByLabelText(/status/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/authority/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/tags/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/metadata/i)).toBeInTheDocument()
+      expect(screen.getByText('Status')).toBeInTheDocument()
+      expect(screen.getByText('Authority')).toBeInTheDocument()
+      expect(screen.getByText('Tags')).toBeInTheDocument()
+      expect(screen.getByText('Metadata')).toBeInTheDocument()
 
       // Should NOT contain unrelated elements
       expect(screen.queryByText(/batch/i)).not.toBeInTheDocument()

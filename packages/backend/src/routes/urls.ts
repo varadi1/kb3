@@ -149,6 +149,10 @@ router.put('/:id',
     try {
       const { id } = req.params;
       const updates = req.body;
+
+      console.log(`[DEBUG] PUT /api/urls/${id} called with updates:`, JSON.stringify(updates));
+      console.log(`[DEBUG] Request ID parameter: ${id}`);
+      console.log(`[DEBUG] Updates object keys:`, Object.keys(updates));
       let updateSuccess = true;
 
       // Handle tag updates if provided
@@ -164,23 +168,65 @@ router.put('/:id',
         updateSuccess = updateSuccess && authoritySuccess;
       }
 
+      // Get the actual URL string from the database using the ID
+      // We need to fetch the URL from database because the ID is a UUID
+      const urlRecord = await kb3Service.getUrl(id);
+      const actualUrlString = urlRecord?.url || updates.url || updates.normalizedUrl;
+      console.log(`[DEBUG] Fetched URL record for ID ${id}:`, urlRecord);
+      console.log(`[DEBUG] Using URL for parameters: ${actualUrlString}`);
+
       // Handle scraper/cleaner configuration
-      if (updates.scraperType || updates.cleaners || updates.priority) {
-        await kb3Service.setUrlParameters(id, {
+      // Skip parameter setting for default scraper entirely
+      if (updates.scraperType && updates.scraperType !== 'default' && actualUrlString) {
+        // Only set parameters for non-default scrapers
+        console.log(`[DEBUG] Setting parameters for URL: ${actualUrlString}, scraperType: ${updates.scraperType}, cleaners: ${JSON.stringify(updates.cleaners)}`);
+        await kb3Service.setUrlParameters(actualUrlString, {
           scraperType: updates.scraperType,
           cleaners: updates.cleaners,
-          priority: updates.priority
+          priority: updates.priority,
+          parameters: {} // Provide empty parameters object to avoid validation errors
         });
+        console.log(`[DEBUG] Parameters set successfully for URL: ${actualUrlString}`);
+      } else if (updates.scraperType === 'default') {
+        // For default scraper, we need to remove any existing parameters
+        // AND we should NOT try to save new parameters
+        try {
+          await kb3Service.removeUrlParameters(actualUrlString);
+        } catch (error) {
+          // It's okay if there are no parameters to remove
+          console.log('No parameters to remove for default scraper');
+        }
+      } else if (updates.cleaners && !updates.scraperType) {
+        // If only cleaners are being updated without a scraperType change,
+        // we should not call setUrlParameters at all
+        // TODO: Implement proper cleaner-only configuration storage
+        console.log('Cleaners update without scraperType - skipping parameter validation');
+      } else if (updates.priority !== undefined && !updates.scraperType) {
+        // If only priority is being updated without scraperType,
+        // we cannot save it via setUrlParameters (requires scraperType)
+        console.log('Priority update without scraperType - skipping');
       }
 
       // TODO: Handle metadata and status updates when KB3Service supports them
       // For now, these are stored locally but not persisted to the database
 
       if (updateSuccess) {
+        // Fetch the complete updated URL to return
+        // NOTE: We need to ensure the URL is enriched with the latest parameters
+        const updatedUrl = await kb3Service.getUrl(id);
+
+        // If we have scraperType or cleaners in updates, merge them to ensure they're returned
+        // This handles the case where enrichment might not have the latest data immediately
+        const enrichedUrl = updatedUrl ? {
+          ...updatedUrl,
+          scraperType: updates.scraperType !== undefined ? updates.scraperType : updatedUrl.scraperType,
+          cleaners: updates.cleaners !== undefined ? updates.cleaners : updatedUrl.cleaners
+        } : { id, ...updates };
+
         res.json({
           success: true,
           message: 'URL updated successfully',
-          data: { id, ...updates }
+          data: enrichedUrl
         });
       } else {
         res.status(400).json({

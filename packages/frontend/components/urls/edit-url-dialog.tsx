@@ -25,7 +25,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { X, Settings } from 'lucide-react'
-import type { Url } from '@/lib/store'
+import type { Url, Tag } from '@/lib/store'
 import { ParameterEditor } from '@/components/config/parameter-editor'
 
 interface EditUrlDialogProps {
@@ -34,12 +34,7 @@ interface EditUrlDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-interface Tag {
-  id: string
-  name: string
-  parentId?: string | null
-  children?: Tag[]
-}
+// Using Tag interface from store
 
 /**
  * EditUrlDialog Component
@@ -57,7 +52,7 @@ export function EditUrlDialog({ url, open, onOpenChange }: EditUrlDialogProps) {
   const [scraperParameters, setScraperParameters] = useState<Record<string, any>>({})
   const [selectedCleaners, setSelectedCleaners] = useState<string[]>([])
 
-  const { updateUrl, fetchConfig, configData, fetchTags } = useKb3Store()
+  const { updateUrl, fetchConfig, configData, fetchTags, fetchUrls } = useKb3Store()
   const { toast } = useToast()
 
   useEffect(() => {
@@ -74,11 +69,11 @@ export function EditUrlDialog({ url, open, onOpenChange }: EditUrlDialogProps) {
       // Fetch available tags
       fetchTags().then(tags => {
         setAvailableTags(tags || [])
-      }).catch(console.error)
+      }).catch(err => console.error('Failed to fetch tags:', err?.message || String(err)))
 
       // Fetch config if not loaded
       if (!configData) {
-        fetchConfig().catch(console.error)
+        fetchConfig().catch(err => console.error('Failed to fetch config:', err?.message || String(err)))
       }
 
       // Fetch existing parameters for this URL
@@ -134,6 +129,10 @@ export function EditUrlDialog({ url, open, onOpenChange }: EditUrlDialogProps) {
         title: 'Success',
         description: 'URL updated successfully',
       })
+
+      // Refresh URLs to ensure consistency
+      // This is a failsafe in case the server doesn't return complete data
+      await fetchUrls()
 
       onOpenChange(false)
     } catch (error) {
