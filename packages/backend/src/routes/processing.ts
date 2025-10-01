@@ -15,7 +15,8 @@ const handleValidationErrors = (req: Request, res: Response, next: NextFunction)
 };
 
 // POST /api/process/url/:id - Process single URL
-// Note: id can be a full URL, so we use (.*) to capture everything
+// NOTE: id can be either a UUID, a full URL, or encoded URL path
+// KB3Service.processUrl will automatically resolve UUIDs to URLs
 router.post('/url/:id(*)',
   [
     param('id').isString(),
@@ -29,11 +30,14 @@ router.post('/url/:id(*)',
   handleValidationErrors,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // The ID might be a URL encoded in the path
-      const url = decodeURIComponent(req.params.id);
+      // The ID might be a UUID or a URL encoded in the path
+      const urlOrId = decodeURIComponent(req.params.id);
       const options = req.body;
 
-      const result = await kb3Service.processUrl(url, options);
+      console.log(`[ProcessingRoute] Processing single item: ${urlOrId}`);
+
+      // KB3Service will handle UUID → URL resolution automatically
+      const result = await kb3Service.processUrl(urlOrId, options);
 
       res.json({
         success: true,
@@ -46,6 +50,8 @@ router.post('/url/:id(*)',
 );
 
 // POST /api/process/batch - Batch process URLs
+// NOTE: 'urls' can be either actual URL strings OR database UUIDs
+// KB3Service.processUrls will automatically resolve UUIDs to URLs
 router.post('/batch',
   [
     body('urls').isArray({ min: 1, max: 100 }),
@@ -59,14 +65,13 @@ router.post('/batch',
     try {
       const { urls, options } = req.body;
 
-      // Queue URLs for processing (async operation)
+      console.log(`[ProcessingRoute] Received batch request with ${urls.length} items`);
+      console.log(`[ProcessingRoute] First item: ${urls[0]}`);
+
+      // Generate job ID for tracking
       const jobId = `job-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      // Start processing asynchronously
-      kb3Service.processUrls(urls, options).catch(err => {
-        console.error(`Batch processing job ${jobId} failed:`, err);
-      });
-
+      // Send immediate response to acknowledge batch received
       res.status(202).json({
         success: true,
         data: {
@@ -74,6 +79,14 @@ router.post('/batch',
           jobId
         }
       });
+
+      // Start processing asynchronously (don't block response)
+      // KB3Service will handle UUID → URL resolution automatically
+      // WebSocket events will notify clients of progress
+      kb3Service.processUrls(urls, options).catch(err => {
+        console.error(`[ProcessingRoute] Batch processing job ${jobId} failed:`, err);
+      });
+
     } catch (error) {
       next(error);
     }
@@ -166,14 +179,42 @@ router.post('/cancel/:id(*)',
 router.get('/queue', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const queueStatus = await kb3Service.getQueueStatus();
-    const stats = await kb3Service.getStatistics();
+    const overall = await kb3Service.getStatistics();
+
+    const { queue, stats: qStats, isProcessing } = queueStatus as any;
+    const pending = qStats?.pending || 0;
+    const processing = qStats?.processing || 0;
+    const completed = qStats?.completed || 0;
+    const failed = qStats?.failed || 0;
 
     res.json({
       success: true,
       data: {
-        ...stats,
-        ...queueStatus
+        ...overall,
+        isProcessing,
+        // Flattened queue stats for the UI tile
+        pending,
+        processing,
+        completed,
+        failed,
+        // Back-compat fields
+        queue: pending,
+        queueCount: Array.isArray(queue) ? queue.length : 0
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/process/queue/items - Get actual queue items
+router.get('/queue/items', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const queueStatus = await kb3Service.getQueueStatus();
+
+    res.json({
+      success: true,
+      data: queueStatus.queue || []
     });
   } catch (error) {
     next(error);

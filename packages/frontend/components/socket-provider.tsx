@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { useToast } from '@/components/ui/use-toast'
 import { useKb3Store } from '@/lib/store'
@@ -21,7 +21,20 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast()
   const { updateProcessingTask, fetchUrls, fetchStats } = useKb3Store()
 
+  // Track last time we showed a toast for an event to prevent spam (2s dedupe window)
+  const shownEventsRef = useRef<Map<string, number>>(new Map())
+  const shouldToast = (key: string, ttlMs = 2000) => {
+    const now = Date.now()
+    const last = shownEventsRef.current.get(key) || 0
+    if (now - last < ttlMs) return false
+    shownEventsRef.current.set(key, now)
+    return true
+  }
+
   useEffect(() => {
+    // Avoid creating multiple socket connections
+    if (socket) return
+
     const socketInstance = io('http://localhost:4000', {
       transports: ['websocket'],
       reconnectionAttempts: 5,
@@ -41,7 +54,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     // Handle processing events
     socketInstance.on('processing:started', (data) => {
       // Ensure we have a valid URL string
-      const url = typeof data.url === 'string' ? data.url : 'Unknown URL'
+      const url = typeof data?.url === 'string' ? data.url :
+                  (data && typeof data === 'object' && 'url' in data) ? String(data.url) : 'Unknown URL'
 
       updateProcessingTask({
         id: url,
@@ -51,19 +65,26 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         startedAt: new Date().toISOString()
       })
 
-      toast({
-        title: 'Processing Started',
-        description: `Processing URL: ${url}`,
-      })
+      if (shouldToast(`started:${url}`)) {
+        toast({
+          title: 'Processing Started',
+          description: `Processing URL: ${url}`,
+        })
+      }
     })
 
     socketInstance.on('processing:progress', (data) => {
+      const url = typeof data?.url === 'string' ? data.url : 'Unknown URL'
+      const progress = typeof data?.progress === 'number' ? data.progress : 50
+      const message = typeof data?.message === 'string' ? data.message :
+                      data?.message ? String(data.message) : undefined
+
       updateProcessingTask({
-        id: data.url,
-        url: data.url,
+        id: url,
+        url: url,
         status: 'processing',
-        progress: data.progress || 50,
-        message: data.message
+        progress: progress,
+        message: message
       })
     })
 
@@ -80,16 +101,42 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         completedAt: new Date().toISOString()
       })
 
-      toast({
-        title: 'Processing Completed',
-        description: `Successfully processed: ${url}`,
-      })
+      if (shouldToast(`completed:${url}`)) {
+        toast({
+          title: 'Processing Completed',
+          description: `Successfully processed: ${url}`,
+        })
+      }
 
       // Refresh URLs list
       fetchUrls()
     })
 
     socketInstance.on('processing:failed', (data) => {
+      // CRITICAL FIX: First check if data itself is a ProcessingItem that was sent by mistake
+      if (data && typeof data === 'object' && 'id' in data && 'status' in data && 'startedAt' in data) {
+        console.error('CRITICAL ERROR: ProcessingItem object passed as processing:failed event data!', data)
+        // Extract URL from the ProcessingItem itself
+        const url = typeof data.url === 'string' ? data.url : 'Unknown URL'
+
+        updateProcessingTask({
+          id: url,
+          url: url,
+          status: 'failed',
+          progress: 0,
+          message: 'Processing failed due to invalid error data'
+        })
+
+        if (shouldToast(`failed:${url}`)) {
+          toast({
+            title: 'Processing Failed',
+            description: 'Processing failed due to system error',
+            variant: 'destructive',
+          })
+        }
+        return // Exit early to prevent further processing
+      }
+
       // Ensure we have a valid URL string
       const url = typeof data?.url === 'string' ? data.url : 'Unknown URL'
 
@@ -125,12 +172,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
             }
           }
         }
-
-        // CRITICAL FIX: Check if the entire data object is accidentally a ProcessingItem
-        if (!data?.error && data && typeof data === 'object' && 'id' in data && 'status' in data && 'startedAt' in data) {
-          console.error('CRITICAL: ProcessingItem passed as error data!', data)
-          errorMessage = `Processing failed for URL: ${data.url || 'Unknown'}`
-        }
       } catch (e) {
         console.error('Error extracting error message:', e)
         errorMessage = 'Processing failed'
@@ -147,11 +188,13 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         message: safeErrorMessage
       })
 
-      toast({
-        title: 'Processing Failed',
-        description: safeErrorMessage,
-        variant: 'destructive',
-      })
+      if (shouldToast(`failed:${url}`)) {
+        toast({
+          title: 'Processing Failed',
+          description: safeErrorMessage,
+          variant: 'destructive',
+        })
+      }
     })
 
     // Handle batch events
@@ -237,11 +280,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       socketInstance.off('processing:completed')
       socketInstance.off('processing:failed')
       socketInstance.off('url:added')
-      socketInstance.off('urls:batch-added')
-      socketInstance.off('stats:updated')
+      socketInstance.off('urls:added')
+      socketInstance.off('stats:update')
       socketInstance.disconnect()
     }
-  }, [toast, updateProcessingTask, fetchUrls, fetchStats])
+  }, [])
 
   return (
     <SocketContext.Provider value={{ socket, isConnected }}>

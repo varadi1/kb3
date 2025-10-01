@@ -99,6 +99,25 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
       // Start processing
       this.startOperation(url, operationId, ProcessingStage.DETECTING);
 
+      // IMPORTANT: Mark URL as processing in the repository AS EARLY AS POSSIBLE
+      // to prevent concurrent queue ticks from re-selecting the same pending URL.
+      if (this.urlRepository) {
+        const exists = await this.urlRepository.exists(url);
+        if (exists) {
+          const urlInfo = await this.urlRepository.getUrlInfo(url);
+          urlRecordId = urlInfo?.id || null;
+          if (urlRecordId) {
+            await this.urlRepository.updateStatus(urlRecordId, UrlStatus.PROCESSING);
+          }
+        } else {
+          // Early registration without fetched metadata; metadata will be updated later
+          urlRecordId = await this.urlRepository.register(url, {
+            processingStarted: new Date()
+          });
+          await this.urlRepository.updateStatus(urlRecordId, UrlStatus.PROCESSING);
+        }
+      }
+
       // Stage 1: URL Detection
       const classification = await this.detectUrl(url, operationId);
 
@@ -124,6 +143,11 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
 
           if (!changeResult.hasChanged && changeResult.previousHash) {
             // Content hasn't changed, skip reprocessing
+            // Mark URL as skipped/completed in repository so queue does not pick it again
+            if (this.urlRepository && urlRecordId) {
+              await this.urlRepository.updateStatus(urlRecordId, UrlStatus.SKIPPED);
+            }
+
             this.completeOperation(operationId);
             this.processingStats.successful++;
 
@@ -147,29 +171,18 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
         }
       }
 
-      // Register/update URL in repository if available
+      // Ensure we have a URL record ID for later updates (without changing status again)
       if (this.urlRepository) {
-        const urlExists = await this.urlRepository.exists(url);
-        if (urlExists) {
-          const urlInfo = await this.urlRepository.getUrlInfo(url);
-          urlRecordId = urlInfo?.id || null;
-          if (urlRecordId) {
-            await this.urlRepository.updateStatus(urlRecordId, UrlStatus.PROCESSING);
+        if (!urlRecordId) {
+          const urlExists = await this.urlRepository.exists(url);
+          if (urlExists) {
+            const urlInfo = await this.urlRepository.getUrlInfo(url);
+            urlRecordId = urlInfo?.id || null;
+          } else {
+            urlRecordId = await this.urlRepository.register(url, {
+              processingStarted: new Date()
+            });
           }
-        } else {
-          // Include scraper information in metadata when registering URL
-          urlRecordId = await this.urlRepository.register(url, {
-            processingStarted: new Date(),
-            scraperUsed: fetchedContent.metadata?.scraperUsed,
-            scraperConfig: fetchedContent.metadata?.scraperConfig,
-            scraperMetadata: fetchedContent.metadata?.scraperMetadata,
-            fetchMetadata: {
-              statusCode: fetchedContent.metadata?.statusCode,
-              headers: fetchedContent.metadata?.headers,
-              contentLength: fetchedContent.metadata?.contentLength
-            }
-          });
-          await this.urlRepository.updateStatus(urlRecordId, UrlStatus.PROCESSING);
         }
       }
 
@@ -247,16 +260,9 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
             statistics: processedContent.cleaningMetadata.statistics
           } : undefined
         };
-        // Store complete metadata in the database
-        const existingInfo = await this.urlRepository.getUrlInfo(url);
-        if (existingInfo) {
-          const updatedMetadata = {
-            ...existingInfo.metadata,
-            ...completeMetadata
-          };
-          // Update metadata by re-registering with updated data
-          await this.urlRepository.register(url, updatedMetadata);
-        }
+
+        // Merge metadata without incrementing process_count
+        await this.urlRepository.updateMetadata(urlRecordId, completeMetadata as any);
       }
 
       // Stage 5: Knowledge Indexing
@@ -286,7 +292,7 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
 
         // Update metadata with cleaning information if available
         if (processedContent.cleaningMetadata) {
-          await this.urlRepository.register(url, {
+          await this.urlRepository.updateMetadata(urlRecordId, {
             cleaningMetadata: {
               cleanersUsed: processedContent.cleaningMetadata.cleanersUsed,
               cleaningConfig: processedContent.cleaningMetadata.cleaningConfig,
@@ -294,7 +300,7 @@ export class KnowledgeBaseOrchestrator implements IOrchestrator {
               processedFileId: processedContent.cleaningMetadata.processedFileId,
               cleanedFilePath: processedContent.cleaningMetadata.cleanedFilePath
             }
-          });
+          } as any);
         }
       }
 

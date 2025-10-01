@@ -15,6 +15,31 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement
 }
 
+// Helper to ensure values are strings - prevents objects from being rendered
+function ensureString(value: any): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (typeof value === 'object') {
+    // Check if it's an Error
+    if (value instanceof Error) return value.message
+    // Check if it looks like a ProcessingItem
+    if ('id' in value && 'url' in value && 'status' in value) {
+      console.error('WARNING: ProcessingItem passed to toast!', value)
+      return 'Processing error occurred'
+    }
+    // Try to stringify
+    try {
+      const str = JSON.stringify(value)
+      if (str === '{}' || str === '[]') return 'An error occurred'
+      return str.length > 100 ? 'An error occurred' : str
+    } catch {
+      return 'An error occurred'
+    }
+  }
+  return 'An error occurred'
+}
+
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
   UPDATE_TOAST: "UPDATE_TOAST",
@@ -140,17 +165,29 @@ type Toast = Omit<ToasterToast, "id">
 function toast({ ...props }: Toast) {
   const id = genId()
 
+  // CRITICAL: Ensure description and title are safe to render
+  const safeProps = {
+    ...props,
+    title: props.title ? ensureString(props.title) : props.title,
+    description: props.description ? ensureString(props.description) : props.description
+  }
+
   const update = (props: ToasterToast) =>
     dispatch({
       type: "UPDATE_TOAST",
-      toast: { ...props, id },
+      toast: {
+        ...props,
+        id,
+        title: props.title ? ensureString(props.title) : props.title,
+        description: props.description ? ensureString(props.description) : props.description
+      },
     })
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
 
   dispatch({
     type: "ADD_TOAST",
     toast: {
-      ...props,
+      ...safeProps,
       id,
       open: true,
       onOpenChange: (open) => {

@@ -50,6 +50,11 @@ export interface Stats {
   queue: number
   tags: number
   totalSize: number
+  // Extended fields from /api/process/queue for detailed stats
+  pending?: number
+  completed?: number
+  // processing is already present above
+  failed?: number
 }
 
 interface Kb3State {
@@ -96,7 +101,7 @@ interface Kb3State {
   processByTags: (tags: string[], options?: any) => Promise<void>
 
   // Actions - Stats
-  fetchStats: () => Promise<void>
+  fetchStats: () => Promise<Stats | null>
 
   // Actions - Configuration
   fetchConfig: () => Promise<ConfigData>
@@ -238,7 +243,8 @@ export const useKb3Store = create<Kb3State>()(
           }
         } catch (error) {
           console.error('Failed to update URL:', error)
-          throw error // Re-throw to allow caller to handle
+          // Ensure we throw a proper Error instance
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -289,7 +295,7 @@ export const useKb3Store = create<Kb3State>()(
           }
         } catch (error) {
           console.error('Failed to delete URLs:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -390,6 +396,8 @@ export const useKb3Store = create<Kb3State>()(
       },
 
       // Processing Actions
+      // Process a single URL by ID (UUID) or URL string
+      // Backend automatically resolves UUIDs to actual URLs
       processUrl: async (id, options) => {
         try {
           const task: ProcessingTask = {
@@ -418,8 +426,12 @@ export const useKb3Store = create<Kb3State>()(
         }
       },
 
+      // Process multiple URLs by IDs (UUIDs) or URL strings
+      // Backend automatically resolves UUIDs to actual URLs
       processUrls: async (ids, options) => {
         try {
+          console.log(`[Store] Processing ${ids.length} URLs/IDs`);
+
           const response = await fetch('/api/process/batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -457,9 +469,12 @@ export const useKb3Store = create<Kb3State>()(
           const data = await response.json()
           if (data.success) {
             set({ stats: data.data })
+            return data.data as Stats
           }
+          return null
         } catch (error) {
           console.error('Failed to fetch stats:', error)
+          return null
         }
       },
 
@@ -545,7 +560,7 @@ export const useKb3Store = create<Kb3State>()(
           }))
         } catch (error) {
           console.error('Failed to set URL parameter config:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -563,7 +578,7 @@ export const useKb3Store = create<Kb3State>()(
           }))
         } catch (error) {
           console.error('Failed to delete URL parameter config:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -581,7 +596,7 @@ export const useKb3Store = create<Kb3State>()(
           }))
         } catch (error) {
           console.error('Failed to set batch parameter config:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -596,7 +611,7 @@ export const useKb3Store = create<Kb3State>()(
         } catch (error) {
           console.error('Failed to fetch config:', error)
           set({ configLoading: false })
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -610,7 +625,7 @@ export const useKb3Store = create<Kb3State>()(
           }))
         } catch (error) {
           console.error('Failed to update config:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -624,7 +639,7 @@ export const useKb3Store = create<Kb3State>()(
           return result
         } catch (error) {
           console.error('Failed to import URLs:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -636,7 +651,7 @@ export const useKb3Store = create<Kb3State>()(
           return await importExportService.exportData(format, urlIds)
         } catch (error) {
           console.error('Failed to export data:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -659,7 +674,7 @@ export const useKb3Store = create<Kb3State>()(
           }
         } catch (error) {
           console.error('Failed to batch update URLs:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -683,7 +698,7 @@ export const useKb3Store = create<Kb3State>()(
           }
         } catch (error) {
           console.error('Failed to batch assign tags:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -692,7 +707,7 @@ export const useKb3Store = create<Kb3State>()(
           await get().batchUpdateUrls(ids, { authority })
         } catch (error) {
           console.error('Failed to batch update authority:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -714,7 +729,7 @@ export const useKb3Store = create<Kb3State>()(
           }
         } catch (error) {
           console.error('Failed to set URL scraper config:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -736,14 +751,16 @@ export const useKb3Store = create<Kb3State>()(
           }
         } catch (error) {
           console.error('Failed to set URL cleaner configs:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
       // Queue Management Actions - Enhanced with multiple validation layers
       fetchQueue: async () => {
         try {
-          const response = await fetch('/api/process/queue')
+          // CRITICAL FIX: Use the new /queue/items endpoint that returns only the queue array
+          // The /queue endpoint now excludes the queue array to prevent React rendering errors
+          const response = await fetch('/api/process/queue/items')
 
           // Validate response
           if (!response.ok) {
@@ -759,12 +776,16 @@ export const useKb3Store = create<Kb3State>()(
             return []
           }
 
-          if (!data.success || !data.data?.queue) {
-            console.warn('Missing queue in response:', data)
+          if (!data.success) {
+            console.warn('Queue endpoint returned success=false:', data)
             return []
           }
 
-          const rawQueue = data.data.queue
+          // Accept both shapes:
+          // 1) { success:true, data: [ ...items ] }
+          // 2) { success:true, data: { queue: [ ...items ] } }
+          const raw = data.data
+          const rawQueue = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.queue) ? raw.queue : [])
 
           // Critical: Validate it's actually an array
           if (!Array.isArray(rawQueue)) {
@@ -845,7 +866,7 @@ export const useKb3Store = create<Kb3State>()(
           return data
         } catch (error) {
           console.error('Failed to start processing:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -862,7 +883,7 @@ export const useKb3Store = create<Kb3State>()(
           return data
         } catch (error) {
           console.error('Failed to stop processing:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -880,7 +901,7 @@ export const useKb3Store = create<Kb3State>()(
           return data
         } catch (error) {
           console.error('Failed to retry item:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -897,7 +918,7 @@ export const useKb3Store = create<Kb3State>()(
           return data
         } catch (error) {
           console.error('Failed to clear completed items:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       },
 
@@ -922,7 +943,7 @@ export const useKb3Store = create<Kb3State>()(
           URL.revokeObjectURL(url)
         } catch (error) {
           console.error('Failed to download content:', error)
-          throw error
+          throw error instanceof Error ? error : new Error(String(error))
         }
       }
     }),

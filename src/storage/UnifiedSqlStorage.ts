@@ -719,24 +719,22 @@ class UrlRepositoryImpl implements IUrlRepositoryWithTags {
     return this.rowToUrlRecord(row);
   }
 
-  async updateStatus(url: string, status: UrlStatus, errorMessage?: string): Promise<boolean> {
-    const normalizedUrl = this.normalizeUrl(url);
+  async updateStatus(id: string, status: UrlStatus, errorMessage?: string): Promise<boolean> {
     await this.run(
       `UPDATE urls SET status = ?, error_message = ?, last_checked = ?
-       WHERE url = ? OR normalized_url = ?`,
-      [status, errorMessage || null, Date.now(), url, normalizedUrl]
+       WHERE id = ?`,
+      [status, errorMessage || null, Date.now(), id]
     );
     return true;
   }
 
-  async updateContentHash(url: string, newHash: string): Promise<boolean> {
-    const normalizedUrl = this.normalizeUrl(url);
+  async updateContentHash(id: string, newHash: string): Promise<boolean> {
     const now = Date.now();
 
     // Get current hash
     const current = await this.get<{ content_hash: string | null }>(
-      'SELECT content_hash FROM urls WHERE url = ? OR normalized_url = ?',
-      [url, normalizedUrl]
+      'SELECT content_hash FROM urls WHERE id = ?',
+      [id]
     );
 
     if (!current) return false;
@@ -746,8 +744,8 @@ class UrlRepositoryImpl implements IUrlRepositoryWithTags {
       `UPDATE urls
        SET content_hash = ?, previous_hash = ?, last_content_change = ?,
            content_version = content_version + 1, last_checked = ?
-       WHERE url = ? OR normalized_url = ?`,
-      [newHash, current.content_hash, now, now, url, normalizedUrl]
+       WHERE id = ?`,
+      [newHash, current.content_hash, now, now, id]
     );
 
     return true;

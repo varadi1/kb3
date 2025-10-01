@@ -3,7 +3,10 @@ import {
   createSqlConfiguration,
   ProcessingResult,
   ITag,
-  ScraperSystemValidator
+  ScraperSystemValidator,
+  ErrorCode,
+  ProcessingStage,
+  UrlStatus
 } from 'kb3';
 import * as path from 'path';
 import { EventEmitter } from 'events';
@@ -41,16 +44,22 @@ export class KB3Service extends EventEmitter {
   private isQueueProcessing: boolean = false;
   private queueInterval: NodeJS.Timeout | null = null;
   private processingItems: Map<string, any> = new Map(); // Track items being processed
+  private queuedUrls: Set<string> = new Set(); // Prevent duplicate queue picks
 
   private constructor() {
     super();
 
     // Initialize with SQL configuration (unified storage)
     this.config = createSqlConfiguration({
-      dbPath: path.join(process.cwd(), 'data', 'unified.db'),
-      enableWAL: true,
-      enableForeignKeys: true,
-      autoMigrate: true,
+      storage: {
+        unified: {
+          enabled: true,
+          dbPath: path.join(process.cwd(), 'data', 'unified.db'),
+          enableWAL: true,
+          enableForeignKeys: true,
+          autoMigrate: true
+        }
+      },
       processing: {
         concurrency: 10,
         timeout: 30000
@@ -259,7 +268,7 @@ export class KB3Service extends EventEmitter {
 
       // Ensure all URLs have tags array initialized and enrich with parameters
       const urlsWithTags = await Promise.all(
-        urls.map(async u => {
+        urls.map(async (u: any) => {
           const urlWithTags = {
             ...u,
             tags: u.tags || []
@@ -287,10 +296,16 @@ export class KB3Service extends EventEmitter {
         );
       }
 
+      // Derive processedAt from lastChecked when status is completed
+      const withProcessedAt = filtered.map(u => ({
+        ...u,
+        processedAt: (u.status === 'completed' || u.status === 'skipped') ? (u.lastChecked || null) : null
+      }));
+
       // Apply pagination
       const offset = options?.offset || 0;
-      const limit = options?.limit || filtered.length;
-      return filtered.slice(offset, offset + limit);
+      const limit = options?.limit || withProcessedAt.length;
+      return withProcessedAt.slice(offset, offset + limit);
     } catch (error) {
       console.error('Error getting URLs:', error);
       return [];
@@ -314,11 +329,12 @@ export class KB3Service extends EventEmitter {
         success: false,
         url,
         error: {
-          code: 'DUPLICATE_URL',
+          code: ErrorCode.DUPLICATE_URL,
           message: `URL already exists with status: ${urlInfo?.status}`,
-          stage: 'REGISTRATION'
+          stage: ProcessingStage.DETECTING
         },
-        metadata: { existingUrl: urlInfo }
+        metadata: { existingUrl: urlInfo },
+        processingTime: 0
       } as ProcessingResult;
     }
 
@@ -344,7 +360,7 @@ export class KB3Service extends EventEmitter {
     this.urlStore.set(url, {
       id: urlId,
       url,
-      status: 'pending',
+      status: UrlStatus.PENDING,
       tags: tags || [],
       metadata: {},
       addedAt: new Date()
@@ -367,7 +383,7 @@ export class KB3Service extends EventEmitter {
       url,
       metadata: {
         id: urlId,
-        status: 'pending',
+        status: UrlStatus.PENDING,
         tags: tags || []
       },
       processingTime: 0
@@ -390,10 +406,11 @@ export class KB3Service extends EventEmitter {
           success: false,
           url: urlObj.url,
           error: {
-            code: 'ADD_FAILED',
+            code: ErrorCode.PROCESSING_FAILED,
             message: error instanceof Error ? error.message : 'Failed to add URL',
-            stage: 'REGISTRATION'
+            stage: ProcessingStage.DETECTING
           },
+          metadata: {},
           processingTime: 0
         } as ProcessingResult);
       }
@@ -404,21 +421,60 @@ export class KB3Service extends EventEmitter {
   }
 
   async processUrl(
-    url: string,
+    urlOrId: string,
     options?: ProcessingOptions
   ): Promise<ProcessingResult> {
     await this.ensureInitialized();
+
+    // CRITICAL FIX: Resolve UUID to actual URL if needed
+    const urls = await this.resolveUrlsFromIds([urlOrId]);
+    if (urls.length === 0) {
+      const error = {
+        code: ErrorCode.INVALID_URL,
+        message: `Could not resolve ID to URL: ${urlOrId}`,
+        stage: ProcessingStage.DETECTING
+      };
+      this.emit('processing:failed', { url: urlOrId, error: error.message });
+      return {
+        success: false,
+        url: urlOrId,
+        error,
+        metadata: {},
+        processingTime: 0
+      } as ProcessingResult;
+    }
+
+    const url = urls[0];
+    console.log(`[KB3Service] Processing URL: ${url} (from ID: ${urlOrId})`);
+
     this.emit('processing:started', { url });
 
     try {
-      const result = await this.orchestrator.processUrl(url, options);
+      // Merge options with per-URL configured cleaners so they are actually applied
+      let mergedOptions = { ...(options || {}) } as any;
+      try {
+        const params = await this.getUrlParameters(url);
+        if (params?.cleaners && params.cleaners.length > 0) {
+          mergedOptions.textCleaning = {
+            ...(mergedOptions.textCleaning || {}),
+            cleanerNames: params.cleaners,
+            url,
+            autoSelect: false,
+            storeMetadata: true,
+            // We don't assume processed file storage is enabled; cleaning text is still produced
+            saveCleanedFile: false
+          };
+        }
+      } catch {}
+
+      const result = await this.orchestrator.processUrl(url, mergedOptions);
 
       // Update URL in local cache
       const existingUrl = this.urlStore.get(url) || { url, tags: [] };
       this.urlStore.set(url, {
         ...existingUrl,
         url,
-        status: result.success ? 'completed' : 'failed',
+        status: result.success ? UrlStatus.COMPLETED : UrlStatus.FAILED,
         metadata: result.metadata,
         processedAt: new Date()
       });
@@ -433,7 +489,7 @@ export class KB3Service extends EventEmitter {
       this.urlStore.set(url, {
         ...existingUrl,
         url,
-        status: 'failed',
+        status: UrlStatus.FAILED,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
 
@@ -446,29 +502,186 @@ export class KB3Service extends EventEmitter {
   }
 
   async processUrls(
-    urls: string[],
+    urlsOrIds: string[],
     options?: ProcessingOptions
   ): Promise<ProcessingResult[]> {
     await this.ensureInitialized();
+
+    // CRITICAL FIX: Resolve UUIDs to actual URLs
+    console.log(`[KB3Service] Processing batch of ${urlsOrIds.length} items (may include UUIDs)`);
+    const urls = await this.resolveUrlsFromIds(urlsOrIds);
+    console.log(`[KB3Service] Resolved to ${urls.length} valid URLs`);
+
+    if (urls.length === 0) {
+      console.error('[KB3Service] No valid URLs found after resolution');
+      return urlsOrIds.map(id => ({
+        success: false,
+        url: id,
+        error: {
+          code: ErrorCode.INVALID_URL,
+          message: `Could not resolve ID to URL: ${id}`,
+          stage: ProcessingStage.DETECTING
+        },
+        metadata: {},
+        processingTime: 0
+      } as ProcessingResult));
+    }
+
     this.emit('batch:started', { count: urls.length });
 
-    const results = await this.orchestrator.processUrls(urls, options);
+    // Process URLs one by one with status updates
+    const results: ProcessingResult[] = [];
 
-    // Store URLs in local cache
-    urls.forEach((url, index) => {
-      const result = results[index];
-      const existingUrl = this.urlStore.get(url) || { url, tags: [] };
-      this.urlStore.set(url, {
-        ...existingUrl,
-        url,
-        status: result.success ? 'completed' : 'failed',
-        metadata: result.metadata,
-        processedAt: new Date()
-      });
-    });
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i];
+      const startTime = Date.now();
+
+      try {
+        // Emit processing started event
+        this.emit('processing:started', {
+          url,
+          progress: Math.floor((i / urls.length) * 100),
+          index: i + 1,
+          total: urls.length
+        });
+
+        // Update URL status to 'processing'
+        await this.updateUrlStatus(url, UrlStatus.PROCESSING);
+
+        // Process single URL
+        console.log(`[KB3Service] Processing URL ${i + 1}/${urls.length}: ${url.substring(0, 80)}...`);
+        const result = await this.orchestrator.processUrl(url, options);
+
+        // Calculate processing time
+        result.processingTime = Date.now() - startTime;
+
+        // Update URL status based on result
+        const finalStatus = result.success ? UrlStatus.COMPLETED : UrlStatus.FAILED;
+        await this.updateUrlStatus(url, finalStatus, result.metadata, result.error);
+
+        // Store URL in local cache
+        const existingUrl = this.urlStore.get(url) || { url, tags: [] };
+        this.urlStore.set(url, {
+          ...existingUrl,
+          url,
+          status: finalStatus,
+          metadata: result.metadata,
+          processedAt: new Date()
+        });
+
+        results.push(result);
+
+        // Emit completion event
+        if (result.success) {
+          this.emit('processing:completed', {
+            url,
+            success: true,
+            status: 'completed',
+            progress: Math.floor(((i + 1) / urls.length) * 100),
+            index: i + 1,
+            total: urls.length,
+            duration: result.processingTime
+          });
+        } else {
+          this.emit('processing:failed', {
+            url,
+            success: false,
+            status: 'failed',
+            error: result.error,
+            progress: Math.floor(((i + 1) / urls.length) * 100),
+            index: i + 1,
+            total: urls.length,
+            duration: result.processingTime
+          });
+        }
+
+        // Emit progress update
+        this.emit('processing:progress', {
+          url,
+          progress: Math.floor(((i + 1) / urls.length) * 100),
+          completed: i + 1,
+          total: urls.length,
+          stage: result.success ? 'completed' : 'failed'
+        });
+
+      } catch (error: any) {
+        console.error(`[KB3Service] Error processing URL ${url}:`, error);
+
+        const processingTime = Date.now() - startTime;
+        const errorResult: ProcessingResult = {
+          success: false,
+          url,
+          error: {
+            code: error?.code || 'PROCESSING_ERROR',
+            message: error?.message || 'Unknown error during processing',
+            stage: error?.stage || 'PROCESSING'
+          },
+          metadata: {},
+          processingTime
+        };
+
+        // Update URL status to failed
+        await this.updateUrlStatus(url, UrlStatus.FAILED, undefined, errorResult.error);
+
+        results.push(errorResult);
+
+        // Emit failure event
+        this.emit('processing:failed', {
+          url,
+          success: false,
+          status: 'failed',
+          error: errorResult.error,
+          progress: Math.floor(((i + 1) / urls.length) * 100),
+          index: i + 1,
+          total: urls.length,
+          duration: processingTime
+        });
+      }
+    }
 
     this.emit('batch:completed', { count: urls.length, results });
     return results;
+  }
+
+  /**
+   * Helper method to update URL status in the database
+   */
+  private async updateUrlStatus(
+    url: string,
+    status: UrlStatus,
+    metadata?: any,
+    error?: any
+  ): Promise<void> {
+    try {
+      // Get URL repository from orchestrator
+      const urlRepository = this.orchestrator.getUrlRepository();
+      if (!urlRepository) {
+        throw new Error('URL repository not available');
+      }
+
+      // Get URL info to find the ID
+      const urlInfo = await urlRepository.getUrlInfo(url);
+      if (!urlInfo) {
+        console.error(`[KB3Service] URL not found in repository: ${url}`);
+        return;
+      }
+
+      // Update status using the repository method with the correct ID
+      await urlRepository.updateStatus(
+        urlInfo.id,
+        status,
+        error ? (error.message || JSON.stringify(error)) : undefined
+      );
+
+      // Update metadata if provided
+      if (metadata) {
+        await urlRepository.updateMetadata(urlInfo.id, metadata);
+      }
+
+      console.log(`[KB3Service] Updated status for URL ${url} (ID: ${urlInfo.id}) to ${status}`);
+    } catch (error) {
+      console.error(`[KB3Service] Failed to update URL status for ${url}:`, error);
+    }
   }
 
   async setUrlParameters(url: string, parameters: UrlParameters): Promise<void> {
@@ -675,6 +888,32 @@ export class KB3Service extends EventEmitter {
     return urlObj ? urlObj.url : null;
   }
 
+  /**
+   * Resolve multiple IDs to URLs in batch
+   * Handles both UUIDs and URL strings
+   * @param ids - Array of UUIDs or URL strings
+   * @returns Array of actual URL strings
+   */
+  async resolveUrlsFromIds(ids: string[]): Promise<string[]> {
+    await this.ensureInitialized();
+    const urls = await this.getUrls();
+
+    return ids.map(id => {
+      // If it's already a valid URL, return as-is
+      if (id.startsWith('http://') || id.startsWith('https://')) {
+        return id;
+      }
+
+      // Otherwise, treat as UUID and resolve
+      const urlObj = urls.find(u => u.id === id);
+      if (!urlObj) {
+        console.warn(`[KB3Service] Could not resolve ID to URL: ${id}`);
+        return null;
+      }
+      return urlObj.url;
+    }).filter((url): url is string => url !== null);
+  }
+
   // Get single URL object by ID - needed for tests
   async getUrl(id: string): Promise<any | null> {
     await this.ensureInitialized();
@@ -714,8 +953,7 @@ export class KB3Service extends EventEmitter {
 
       if (updates.status !== undefined) {
         // Persist status to database
-        const { UrlStatus } = await import('kb3');
-        const statusMapping: { [key: string]: any } = {
+        const statusMapping: { [key: string]: UrlStatus } = {
           'pending': UrlStatus.PENDING,
           'processing': UrlStatus.PROCESSING,
           'completed': UrlStatus.COMPLETED,
@@ -1106,38 +1344,186 @@ export class KB3Service extends EventEmitter {
     }));
   }
 
+  // Resolve an input that can be a UUID or a full URL into a URL string
+  private async resolveToUrl(idOrUrl: string): Promise<string | null> {
+    if (idOrUrl.startsWith('http://') || idOrUrl.startsWith('https://')) {
+      return idOrUrl;
+    }
+    // Try to resolve UUID to URL
+    try {
+      const url = await this.getUrlById(idOrUrl);
+      if (url) return url;
+    } catch {}
+    return null;
+  }
+
+  // Try to locate an original file from the LocalFileStorage path when DB tracking isn't present
+  private async findOriginalFromLocalStorage(url: string): Promise<Buffer | null> {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    try {
+      const basePath = path.join(process.cwd(), 'data', 'files');
+      let candidates: { path: string; mtime: number }[] = [];
+      const entries = await fs.readdir(basePath).catch(() => [] as string[]);
+      for (const file of entries) {
+        if (file.endsWith('.meta.json')) continue;
+        const filePath = path.join(basePath, file);
+        const metaPath = `${filePath}.meta.json`;
+        try {
+          const metaRaw = await fs.readFile(metaPath, 'utf8');
+          const meta = JSON.parse(metaRaw);
+          const metaUrl = meta?.metadata?.url || meta?.metadata?.sourceUrl;
+          if (metaUrl === url) {
+            const stat = await fs.stat(filePath);
+            candidates.push({ path: filePath, mtime: stat.mtimeMs });
+          }
+        } catch {
+          // ignore invalid metadata
+        }
+      }
+      if (candidates.length === 0) return null;
+      candidates.sort((a, b) => b.mtime - a.mtime);
+      return await fs.readFile(candidates[0].path);
+    } catch {
+      return null;
+    }
+  }
+
   // Content Access
-  async getOriginalContent(urlId: string): Promise<Buffer | null> {
+  async getOriginalContent(idOrUrl: string): Promise<Buffer | null> {
     await this.ensureInitialized();
     try {
-      // Use orchestrator's getOriginalFileRepository method
-      const originalRepo = this.orchestrator.getOriginalFileRepository();
-      if (!originalRepo) {
-        console.warn('Original file repository not available');
+      const url = await this.resolveToUrl(idOrUrl);
+      if (!url) {
+        console.warn('[KB3Service] Could not resolve to URL:', idOrUrl);
         return null;
       }
 
-      const record = await originalRepo.getFileByUrlId(parseInt(urlId));
-      if (!record || !record.file_path) return null;
+      const originalRepo = this.orchestrator.getOriginalFileRepository();
+      if (originalRepo) {
+        const files = await originalRepo.getOriginalFilesByUrl(url);
+        if (files && files.length > 0) {
+          const latest = files[0];
+          const fs = await import('fs/promises');
+          return await fs.readFile(latest.filePath);
+        }
+      }
 
-      const fs = await import('fs/promises');
-      return await fs.readFile(record.file_path);
+      // Fallback: scan LocalFileStorage basePath
+      const fallback = await this.findOriginalFromLocalStorage(url);
+      if (fallback) return fallback;
+
+      // Last-resort fallback: fetch the content live using the configured fetcher
+      try {
+        const fetcher = (this.orchestrator as any)?.contentFetcher;
+        if (fetcher && typeof fetcher.fetch === 'function') {
+          const fetched = await fetcher.fetch(url, { maxSize: 100 * 1024 * 1024, timeout: 30000 });
+          if (fetched?.content) {
+            return Buffer.isBuffer(fetched.content)
+              ? fetched.content
+              : Buffer.from(fetched.content);
+          }
+        }
+      } catch (e) {
+        console.warn('[KB3Service] Live fetch fallback failed:', e);
+      }
+
+      return null;
     } catch (error) {
       console.error('Error getting original content:', error);
       return null;
     }
   }
 
-  async getCleanedContent(urlId: string): Promise<string | null> {
+  async getCleanedContent(idOrUrl: string): Promise<string | null> {
+    await this.ensureInitialized();
     try {
-      // Note: Orchestrator doesn't expose knowledge store directly
-      // This would need to be implemented in the core KB3 system
-      console.warn('Direct knowledge store access not supported by orchestrator');
-      return null;
+      const url = await this.resolveToUrl(idOrUrl);
+      if (!url) return null;
+
+      const urlRepository = this.orchestrator.getUrlRepository();
+      if (!urlRepository) return null;
+
+      // Fetch URL metadata and look for cleaned file path tracked during processing
+      const info = await urlRepository.getUrlInfo(url);
+      const cleanedPath = (info as any)?.metadata?.cleaningMetadata?.cleanedFilePath;
+      if (!cleanedPath) return null;
+
+      const fs = await import('fs/promises');
+      const buf = await fs.readFile(cleanedPath);
+      return buf.toString('utf-8');
     } catch (error) {
       console.error('Error getting cleaned content:', error);
+      // Final fallback: read from knowledge_entries table
+      try {
+        const sqlite3 = require('sqlite3');
+        const path = require('path');
+        const dbPath = path.join(process.cwd(), 'data', 'unified.db');
+        const db = new sqlite3.Database(dbPath);
+
+        // Resolve ID to URL first, before the Promise
+        const resolvedUrl = await this.resolveToUrl(idOrUrl);
+
+        const text: string | null = await new Promise((resolve) => {
+          db.get(
+            "SELECT text FROM knowledge_entries WHERE url = ? ORDER BY created_at DESC LIMIT 1",
+            [resolvedUrl],
+            (err: any, row: any) => {
+              db.close();
+              if (err || !row) resolve(null); else resolve(row.text);
+            }
+          );
+        });
+        return text || null;
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  // Return basic metadata for a URL's content (original + cleaned if available)
+  async getContentMetadata(idOrUrl: string): Promise<any> {
+    await this.ensureInitialized();
+    try {
+      const url = await this.resolveToUrl(idOrUrl);
+      if (!url) return null;
+
+      const originalRepo = this.orchestrator.getOriginalFileRepository();
+      const urlRepository = this.orchestrator.getUrlRepository();
+
+      const files = originalRepo ? await originalRepo.getOriginalFilesByUrl(url) : [];
+      const latest = files && files.length > 0 ? files[0] : null;
+
+      const info = urlRepository ? await urlRepository.getUrlInfo(url) : null;
+      const cleanedPath = (info as any)?.metadata?.cleaningMetadata?.cleanedFilePath;
+
+      return {
+        url,
+        original: latest
+          ? {
+              id: latest.id,
+              path: latest.filePath,
+              size: latest.size,
+              mimeType: latest.mimeType,
+              createdAt: latest.createdAt
+            }
+          : null,
+        cleaned: cleanedPath || null
+      };
+    } catch (error) {
+      console.error('Error getting content metadata:', error);
       return null;
     }
+  }
+
+  // Reprocess a URL (id or URL) with optional options
+  async reprocessUrl(idOrUrl: string, options?: any): Promise<any> {
+    await this.ensureInitialized();
+    const urls = await this.resolveUrlsFromIds([idOrUrl]);
+    if (urls.length === 0) {
+      throw new Error(`Could not resolve ID to URL: ${idOrUrl}`);
+    }
+    return this.orchestrator.processUrl(urls[0], options);
   }
 
   // Statistics
@@ -1156,8 +1542,8 @@ export class KB3Service extends EventEmitter {
 
       return {
         totalUrls: urls.length,
-        processedUrls: processingStats.successful || urls.filter(u => u.status === 'completed').length,
-        failedUrls: processingStats.failed || urls.filter(u => u.status === 'failed').length,
+        processedUrls: processingStats.successful || urls.filter((u: any) => u.status === 'completed').length,
+        failedUrls: processingStats.failed || urls.filter((u: any) => u.status === 'failed').length,
         totalSize: 0, // Not available from orchestrator
         tags: tags.length
       };
@@ -1304,6 +1690,11 @@ export class KB3Service extends EventEmitter {
       return;
     }
 
+    // If something is currently processing, let it finish before picking another
+    if (this.processingItems.size > 0) {
+      return;
+    }
+
     try {
       // Get pending URLs from repository
       const urlRepository = this.orchestrator.getUrlRepository();
@@ -1311,13 +1702,41 @@ export class KB3Service extends EventEmitter {
         return;
       }
 
-      const pendingUrls = await urlRepository.list({ status: 'pending' });
+      // CRITICAL FIX: Use UrlStatus enum, not string
+      const pendingUrls = await urlRepository.list({ status: UrlStatus.PENDING });
       if (pendingUrls.length === 0) {
         return;
       }
 
-      // Process the first pending URL
-      const urlToProcess = pendingUrls[0];
+      // Skip if URL is already queued (extra safety)
+      const urlToProcess = pendingUrls.find(u => !this.queuedUrls.has(u.url));
+      if (!urlToProcess) {
+        return; // Nothing new to process
+      }
+
+      // Mark as queued
+      this.queuedUrls.add(urlToProcess.url);
+
+      // Preemptively mark URL as processing in the database so the next tick won't pick it again
+      try {
+        const repo = this.orchestrator.getUrlRepository?.();
+        console.log('[KB3Service] Got repository:', !!repo);
+        if (repo) {
+          const info = await repo.getUrlInfo(urlToProcess.url);
+          console.log('[KB3Service] URL info for', urlToProcess.url, ':', info ? `ID=${info.id}, Status=${info.status}` : 'Not found');
+          if (info?.id) {
+            console.log('[KB3Service] Calling updateStatus with ID:', info.id, 'Status:', UrlStatus.PROCESSING);
+            await repo.updateStatus(info.id, UrlStatus.PROCESSING);
+            console.log('[KB3Service] Successfully marked URL as processing');
+          } else {
+            console.error('[KB3Service] No ID found for URL:', urlToProcess.url);
+          }
+        } else {
+          console.error('[KB3Service] Repository not available');
+        }
+      } catch (e) {
+        console.warn('[KB3Service] Could not pre-mark URL as processing:', urlToProcess.url, e);
+      }
 
       // Add to processing items
       this.processingItems.set(urlToProcess.url, {
@@ -1349,6 +1768,10 @@ export class KB3Service extends EventEmitter {
         }
 
         this.emit('queue:processed', { url: urlToProcess.url, result });
+
+        // Remove from maps/sets after completion
+        this.processingItems.delete(urlToProcess.url);
+        this.queuedUrls.delete(urlToProcess.url);
       } catch (error) {
         // Update processing item with error
         const item = this.processingItems.get(urlToProcess.url);
@@ -1359,6 +1782,9 @@ export class KB3Service extends EventEmitter {
         }
 
         this.emit('queue:error', { url: urlToProcess.url, error });
+      } finally {
+        // Ensure URL is unblocked even if error occurs
+        this.queuedUrls.delete(urlToProcess.url);
       }
     } catch (error) {
       console.error('Error processing queue:', error);
@@ -1369,19 +1795,46 @@ export class KB3Service extends EventEmitter {
   async getQueueStatus(): Promise<any> {
     await this.ensureInitialized();
 
-    const queueArray = Array.from(this.processingItems.values());
+    // Get URL repository to fetch actual counts from database
+    const urlRepository = this.orchestrator.getUrlRepository();
+    
+    // Get counts from database by querying each status separately (more efficient)
+    let pendingCount = 0;
+    let processingCount = 0;
+    let completedCount = 0;
+    let failedCount = 0;
+    
+    if (urlRepository) {
+      try {
+        // Query each status separately with limit 0 to just get counts
+        const [pending, processing, completed, failed] = await Promise.all([
+          urlRepository.list({ status: UrlStatus.PENDING }),
+          urlRepository.list({ status: UrlStatus.PROCESSING }),
+          urlRepository.list({ status: UrlStatus.COMPLETED }),
+          urlRepository.list({ status: UrlStatus.FAILED })
+        ]);
+        
+        pendingCount = pending.length;
+        processingCount = processing.length;
+        completedCount = completed.length;
+        failedCount = failed.length;
+      } catch (error) {
+        console.error('[KB3Service] Error getting URL counts:', error);
+      }
+    }
 
-    // Ensure queue is always a valid array
-    const queue = Array.isArray(queueArray) ? queueArray : [];
+    // Get current processing items for the queue display
+    const queueArray = Array.from(this.processingItems.values());
+    const activeQueue = Array.isArray(queueArray) ? queueArray : [];
 
     return {
       isProcessing: this.isQueueProcessing,
-      queue: queue,
+      queue: activeQueue,
       stats: {
-        pending: queue.filter(i => i?.status === 'pending').length,
-        processing: queue.filter(i => i?.status === 'processing').length,
-        completed: queue.filter(i => i?.status === 'completed').length,
-        failed: queue.filter(i => i?.status === 'failed').length
+        pending: pendingCount,
+        processing: processingCount,
+        completed: completedCount,
+        failed: failedCount
       }
     };
   }

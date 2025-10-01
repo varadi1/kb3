@@ -54,31 +54,30 @@ function safeCountByStatus(items: unknown, status: string): number {
 export function ProcessingQueue() {
   const [queue, setQueue] = useState<ProcessingItem[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const [queueStats, setQueueStats] = useState({
+    pending: 0,
+    processing: 0,
+    completed: 0,
+    failed: 0
+  })
 
-  const { fetchQueue, startProcessing, stopProcessing, retryItem, clearCompleted } = useKb3Store()
+  const { fetchQueue, fetchStats, startProcessing, stopProcessing, retryItem, clearCompleted } = useKb3Store()
   const { toast } = useToast()
 
-  // Memoize queue statistics to prevent unnecessary recalculations
-  const queueStats = useMemo(() => {
-    // Extra safety check
-    const safeQueue = Array.isArray(queue) ? queue : []
-    return {
-      pending: safeCountByStatus(safeQueue, 'pending'),
-      processing: safeCountByStatus(safeQueue, 'processing'),
-      completed: safeCountByStatus(safeQueue, 'completed'),
-      failed: safeCountByStatus(safeQueue, 'failed'),
-    }
-  }, [queue])
-
   useEffect(() => {
-    loadQueue()
-    const interval = setInterval(loadQueue, 2000) // Poll every 2 seconds
+    loadQueueData()
+    const interval = setInterval(loadQueueData, 2000) // Poll every 2 seconds
     return () => clearInterval(interval)
   }, [])
 
-  const loadQueue = async () => {
+  const loadQueueData = async () => {
     try {
-      const items = await fetchQueue()
+      // Fetch both queue items and statistics
+      const [items, stats] = await Promise.all([
+        fetchQueue(),
+        fetchStats()
+      ])
+      
       // Ensure items is an array and filter out any non-object items
       const validItems = Array.isArray(items)
         ? items.filter(item =>
@@ -91,8 +90,18 @@ export function ProcessingQueue() {
         : []
       setQueue(validItems)
       setIsProcessing(validItems.some(item => item?.status === 'processing'))
+      
+      // Update queue stats from the API response
+      if (stats) {
+        setQueueStats({
+          pending: stats.pending || 0,
+          processing: stats.processing || 0,
+          completed: stats.completed || 0,
+          failed: stats.failed || 0
+        })
+      }
     } catch (error) {
-      console.error('Failed to load queue:', error)
+      console.error('Failed to load queue data:', error)
       setQueue([]) // Always set to array on error
     }
   }
@@ -134,7 +143,7 @@ export function ProcessingQueue() {
   const handleRetry = async (id: string) => {
     try {
       await retryItem(id)
-      await loadQueue()
+      await loadQueueData()
       toast({
         title: 'Retry scheduled',
         description: 'Item has been queued for retry',
@@ -151,7 +160,7 @@ export function ProcessingQueue() {
   const handleClearCompleted = async () => {
     try {
       await clearCompleted()
-      await loadQueue()
+      await loadQueueData()
       toast({
         title: 'Cleared',
         description: 'Completed items have been cleared',

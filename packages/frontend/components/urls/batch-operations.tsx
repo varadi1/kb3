@@ -174,7 +174,13 @@ export function BatchOperationsPanel() {
   const handleProcessUrls = async () => {
     setIsProcessing(true)
     try {
+      // Get selected URL IDs (these are UUIDs from the database)
+      // Backend will automatically resolve UUIDs to actual URLs
       const urlIds = Array.from(selectedUrls)
+
+      console.log(`[BatchOperations] Processing ${urlIds.length} URLs`);
+      console.log(`[BatchOperations] First ID: ${urlIds[0]}`);
+
       await processUrls(urlIds)
 
       toast({

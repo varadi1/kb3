@@ -9,6 +9,22 @@ npm run test:solid
 
 npm run test
 
+🚀 Running It
+
+cd packages/frontend
+
+# Make sure backend and frontend are running
+# Backend: cd packages/backend && npm run dev (port 4000)
+# Frontend: cd packages/frontend && npm run dev (port 3000)
+
+# Run the test
+npx playwright test comprehensive-processing-pipeline.spec.ts --project=chromium
+
+# Run with UI for debugging
+npx playwright test comprehensive-processing-pipeline.spec.ts --ui
+
+The test will process all URLs in your system and give you a complete picture of what's working and what's
+broken!
 
 
 Test Commands Available:

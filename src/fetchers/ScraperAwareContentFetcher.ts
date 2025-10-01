@@ -48,8 +48,20 @@ export class ScraperAwareContentFetcher implements IContentFetcher {
   }
 
   async fetch(url: string, options?: FetchOptions): Promise<FetchedContent> {
-    // Select appropriate scraper
-    const scraper = this.scraperSelector.selectScraper(url);
+    // Prefer per-URL configured scraper if specified
+    let scraper = null as IScraper | null;
+    const urlParams = this.parameterManager.getParameters(url) as any;
+    if (urlParams?.scraperType) {
+      const forced = this.scraperRegistry.get(urlParams.scraperType);
+      if (forced && forced.canHandle(url)) {
+        scraper = forced;
+      }
+    }
+
+    // Otherwise, select appropriate scraper by rules/registry
+    if (!scraper) {
+      scraper = this.scraperSelector.selectScraper(url);
+    }
 
     if (!scraper) {
       // No scraper could handle this URL

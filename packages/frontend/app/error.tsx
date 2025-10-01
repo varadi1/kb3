@@ -7,7 +7,7 @@ export default function Error({
   error,
   reset,
 }: {
-  error: Error & { digest?: string }
+  error: any  // Changed from Error to any to handle non-Error objects
   reset: () => void
 }) {
   useEffect(() => {
@@ -16,7 +16,7 @@ export default function Error({
       console.error('Application error:', error.message)
     } else if (typeof error === 'object' && error !== null) {
       // Don't log objects directly to avoid React rendering errors
-      console.error('Application error: Object-based error detected')
+      console.error('Application error: Object-based error detected', error)
     } else {
       console.error('Application error:', String(error) || 'Unknown error')
     }
