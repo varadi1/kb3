@@ -228,12 +228,12 @@ export function EditUrlDialog({ url, open, onOpenChange }: EditUrlDialogProps) {
   ]
 
   const availableCleaners = [
-    { value: 'sanitizehtml', label: 'Sanitize HTML', description: 'Remove dangerous HTML elements' },
+    { value: 'sanitize-html', label: 'Sanitize HTML', description: 'Remove dangerous HTML elements' },
     { value: 'xss', label: 'XSS Cleaner', description: 'Prevent XSS attacks' },
     { value: 'voca', label: 'Voca', description: 'Text normalization' },
     { value: 'remark', label: 'Remark', description: 'Markdown processing' },
     { value: 'readability', label: 'Readability', description: 'Extract main content' },
-    { value: 'stringjs', label: 'StringJS', description: 'String manipulation' }
+    { value: 'string-js', label: 'StringJS', description: 'String manipulation' }
   ]
 
   const handleCleanerToggle = (cleanerValue: string, checked: boolean) => {

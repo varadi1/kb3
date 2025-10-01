@@ -607,6 +607,39 @@ interface IUrlRepository {
 
 ---
 
+### [CLEANERS001]: URL Cleaners Not Persisting After Edit
+**Tags**: `#persistence` `#cleaners` `#ui-backend-sync`
+**Success**: 1/1 (100%)
+
+#### Problem
+- Editing a URL to assign cleaners shows success toast, but the URLs table still displays "None" under Cleaners.
+
+#### Root Cause
+- Backend migrated to using `scraper_parameters` (ParameterStorageService), which does not store a `cleaners` field. The previous `url_parameters` table included `cleaners`.
+- getUrlParameters() only read cleaners from processing metadata (`cleaningMetadata.cleanersUsed`) or a non-existent `info.cleaners`, so newly configured cleaners were never reflected.
+
+#### Solution
+1. Persist configured cleaners in URL metadata under `configuredCleaners` when saving parameters:
+   - In KB3Service.setUrlParameters(), after saving to ParameterStorageService, also call `urlRepository.updateMetadata(id, { configuredCleaners })`.
+2. Read cleaners from URL metadata in getUrlParameters():
+   - Prefer `metadata.configuredCleaners`, fall back to `metadata.cleaners`, then `cleaningMetadata.cleanersUsed`.
+3. Normalize cleaner names between UI and registry (e.g., `sanitize-html`, `string-js`).
+
+#### Evidence/Diagnosis
+- Observed success response from PUT /api/urls/:id but `cleaners` missing in subsequent GET /api/urls.
+- Verified ParameterStorageService schema lacks cleaners; URL repository metadata confirmed not storing configured cleaners.
+- After fix, GET /api/urls returns cleaners and UI displays them.
+
+#### Prevention
+- Keep a single source of truth for per-URL settings; when using ParameterStorageService, mirror non-supported fields into URL metadata.
+- Add unit tests asserting getUrlParameters returns configured cleaners.
+
+#### Files Modified
+- `packages/backend/src/services/kb3Service.ts` (setUrlParameters, getUrlParameters, processUrl normalization)
+- `packages/frontend/components/urls/edit-url-dialog.tsx` (normalized cleaner values)
+
+---
+
 ## 📝 Best Practices
 
 ### Quick Diagnostics

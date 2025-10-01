@@ -46,6 +46,11 @@ export class KB3Service extends EventEmitter {
   private processingItems: Map<string, any> = new Map(); // Track items being processed
   private queuedUrls: Set<string> = new Set(); // Prevent duplicate queue picks
 
+  // Consistent path to unified DB used across service
+  private readonly dbPath: string = path.join(process.cwd(), 'data', 'unified.db');
+  // Persistent parameter storage (scraper_parameters)
+  private parameterStorage: any;
+
   private constructor() {
     super();
 
@@ -54,10 +59,17 @@ export class KB3Service extends EventEmitter {
       storage: {
         unified: {
           enabled: true,
-          dbPath: path.join(process.cwd(), 'data', 'unified.db'),
+          dbPath: this.dbPath,
           enableWAL: true,
           enableForeignKeys: true,
           autoMigrate: true
+        },
+        fileStorage: {
+          basePath: path.join(process.cwd(), 'data', 'files')
+        },
+        processedFileStore: {
+          enabled: true,
+          type: 'sql'
         }
       },
       processing: {
@@ -110,9 +122,13 @@ export class KB3Service extends EventEmitter {
   }
 
   private async initialize(): Promise<void> {
-    // Initialize global config persistence
-    const dbPath = path.join(process.cwd(), 'data', 'unified.db');
-    this.globalConfigPersistence = new SqlGlobalConfigPersistence(dbPath);
+    // Initialize global config persistence using unified DB
+    this.globalConfigPersistence = new SqlGlobalConfigPersistence(this.dbPath);
+
+    // Initialize parameter storage service (uses same DB)
+    const { ParameterStorageService } = await import('./parameterStorageService');
+    this.parameterStorage = new ParameterStorageService(this.dbPath);
+    await this.parameterStorage.initialize();
 
     // Load saved configuration from database
     const savedConfig = await this.globalConfigPersistence.loadAllConfig();
@@ -148,6 +164,9 @@ export class KB3Service extends EventEmitter {
     this.validateScraperSystem();
 
     this.setupEventHandlers();
+
+    // Reset any lingering 'processing' statuses from unclean shutdowns
+    await this.resetStuckProcessingStatuses();
   }
 
   /**
@@ -455,15 +474,15 @@ export class KB3Service extends EventEmitter {
       try {
         const params = await this.getUrlParameters(url);
         if (params?.cleaners && params.cleaners.length > 0) {
+          const normalize = (n: string) => (n === 'sanitizehtml' ? 'sanitize-html' : n === 'stringjs' ? 'string-js' : n);
           mergedOptions.textCleaning = {
             ...(mergedOptions.textCleaning || {}),
-            cleanerNames: params.cleaners,
+            cleanerNames: params.cleaners.map(normalize),
             url,
             autoSelect: false,
             storeMetadata: true,
-            // We don't assume processed file storage is enabled; cleaning text is still produced
-            saveCleanedFile: false
-          };
+            saveCleanedFile: true
+          } as any;
         }
       } catch {}
 
@@ -687,57 +706,43 @@ export class KB3Service extends EventEmitter {
   async setUrlParameters(url: string, parameters: UrlParameters): Promise<void> {
     await this.ensureInitialized();
 
-    // Save directly to database
-    const sqlite3 = require('sqlite3');
-    const path = require('path');
-    const dbPath = path.join(__dirname, '..', '..', '..', '..', 'data', 'unified.db');
-    const db = new sqlite3.Database(dbPath);
-
-    await new Promise<void>((resolve, reject) => {
-      // First, delete any existing parameters for this URL
-      db.run('DELETE FROM url_parameters WHERE url = ?', [url], (deleteErr: any) => {
-        if (deleteErr) {
-          db.close();
-          reject(deleteErr);
-          return;
-        }
-
-        // Now insert the new parameters
-        const cleanersJson = JSON.stringify(parameters.cleaners || []);
-        const parametersJson = JSON.stringify(parameters.parameters || {});
-
-        db.run(
-          `INSERT INTO url_parameters (url, scraper_type, cleaners, priority, parameters, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
-          [
-            url,
-            parameters.scraperType || 'default',
-            cleanersJson,
-            parameters.priority || 10,
-            parametersJson
-          ],
-          (insertErr: any) => {
-            db.close();
-            if (insertErr) {
-              reject(insertErr);
-            } else {
-              console.log(`[DEBUG] Saved parameters to DB for URL: ${url}`);
-              resolve();
-            }
-          }
-        );
+    // Persist via parameter storage (scraper_parameters in unified DB)
+    try {
+      await this.parameterStorage.saveParameters(url, {
+        scraperType: parameters.scraperType || 'default',
+        parameters: parameters.parameters || {},
+        priority: parameters.priority || 10,
+        enabled: true
       });
-    });
+    } catch (err) {
+      console.error('[KB3Service] Failed to save scraper parameters:', err);
+    }
 
-    // Also set in fetcher for immediate use (if available)
+    // Persist configured cleaners alongside URL metadata (since parameter storage doesn't store cleaners)
+    try {
+      if (parameters.cleaners && parameters.cleaners.length > 0) {
+        const repo = this.orchestrator.getUrlRepository?.();
+        if (repo) {
+          const info = await repo.getUrlInfo(url);
+          if (info?.id) {
+            await repo.updateMetadata(info.id, {
+              configuredCleaners: parameters.cleaners
+            });
+          }
+        }
+      }
+    } catch (metaErr) {
+      console.warn('[KB3Service] Failed to persist configured cleaners into URL metadata:', metaErr);
+    }
+
+    // Also set in fetcher for immediate effect
     try {
       const fetcher = (this.orchestrator as any).contentFetcher;
       if (fetcher && 'setUrlParameters' in fetcher) {
-        await (fetcher as any).setUrlParameters(url, parameters);
+        await (fetcher as any).setUrlParameters(url, parameters as any);
       }
     } catch (error) {
-      // Fetcher update failed, but DB save succeeded
-      console.warn('Failed to update fetcher, but DB save succeeded:', error);
+      console.warn('Failed to update fetcher with parameters:', error);
     }
 
     this.emit('config:updated', { url, parameters });
@@ -747,62 +752,43 @@ export class KB3Service extends EventEmitter {
     await this.ensureInitialized();
 
     try {
-      // Read directly from the database
-      const sqlite3 = require('sqlite3');
-      const path = require('path');
-      // Backend runs from packages/backend, so need to go up 2 directories
-      const dbPath = path.join(__dirname, '..', '..', '..', '..', 'data', 'unified.db');
-      console.log(`[DEBUG] Using database path: ${dbPath}`);
-      const db = new sqlite3.Database(dbPath);
+      // Load from parameter storage first
+      const stored = await this.parameterStorage.getParameters(url).catch(() => null);
+      let scraperType: string | undefined;
+      let parameters: Record<string, any> | undefined;
+      let priority: number | undefined;
+      if (stored) {
+        scraperType = stored.scraperType;
+        parameters = stored.parameters;
+        priority = stored.priority;
+      }
 
-      return new Promise((resolve) => {
-        db.get(
-          'SELECT * FROM url_parameters WHERE url = ?',
-          [url],
-          (err: any, row: any) => {
-            db.close();
+      // Attempt to discover cleaners from URL metadata (if stored)
+      let cleaners: string[] = [];
+      try {
+        const repo = this.orchestrator.getUrlRepository?.();
+        const info = repo ? await repo.getUrlInfo(url) : null;
+        const used = (info as any)?.metadata?.cleaningMetadata?.cleanersUsed;
+        const configured = (info as any)?.metadata?.configuredCleaners || (info as any)?.metadata?.cleaners;
+        if (Array.isArray(configured) && configured.length > 0) {
+          cleaners = configured;
+        } else if (Array.isArray(used)) {
+          cleaners = used;
+        }
+      } catch {}
 
-            if (err) {
-              console.error(`[DEBUG] Database error for URL ${url}:`, err);
-              resolve(null);
-              return;
-            }
+      if (!scraperType && !parameters && cleaners.length === 0) {
+        return null;
+      }
 
-            if (!row) {
-              console.log(`[DEBUG] No parameters found in DB for URL: ${url}`);
-              resolve(null);
-              return;
-            }
-
-            console.log(`[DEBUG] Found parameters in DB for URL ${url}:`, row);
-
-            // Parse cleaners if it's a JSON string
-            let cleaners = [];
-            try {
-              cleaners = typeof row.cleaners === 'string' ? JSON.parse(row.cleaners) : row.cleaners || [];
-            } catch (e) {
-              cleaners = [];
-            }
-
-            // Parse parameters if it's a JSON string
-            let parameters = {};
-            try {
-              parameters = typeof row.parameters === 'string' ? JSON.parse(row.parameters) : row.parameters || {};
-            } catch (e) {
-              parameters = {};
-            }
-
-            resolve({
-              scraperType: row.scraper_type || 'http',
-              cleaners: cleaners,
-              parameters: parameters,
-              priority: row.priority || 10
-            });
-          }
-        );
-      });
+      return {
+        scraperType: scraperType || 'default',
+        parameters: parameters || {},
+        cleaners,
+        priority: priority || 10
+      };
     } catch (error) {
-      console.error('Error reading parameters from database:', error);
+      console.error('Error reading parameters:', error);
       return null;
     }
   }
@@ -1441,33 +1427,49 @@ export class KB3Service extends EventEmitter {
       const url = await this.resolveToUrl(idOrUrl);
       if (!url) return null;
 
-      const urlRepository = this.orchestrator.getUrlRepository();
-      if (!urlRepository) return null;
-
-      // Fetch URL metadata and look for cleaned file path tracked during processing
-      const info = await urlRepository.getUrlInfo(url);
-      const cleanedPath = (info as any)?.metadata?.cleaningMetadata?.cleanedFilePath;
-      if (!cleanedPath) return null;
-
-      const fs = await import('fs/promises');
-      const buf = await fs.readFile(cleanedPath);
-      return buf.toString('utf-8');
-    } catch (error) {
-      console.error('Error getting cleaned content:', error);
-      // Final fallback: read from knowledge_entries table
+      // 1) Try processed_files database (preferred)
       try {
         const sqlite3 = require('sqlite3');
-        const path = require('path');
-        const dbPath = path.join(process.cwd(), 'data', 'unified.db');
-        const db = new sqlite3.Database(dbPath);
+        const p = require('path');
+        const pdbPath = p.join(process.cwd(), 'data', 'processed_files.db');
+        const pdb = new sqlite3.Database(pdbPath);
+        const row: any = await new Promise((resolve) => {
+          pdb.get(
+            "SELECT file_path FROM processed_files WHERE url = ? AND processing_type = 'cleaned' ORDER BY created_at DESC LIMIT 1",
+            [url],
+            (err: any, r: any) => {
+              pdb.close();
+              resolve(err ? null : r);
+            }
+          );
+        });
+        if (row?.file_path) {
+          const fs = await import('fs/promises');
+          const buf = await fs.readFile(row.file_path);
+          return buf.toString('utf-8');
+        }
+      } catch {}
 
-        // Resolve ID to URL first, before the Promise
-        const resolvedUrl = await this.resolveToUrl(idOrUrl);
+      // 2) Legacy metadata location
+      try {
+        const urlRepository = this.orchestrator.getUrlRepository();
+        const info = urlRepository ? await urlRepository.getUrlInfo(url) : null;
+        const cleanedPath = (info as any)?.metadata?.cleaningMetadata?.cleanedFilePath;
+        if (cleanedPath) {
+          const fs = await import('fs/promises');
+          const buf = await fs.readFile(cleanedPath);
+          return buf.toString('utf-8');
+        }
+      } catch {}
 
+      // 3) Fallback to knowledge_entries text
+      try {
+        const sqlite3 = require('sqlite3');
+        const db = new sqlite3.Database(this.dbPath);
         const text: string | null = await new Promise((resolve) => {
           db.get(
             "SELECT text FROM knowledge_entries WHERE url = ? ORDER BY created_at DESC LIMIT 1",
-            [resolvedUrl],
+            [url],
             (err: any, row: any) => {
               db.close();
               if (err || !row) resolve(null); else resolve(row.text);
@@ -1475,9 +1477,12 @@ export class KB3Service extends EventEmitter {
           );
         });
         return text || null;
-      } catch {
-        return null;
-      }
+      } catch {}
+
+      return null;
+    } catch (error) {
+      console.error('Error getting cleaned content:', error);
+      return null;
     }
   }
 
@@ -1837,6 +1842,22 @@ export class KB3Service extends EventEmitter {
         failed: failedCount
       }
     };
+  }
+
+  private async resetStuckProcessingStatuses(): Promise<void> {
+    try {
+      const repo = this.orchestrator.getUrlRepository?.();
+      if (!repo) return;
+      const stuck = await repo.list({ status: UrlStatus.PROCESSING });
+      for (const u of stuck) {
+        await repo.updateStatus(u.id, UrlStatus.PENDING, 'Reset after unclean shutdown');
+      }
+      if (stuck.length > 0) {
+        console.log(`[KB3Service] Reset ${stuck.length} stuck processing URL(s) to pending`);
+      }
+    } catch (e) {
+      console.warn('[KB3Service] Failed to reset stuck statuses:', e);
+    }
   }
 
   // Cleanup
